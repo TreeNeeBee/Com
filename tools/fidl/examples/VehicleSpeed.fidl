@@ -1,0 +1,98 @@
+// VehicleSpeed.fidl - Vehicle speed interface example
+// Demonstrates property access, notifications, and methods
+
+package com.lightap.vehicle
+
+typeCollection VehicleTypes {
+    version { major 1 minor 0 }
+    
+    // Speed unit enumeration
+    enumeration SpeedUnit {
+        KMH = 0    // Kilometers per hour
+        MPH = 1    // Miles per hour
+        MS = 2     // Meters per second
+    }
+    
+    // Speed data structure
+    struct SpeedData {
+        Float currentSpeed
+        Float averageSpeed
+        Float maximumSpeed
+        UInt32 timestamp
+        SpeedUnit unit
+    }
+    
+    // Error codes
+    enumeration SpeedErrorCode {
+        NO_ERROR = 0
+        SENSOR_FAULT = 1
+        OUT_OF_RANGE = 2
+        CALIBRATION_REQUIRED = 3
+    }
+}
+
+// Vehicle Speed Service
+interface VehicleSpeed {
+    version { major 1 minor 0 }
+    
+    // Method: Get current speed
+    method getCurrentSpeed {
+        out {
+            VehicleTypes.SpeedData speedData
+            VehicleTypes.SpeedErrorCode errorCode
+        }
+    }
+    
+    // Method: Reset statistics
+    method resetStatistics {
+        out {
+            Boolean success
+        }
+    }
+    
+    // Method: Set speed unit
+    method setSpeedUnit {
+        in {
+            VehicleTypes.SpeedUnit unit
+        }
+        out {
+            Boolean success
+        }
+    }
+    
+    // Attribute: Current speed (read-only, notifies on change)
+    attribute Float currentSpeed readonly
+    
+    // Attribute: Average speed (read-only, notifies on change)
+    attribute Float averageSpeed readonly
+    
+    // Attribute: Speed unit preference (read/write)
+    attribute VehicleTypes.SpeedUnit speedUnit
+    
+    // Attribute: Maximum recorded speed (read-only)
+    attribute Float maxSpeed readonly
+    
+    // Broadcast: Speed changed significantly
+    broadcast speedChanged {
+        out {
+            VehicleTypes.SpeedData newSpeed
+        }
+    }
+    
+    // Broadcast: Speed limit warning
+    broadcast speedLimitWarning {
+        out {
+            Float currentSpeed
+            Float speedLimit
+            String warningMessage
+        }
+    }
+    
+    // Broadcast: Sensor error
+    broadcast sensorError {
+        out {
+            VehicleTypes.SpeedErrorCode errorCode
+            String errorDescription
+        }
+    }
+}

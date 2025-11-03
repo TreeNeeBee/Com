@@ -1,0 +1,114 @@
+// Radar.fidl - Radar object detection interface
+// Demonstrates broadcasts/events for sensor data streaming
+
+package com.lightap.sensor
+
+typeCollection RadarTypes {
+    version { major 1 minor 0 }
+    
+    // Object classification
+    enumeration ObjectType {
+        UNKNOWN = 0
+        VEHICLE = 1
+        PEDESTRIAN = 2
+        CYCLIST = 3
+        ANIMAL = 4
+        STATIC_OBJECT = 5
+    }
+    
+    // Detection confidence level
+    enumeration ConfidenceLevel {
+        LOW = 0
+        MEDIUM = 1
+        HIGH = 2
+        VERY_HIGH = 3
+    }
+    
+    // Detected object data
+    struct DetectedObject {
+        UInt32 objectId
+        ObjectType objectType
+        Float distance        // meters
+        Float relativeSpeed   // m/s
+        Float angle           // degrees (-90 to +90)
+        Float width           // meters
+        Float height          // meters
+        ConfidenceLevel confidence
+        UInt64 timestamp      // microseconds since epoch
+    }
+    
+    // Radar status
+    struct RadarStatus {
+        Boolean operational
+        UInt32 detectionCount
+        Float maxRange        // meters
+        Float fieldOfView     // degrees
+        UInt32 updateRate     // Hz
+    }
+}
+
+// Radar Sensor Interface
+interface Radar {
+    version { major 1 minor 0 }
+    
+    // Method: Get radar status
+    method getStatus {
+        out {
+            RadarTypes.RadarStatus status
+        }
+    }
+    
+    // Method: Set detection parameters
+    method setDetectionParameters {
+        in {
+            Float maxRange
+            Float minDistance
+            UInt32 updateRate
+        }
+        out {
+            Boolean success
+        }
+    }
+    
+    // Method: Start/stop detection
+    method setOperationMode {
+        in {
+            Boolean enable
+        }
+        out {
+            Boolean success
+        }
+    }
+    
+    // Attribute: Radar operational state (read-only)
+    attribute Boolean isOperational readonly
+    
+    // Attribute: Detection count (read-only, updated frequently)
+    attribute UInt32 detectionCount readonly
+    
+    // Attribute: Maximum detection range (read/write)
+    attribute Float maxRange
+    
+    // Broadcast: Object detected (high-frequency event)
+    broadcast objectDetected {
+        out {
+            RadarTypes.DetectedObject object
+        }
+    }
+    
+    // Broadcast: Object list updated (periodic, all tracked objects)
+    broadcast objectListUpdated {
+        out {
+            RadarTypes.DetectedObject[] objects
+            UInt32 frameNumber
+        }
+    }
+    
+    // Broadcast: Radar error/warning
+    broadcast radarWarning {
+        out {
+            String warningMessage
+            UInt32 warningCode
+        }
+    }
+}

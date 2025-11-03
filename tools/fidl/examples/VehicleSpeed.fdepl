@@ -1,0 +1,99 @@
+// SOME/IP Deployment Specification for Vehicle Speed Service
+
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOME_IP_deployment_spec.fdepl"
+import "../fidl/examples/VehicleSpeed.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface com.lightap.example.VehicleSpeed {
+    SomeIpServiceID = 4661  // 0x1235
+
+    // Methods
+    method getCurrentSpeed {
+        SomeIpMethodID = 1
+        SomeIpReliable = true
+    }
+
+    method resetStatistics {
+        SomeIpMethodID = 2
+        SomeIpReliable = true
+    }
+
+    method setSpeedUnit {
+        SomeIpMethodID = 3
+        SomeIpReliable = true
+    }
+
+    // Attributes
+    attribute currentSpeed {
+        SomeIpGetterID = 10
+        SomeIpNotifierID = 11
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    attribute averageSpeed {
+        SomeIpGetterID = 12
+        SomeIpNotifierID = 13
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    attribute speedUnit {
+        SomeIpGetterID = 14
+        SomeIpSetterID = 15
+        SomeIpNotifierID = 16
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    attribute maxSpeed {
+        SomeIpGetterID = 17
+        SomeIpNotifierID = 18
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    // Broadcasts
+    broadcast speedChanged {
+        SomeIpEventID = 20
+        SomeIpEventGroups = { 1 }
+        SomeIpEventReliable = true
+    }
+
+    broadcast speedLimitWarning {
+        SomeIpEventID = 21
+        SomeIpEventGroups = { 1 }
+        SomeIpEventReliable = true
+    }
+
+    broadcast sensorError {
+        SomeIpEventID = 22
+        SomeIpEventGroups = { 1 }
+        SomeIpEventReliable = true
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for provider Service {
+    instance com.lightap.example.VehicleSpeed {
+        InstanceId = "VehicleSpeed"
+        SomeIpInstanceID = 1
+        SomeIpUnicastAddress = "127.0.0.1"
+        SomeIpReliableUnicastPort = 30511
+        SomeIpUnreliableUnicastPort = 30512
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for typeCollection com.lightap.example.VehicleTypes {
+    enumeration SpeedUnit {
+        SomeIpEnumWidth = 1
+        SomeIpEnumBitWidth = 8
+    }
+
+    enumeration SpeedErrorCode {
+        SomeIpEnumWidth = 1
+        SomeIpEnumBitWidth = 8
+    }
+
+    struct SpeedData {
+        SomeIpStructLengthWidth = 0
+    }
+}

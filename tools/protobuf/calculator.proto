@@ -1,0 +1,43 @@
+/**
+ * @file calculator.proto
+ * @brief Calculator Service Protocol Definition
+ * @details Example protobuf messages for socket-based calculator service
+ */
+
+syntax = "proto3";
+
+package lap.com.example;
+
+/**
+ * @brief Calculator request message
+ */
+message CalculateRequest {
+    double operand1 = 1;        // First operand
+    double operand2 = 2;        // Second operand
+    string operation = 3;       // Operation: "add", "subtract", "multiply", "divide"
+}
+
+/**
+ * @brief Calculator response message
+ */
+message CalculateResponse {
+    double result = 1;          // Calculation result
+    string error_message = 2;   // Error message (empty if success)
+    int32 error_code = 3;       // Error code (0 = success)
+}
+
+/**
+ * @brief Echo service request
+ */
+message EchoRequest {
+    string message = 1;         // Message to echo
+    int32 repeat_count = 2;     // Number of times to repeat
+}
+
+/**
+ * @brief Echo service response
+ */
+message EchoResponse {
+    repeated string messages = 1;  // Echoed messages
+    int32 message_count = 2;       // Total count
+}

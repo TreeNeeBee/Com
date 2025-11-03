@@ -1,0 +1,96 @@
+// SOME/IP Deployment Specification for Radar Service
+
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOME_IP_deployment_spec.fdepl"
+import "../fidl/examples/Radar.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface com.lightap.example.Radar {
+    SomeIpServiceID = 4662  // 0x1236
+
+    // Methods
+    method getStatus {
+        SomeIpMethodID = 1
+        SomeIpReliable = true
+    }
+
+    method setDetectionParameters {
+        SomeIpMethodID = 2
+        SomeIpReliable = true
+    }
+
+    method setOperationMode {
+        SomeIpMethodID = 3
+        SomeIpReliable = true
+    }
+
+    // Attributes
+    attribute isOperational {
+        SomeIpGetterID = 10
+        SomeIpNotifierID = 11
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    attribute detectionCount {
+        SomeIpGetterID = 12
+        SomeIpNotifierID = 13
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    attribute maxRange {
+        SomeIpGetterID = 14
+        SomeIpSetterID = 15
+        SomeIpNotifierID = 16
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    // Broadcasts (high-frequency events)
+    broadcast objectDetected {
+        SomeIpEventID = 20
+        SomeIpEventGroups = { 2 }  // Separate event group for high-frequency
+        SomeIpEventReliable = false  // UDP for performance
+    }
+
+    broadcast objectListUpdated {
+        SomeIpEventID = 21
+        SomeIpEventGroups = { 2 }
+        SomeIpEventReliable = false
+    }
+
+    broadcast radarWarning {
+        SomeIpEventID = 22
+        SomeIpEventGroups = { 1 }  // Critical warnings use reliable
+        SomeIpEventReliable = true
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for provider Service {
+    instance com.lightap.example.Radar {
+        InstanceId = "Radar"
+        SomeIpInstanceID = 2
+        SomeIpUnicastAddress = "127.0.0.1"
+        SomeIpReliableUnicastPort = 30513
+        SomeIpUnreliableUnicastPort = 30514
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for typeCollection com.lightap.example.RadarTypes {
+    enumeration ObjectType {
+        SomeIpEnumWidth = 1
+        SomeIpEnumBitWidth = 8
+    }
+
+    enumeration ConfidenceLevel {
+        SomeIpEnumWidth = 1
+        SomeIpEnumBitWidth = 8
+    }
+
+    struct DetectedObject {
+        SomeIpStructLengthWidth = 0
+    }
+
+    struct RadarStatus {
+        SomeIpStructLengthWidth = 0
+    }
+}

@@ -1,0 +1,81 @@
+// SOME/IP Deployment Specification for Calculator Service
+// This file maps Franca IDL interfaces to SOME/IP protocol details
+
+import "platform:/plugin/org.genivi.commonapi.someip/deployment/CommonAPI-SOME_IP_deployment_spec.fdepl"
+import "../fidl/examples/Calculator.fidl"
+
+define org.genivi.commonapi.someip.deployment for interface com.lightap.example.Calculator {
+    SomeIpServiceID = 4660  // 0x1234 in hex
+
+    // Method deployments
+    method calculate {
+        SomeIpMethodID = 1
+        SomeIpReliable = true
+    }
+
+    method calculateAsync {
+        SomeIpMethodID = 2
+        SomeIpReliable = false
+    }
+
+    // Attribute deployments
+    attribute lastResult {
+        SomeIpGetterID = 10
+        SomeIpSetterID = 11
+        SomeIpNotifierID = 12
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    attribute calculationCount {
+        SomeIpGetterID = 13
+        SomeIpNotifierID = 14
+        SomeIpNotifierEventGroups = { 1 }
+        SomeIpAttributeReliable = true
+    }
+
+    // Broadcast deployments
+    broadcast resultReady {
+        SomeIpEventID = 20
+        SomeIpEventGroups = { 1 }
+        SomeIpEventReliable = true
+    }
+
+    broadcast errorOccurred {
+        SomeIpEventID = 21
+        SomeIpEventGroups = { 1 }
+        SomeIpEventReliable = true
+    }
+}
+
+define org.genivi.commonapi.someip.deployment for provider Service {
+    instance com.lightap.example.Calculator {
+        InstanceId = "Calculator"
+        SomeIpInstanceID = 22136  // 0x5678 in hex
+        SomeIpUnicastAddress = "127.0.0.1"
+        SomeIpReliableUnicastPort = 30510
+        SomeIpUnreliableUnicastPort = 30509
+    }
+}
+
+// Type deployments for Calculator types
+define org.genivi.commonapi.someip.deployment for typeCollection com.lightap.example.CalculatorTypes {
+    
+    enumeration Operation {
+        SomeIpEnumWidth = 1  // 8-bit enum
+        SomeIpEnumBitWidth = 8
+    }
+
+    enumeration ErrorCode {
+        SomeIpEnumWidth = 1
+        SomeIpEnumBitWidth = 8
+    }
+
+    struct Request {
+        SomeIpStructLengthWidth = 0  // Fixed-length struct
+    }
+
+    struct Response {
+        SomeIpStructLengthWidth = 0
+    }
+}

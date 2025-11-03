@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package lap.com.example;
+
+// Generic field operation envelope to control field provider
+message FieldEnvelope {
+  enum Op {
+    GET = 0;
+    SET = 1;
+    SUBSCRIBE = 2;
+    UNSUBSCRIBE = 3;
+  }
+  Op op = 1;
+  bytes payload = 2; // For SET: serialized Value message. For GET/SUBSCRIBE/UNSUBSCRIBE: empty
+}
+
+// Field value response or notification envelope
+message FieldValueEnvelope {
+  bytes payload = 1; // Serialized Value message
+  string error = 2;  // Non-empty indicates error
+}
+
+// Example value message used by examples/tests
+message ValueInt {
+  int32 value = 1;
+}

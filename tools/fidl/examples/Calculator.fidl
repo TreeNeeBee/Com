@@ -1,0 +1,89 @@
+// Calculator.fidl - Example Franca IDL interface definition
+// Compatible with AUTOSAR Adaptive Platform and ARXML
+
+package com.lightap.example
+
+// Type definitions
+typeCollection CalculatorTypes {
+    version { major 1 minor 0 }
+    
+    // Operation enumeration
+    enumeration Operation {
+        ADD = 0
+        SUBTRACT = 1
+        MULTIPLY = 2
+        DIVIDE = 3
+    }
+    
+    // Error codes
+    enumeration ErrorCode {
+        NO_ERROR = 0
+        DIVISION_BY_ZERO = 1
+        INVALID_OPERATION = 2
+        OVERFLOW = 3
+    }
+    
+    // Request structure
+    struct CalculateRequest {
+        Float operand1
+        Float operand2
+        Operation operation
+    }
+    
+    // Response structure
+    struct CalculateResponse {
+        Float result
+        ErrorCode errorCode
+    }
+}
+
+// Calculator service interface
+interface Calculator {
+    version { major 1 minor 0 }
+    
+    // Synchronous method: calculate
+    method calculate {
+        in {
+            Float operand1
+            Float operand2
+            CalculatorTypes.Operation operation
+        }
+        out {
+            Float result
+            CalculatorTypes.ErrorCode errorCode
+        }
+    }
+    
+    // Asynchronous method: calculateAsync
+    method calculateAsync fireAndForget {
+        in {
+            UInt32 requestId
+            Float operand1
+            Float operand2
+            CalculatorTypes.Operation operation
+        }
+    }
+    
+    // Attribute: last result (read/write with notification)
+    attribute Float lastResult
+    
+    // Attribute: calculation count (read-only)
+    attribute UInt32 calculationCount readonly
+    
+    // Broadcast: result ready event
+    broadcast resultReady {
+        out {
+            UInt32 requestId
+            Float result
+            CalculatorTypes.ErrorCode errorCode
+        }
+    }
+    
+    // Broadcast: error occurred
+    broadcast errorOccurred {
+        out {
+            String errorMessage
+            CalculatorTypes.ErrorCode errorCode
+        }
+    }
+}
