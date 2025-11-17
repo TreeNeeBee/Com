@@ -22,7 +22,7 @@ class SomeIpConnectionManagerTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Initialize LightAP core
-        MemManager::getInstance();
+    MemoryManager::getInstance();
         LogManager::getInstance().initialize();
     }
 

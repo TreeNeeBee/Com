@@ -118,7 +118,7 @@ private:
  */
 int main(int argc, char** argv) {
     // Initialize LightAP core (required for logging)
-    MemManager::getInstance();
+    MemoryManager::getInstance();
     LogManager::getInstance().initialize();
 
     LAP_LOG_INFO("=== Calculator Service (CommonAPI) ===");

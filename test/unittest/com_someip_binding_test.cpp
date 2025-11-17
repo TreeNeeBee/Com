@@ -33,7 +33,7 @@ class SomeIpBindingTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Initialize LightAP core
-        MemManager::getInstance();
+    MemoryManager::getInstance();
         LogManager::getInstance().initialize();
         
         mockProxy_ = std::make_shared<MockProxy>();

@@ -13,7 +13,7 @@ struct CalcResp { float r; int ec; };
 class DBusEnvGuard2 {
 public:
     DBusEnvGuard2() {
-        (void)lap::core::MemManager::getInstance();
+    (void)lap::core::MemoryManager::getInstance();
         lap::log::LogManager::getInstance().initialize();
         (void)lap::com::dbus::DBusConnectionManager::GetInstance().Initialize();
     }

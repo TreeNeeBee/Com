@@ -82,7 +82,7 @@ CalculateResponse handleCalculate(const CalculateRequest& request) {
 
 int main(int argc, char* argv[]) {
     // Initialize memory manager first to avoid static destruction issues
-    (void)::lap::core::MemManager::getInstance();
+    (void)::lap::core::MemoryManager::getInstance();
     // Initialize logging (safe even without config; defaults to console)
     ::lap::log::LogManager::getInstance().initialize();
     // Register signal handlers

@@ -23,7 +23,7 @@ class DBusEnvGuard {
 public:
     DBusEnvGuard() {
         // Initialize in order: MemoryManager -> LogManager -> DBusConnectionManager
-        (void)lap::core::MemManager::getInstance();
+    (void)lap::core::MemoryManager::getInstance();
         lap::log::LogManager::getInstance().initialize();
         
         auto& mgr = lap::com::dbus::DBusConnectionManager::GetInstance();

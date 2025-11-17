@@ -142,7 +142,7 @@ void signalHandler(int signal) {
  */
 int main(int argc, char** argv) {
     // Initialize LightAP core
-    MemManager::getInstance();
+    MemoryManager::getInstance();
     LogManager::getInstance().initialize();
 
     LAP_LOG_INFO("=== Calculator Service (SOME/IP) ===");

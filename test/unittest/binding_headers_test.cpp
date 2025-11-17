@@ -57,7 +57,7 @@ TEST(BindingHeaders, ErrorCodes) {
 
 int main(int argc, char** argv) {
     // Initialize LightAP core (required for singletons)
-    MemManager::getInstance();
+    MemoryManager::getInstance();
     LogManager::getInstance().initialize();
 
     ::testing::InitGoogleTest(&argc, argv);

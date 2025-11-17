@@ -17,7 +17,7 @@ struct Speed { float cur; float avg; uint32_t ts; };
 class DBusEnvGuard3 {
 public:
     DBusEnvGuard3() {
-        (void)lap::core::MemManager::getInstance();
+    (void)lap::core::MemoryManager::getInstance();
         lap::log::LogManager::getInstance().initialize();
         (void)lap::com::dbus::DBusConnectionManager::GetInstance().Initialize();
     }
