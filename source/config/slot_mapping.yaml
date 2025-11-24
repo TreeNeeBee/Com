@@ -1,0 +1,258 @@
+# LightAP Com Module - Service Slot Mapping Configuration
+# 版本: 3.1 (零 Daemon 固定槽位架构 + YAML 统一配置)
+# 用途: 服务 ID → 固定槽位映射 + 系统配置
+# 
+# ============================================================================
+# 配置文件格式: YAML (统一配置格式)
+# ============================================================================
+# 
+# 生成方式:
+#   方式 1: 手动编辑此文件
+#   方式 2: 从 AUTOSAR ARXML 自动转换
+#           cd /path/to/LightAP/modules/Com/tools/arxml2yaml
+#           ./arxml2yaml.py -i service_manifest.arxml -o slot_mapping.yaml
+#
+# ARXML 转换示例:
+#   # 单个文件
+#   ./arxml2yaml.py -i config/services.arxml -o slot_mapping.yaml
+#   
+#   # 多个文件合并
+#   ./arxml2yaml.py -i config/*.arxml -o slot_mapping.yaml -v
+#   
+#   # 使用静态分配策略
+#   ./arxml2yaml.py -i manifest.arxml -o slot_mapping.yaml --strategy static
+#
+# ============================================================================
+
+# ============================================================================
+# 静态槽位分配 (Static Allocations)
+# ============================================================================
+# 关键服务使用固定槽位，编译期/启动时确定，零运行时查找开销
+
+slot_mapping:
+  # === 感知服务 (Perception Services, QM Level) ===
+  static_allocations:
+    - service_interface: "RadarService"
+      instance_id: 1
+      slot_index: 10
+      safety_level: QM
+      description: "前向雷达服务 (77GHz)"
+    
+    - service_interface: "RadarService"
+      instance_id: 2
+      slot_index: 11
+      safety_level: QM
+      description: "后向雷达服务"
+    
+    - service_interface: "CameraService"
+      instance_id: 1
+      slot_index: 20
+      safety_level: QM
+      description: "前置单目摄像头 (1920x1080@30fps)"
+    
+    - service_interface: "CameraService"
+      instance_id: 2
+      slot_index: 21
+      safety_level: QM
+      description: "环视摄像头 (4× 鱼眼)"
+    
+    - service_interface: "LidarService"
+      instance_id: 1
+      slot_index: 30
+      safety_level: QM
+      description: "激光雷达服务 (64线, 点云)"
+    
+    - service_interface: "UltrasonicService"
+      instance_id: 1
+      slot_index: 40
+      safety_level: QM
+      description: "超声波雷达服务 (12× 传感器)"
+    
+    # === 定位服务 (Localization Services, QM Level) ===
+    - service_interface: "GNSSService"
+      instance_id: 1
+      slot_index: 50
+      safety_level: QM
+      description: "全球导航卫星系统 (GPS/GLONASS/BeiDou)"
+    
+    - service_interface: "IMUService"
+      instance_id: 1
+      slot_index: 51
+      safety_level: QM
+      description: "惯性测量单元 (9轴)"
+    
+    - service_interface: "OdometryService"
+      instance_id: 1
+      slot_index: 52
+      safety_level: QM
+      description: "里程计服务 (轮速传感器)"
+    
+    # === 规划服务 (Planning Services, QM Level) ===
+    - service_interface: "PathPlanningService"
+      instance_id: 1
+      slot_index: 60
+      safety_level: QM
+      description: "路径规划服务"
+    
+    - service_interface: "BehaviorPlanningService"
+      instance_id: 1
+      slot_index: 61
+      safety_level: QM
+      description: "行为规划服务"
+    
+    # === 控制服务 (Control Services, ASIL-D Level) ===
+    - service_interface: "SteeringControl"
+      instance_id: 1
+      slot_index: 100
+      safety_level: ASIL-D
+      description: "转向控制服务 (关键安全服务)"
+    
+    - service_interface: "BrakeControl"
+      instance_id: 1
+      slot_index: 101
+      safety_level: ASIL-D
+      description: "制动控制服务 (关键安全服务)"
+    
+    - service_interface: "ThrottleControl"
+      instance_id: 1
+      slot_index: 102
+      safety_level: ASIL-D
+      description: "油门控制服务 (关键安全服务)"
+    
+    - service_interface: "VehicleDynamicsControl"
+      instance_id: 1
+      slot_index: 103
+      safety_level: ASIL-D
+      description: "车辆动力学控制 (ESP/TCS)"
+    
+    # === 系统服务 (System Services, QM Level) ===
+    - service_interface: "VehicleStateService"
+      instance_id: 1
+      slot_index: 150
+      safety_level: QM
+      description: "车辆状态服务 (速度、档位、灯光等)"
+    
+    - service_interface: "DiagnosticsService"
+      instance_id: 1
+      slot_index: 151
+      safety_level: QM
+      description: "诊断服务 (UDS over D-Bus)"
+    
+    - service_interface: "TimeService"
+      instance_id: 1
+      slot_index: 152
+      safety_level: QM
+      description: "时间同步服务 (PTP/NTP)"
+
+  # === 动态槽位池 (Dynamic Allocation Pool) ===
+  dynamic_allocation:
+    enabled: true
+    slot_range:
+      start: 200
+      end: 1023
+    
+    # 哈希算法配置
+    hash_algorithm: "FNV1A"  # FNV1A (推荐) / CRC32 / MURMUR3
+    
+    # 冲突解决策略
+    collision_resolution: "linear_probing"  # linear_probing / quadratic
+    max_probing_steps: 10
+    
+    # 预留槽位 (避免哈希冲突)
+    reserved_slots:
+      - 500  # 预留用于调试服务
+      - 999  # 预留用于测试服务
+
+# ============================================================================
+# 系统配置 (System Configuration)
+# ============================================================================
+system:
+  # 注册表容量
+  max_slots: 1024
+  slot_size_bytes: 256
+  registry_size_bytes: 262144  # 256KB = 1024 slots × 256 bytes
+  
+  # 内存配置 (iceoryx2 底层)
+  memory:
+    # HugePage 配置
+    use_hugepages: true
+    hugepage_size: "1GB"  # 1GB / 2MB / disabled
+    
+    # Guard Page 保护
+    enable_guard_pages: true
+    guard_page_size: 4096  # 4KB
+    
+    # memfd 配置
+    memfd_name: "lap_service_registry"
+    memfd_sealing: true  # 启用密封机制 (F_SEAL_SHRINK | F_SEAL_GROW)
+  
+  # 心跳配置 (Heartbeat Configuration)
+  heartbeat:
+    # 心跳间隔 (服务提供者发送心跳的频率)
+    interval_ms: 1000  # 1秒
+    
+    # 超时乘数 (多少个心跳周期无响应视为超时)
+    timeout_multiplier: 3  # 3秒无心跳 = 超时
+    
+    # 监控线程检查间隔
+    monitor_interval_ms: 500  # 500ms 检查一次
+    
+    # 使用 kill(0) 兜底检测
+    enable_process_check: true  # 启用 kill(pid, 0) 进程存活检测
+  
+  # 安全配置 (FuSa Configuration)
+  safety:
+    # QM/ASIL-D 物理隔离
+    enable_qm_asil_separation: true
+    
+    # QM 级 memfd 权限
+    qm_memfd_permissions: 0666  # rw-rw-rw- (所有进程可读写)
+    
+    # ASIL-D 级 memfd 权限
+    asil_memfd_permissions: 0644  # rw-r--r-- (仅控制进程写，其他只读)
+    
+    # 控制进程 PID (ASIL-D 写权限)
+    control_process_pid_file: "/var/run/lap_control.pid"
+  
+  # 日志配置
+  logging:
+    enable_registry_logging: true
+    log_level: "INFO"  # ERROR / WARN / INFO / DEBUG
+    log_file: "/var/log/lap/service_registry.log"
+    
+    # 性能指标日志
+    enable_metrics_logging: true
+    metrics_interval_s: 60  # 每60秒输出一次统计
+
+# ============================================================================
+# 性能优化配置 (Performance Tuning)
+# ============================================================================
+performance:
+  # CPU 亲和性 (将心跳监控线程绑定到特定 CPU)
+  heartbeat_monitor_cpu_affinity: [4, 5]  # CPU 4-5 用于后台任务
+  
+  # NUMA 优化
+  numa_aware: true
+  preferred_numa_node: 0  # 优先使用 NUMA 节点 0
+  
+  # 缓存优化
+  prefetch_enabled: true  # 启用 __builtin_prefetch
+  
+  # 锁优化
+  use_seqlock: true       # 启用 seqlock (默认)
+  use_spinlock: false     # 不使用 spinlock (高竞争时才启用)
+
+# ============================================================================
+# 调试与诊断 (Debug & Diagnostics)
+# ============================================================================
+debug:
+  # 转储注册表状态
+  enable_registry_dump: true
+  dump_interval_s: 300  # 每5分钟转储一次状态
+  dump_file: "/tmp/lap_registry_dump.txt"
+  
+  # 统计信息收集
+  collect_statistics: true
+  
+  # 崩溃恢复
+  enable_crash_recovery: false  # 暂不支持 (未来可通过持久化实现)

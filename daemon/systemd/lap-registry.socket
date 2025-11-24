@@ -1,0 +1,26 @@
+[Unit]
+Description=LightAP Service Registry Socket
+Documentation=https://github.com/TreeNeeBee/LightAP/blob/master/modules/Com/doc/SERVICE_DISCOVERY_ARCHITECTURE.md
+Before=multi-user.target
+PartOf=lap-com.target
+
+[Socket]
+# Unix Domain Socket 路径
+ListenStream=/run/lap/registry.sock
+
+# Socket 权限 (所有进程可连接)
+SocketMode=0666
+SocketUser=root
+SocketGroup=root
+
+# 最大连接队列
+Backlog=128
+
+# 不接受连接 (由 systemd 启动服务处理)
+Accept=false
+
+# Socket 激活的服务
+# 当有客户端连接时，systemd 自动启动 lap-registry-init.service
+
+[Install]
+WantedBy=sockets.target

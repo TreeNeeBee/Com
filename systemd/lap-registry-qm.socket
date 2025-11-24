@@ -1,0 +1,13 @@
+[Unit]
+Description=LightAP Com QM Registry Unix Domain Socket
+Documentation=https://github.com/TreeNeeBee/LightAP
+PartOf=lap-registry-qm-init.service
+
+[Socket]
+ListenStream=/run/lap/registry_qm.sock
+SocketMode=0666
+Accept=false
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

@@ -1,0 +1,26 @@
+[Unit]
+Description=LightAP Service Registry ASIL Socket
+Documentation=file:///usr/share/doc/lap/com/SERVICE_DISCOVERY_ARCHITECTURE.md
+PartOf=lap-registry.target
+Before=multi-user.target
+
+[Socket]
+# Unix Domain Socket 配置 - ASIL 注册表
+ListenStream=/run/lap/registry_asil.sock
+
+# 权限: 受控访问 (ASIL-C/D only)
+SocketMode=0640
+SocketUser=root
+SocketGroup=root
+
+# 性能优化
+Backlog=128
+Accept=false
+KeepAlive=true
+MaxConnections=512
+
+# Socket 清理
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

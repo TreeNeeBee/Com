@@ -1,0 +1,48 @@
+/**
+ * @file    LapComMessage.idl
+ * @brief   FastDDS IDL definition for LightAP Com generic message type
+ * @author  LightAP Team
+ * @date    2025-11-23
+ */
+
+module lap {
+    module com {
+        module binding {
+            /**
+             * @brief Generic communication message for AUTOSAR services
+             * 
+             * @note Uses opaque binary payload for flexibility
+             *       Topic name encodes service/instance/event: 
+             *       "lap/com/{service_id}/{instance_id}/{event_id}"
+             */
+            struct LapComMessage {
+                /**
+                 * @brief AUTOSAR service identifier
+                 */
+                unsigned long long service_id;
+                
+                /**
+                 * @brief AUTOSAR instance identifier
+                 */
+                unsigned long long instance_id;
+                
+                /**
+                 * @brief Event identifier
+                 */
+                unsigned long event_id;
+                
+                /**
+                 * @brief Timestamp in nanoseconds
+                 */
+                unsigned long long timestamp_ns;
+                
+                /**
+                 * @brief Binary payload (serialized event data)
+                 * 
+                 * @note Max size configured via QoS policies
+                 */
+                sequence<octet> payload;
+            };
+        };
+    };
+};

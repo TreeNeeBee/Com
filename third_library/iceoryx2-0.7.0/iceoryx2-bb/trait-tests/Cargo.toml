@@ -1,0 +1,26 @@
+[package]
+name = "iceoryx2-bb-trait-tests"
+description = "iceoryx2: [internal] tests for implementations of iceoryx2-bb traits"
+categories = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+
+[dependencies]
+
+[dev-dependencies]
+iceoryx2-bb-container = { workspace = true }
+iceoryx2-bb-elementary = { workspace = true }
+iceoryx2-bb-elementary-traits = { workspace = true }
+iceoryx2-bb-memory = { workspace = true }
+iceoryx2-bb-lock-free = { workspace = true }
+iceoryx2-bb-testing = { workspace = true }
+iceoryx2-pal-testing = { workspace = true }
+iceoryx2-bb-system-types = { workspace = true }
+iceoryx2-cal = { workspace = true }
+
+generic-tests = { workspace = true }

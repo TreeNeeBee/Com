@@ -1,0 +1,247 @@
+---
+# ============================================================================
+# LightAP systemd Service Registry Installation Configuration
+# ============================================================================
+# Purpose: Define systemd socket activation components for installation
+# Format: YAML (替代原 install.sh 的硬编码路径)
+# Version: 1.0
+# ============================================================================
+
+installation:
+  # 基础信息
+  name: "LightAP Service Registry"
+  version: "3.1"
+  description: "Zero-daemon shared memory service discovery"
+  
+  # 安装路径
+  paths:
+    systemd_unit_dir: "/etc/systemd/system"
+    lap_runtime_dir: "/run/lap"
+    lap_config_dir: "/etc/lap/com"
+    lap_lib_dir: "/usr/lib/lap/com"
+    lap_log_dir: "/var/log/lap"
+  
+  # 用户和组
+  users:
+    - name: "lap-registry"
+      uid: 999
+      system: true
+      shell: "/sbin/nologin"
+      home: "/nonexistent"
+      description: "LightAP Registry Daemon User"
+  
+  groups:
+    - name: "lap-control"
+      gid: 1000
+      description: "ASIL-D Control Processes (write access)"
+    
+    - name: "lap-perception"
+      gid: 1001
+      description: "Perception Processes (QM level)"
+    
+    - name: "lap-planning"
+      gid: 1002
+      description: "Planning Processes (QM level)"
+  
+  # systemd 单元文件
+  systemd_units:
+    # QM 级别
+    - name: "lap-registry.socket"
+      source: "daemon/systemd/lap-registry.socket"
+      type: "socket"
+      enabled: true
+      started: true
+    
+    - name: "lap-registry-init.service"
+      source: "daemon/systemd/lap-registry-init.service"
+      type: "service"
+      enabled: false  # Socket activation 触发
+      started: false
+    
+    # ASIL-D 级别
+    - name: "lap-registry-asil.socket"
+      source: "daemon/systemd/lap-registry-asil.socket"
+      type: "socket"
+      enabled: true
+      started: true
+    
+    - name: "lap-registry-asil-init.service"
+      source: "daemon/systemd/lap-registry-asil-init.service"
+      type: "service"
+      enabled: false
+      started: false
+  
+  # 可执行文件
+  executables:
+    - name: "lap-registry-init"
+      source: "build/daemon/lap-registry-init"
+      destination: "/usr/lib/lap/com/lap-registry-init"
+      permissions: "0755"
+    
+    - name: "lap-registry-asil-init"
+      source: "build/daemon/lap-registry-asil-init"
+      destination: "/usr/lib/lap/com/lap-registry-asil-init"
+      permissions: "0750"  # 更严格的权限
+      owner: "root"
+      group: "lap-control"
+  
+  # 配置文件
+  config_files:
+    - name: "slot_mapping.yaml"
+      source: "source/config/slot_mapping.yaml"
+      destination: "/etc/lap/com/slot_mapping.yaml"
+      permissions: "0644"
+    
+    - name: "allowed_executables.yaml"
+      source: "daemon/systemd/allowed_executables.yaml"
+      destination: "/etc/lap/com/allowed_executables.yaml"
+      permissions: "0644"
+  
+  # 运行时目录
+  runtime_directories:
+    - path: "/run/lap"
+      permissions: "0755"
+      owner: "root"
+      group: "root"
+    
+    - path: "/var/log/lap"
+      permissions: "0755"
+      owner: "root"
+      group: "root"
+    
+    - path: "/etc/lap/com"
+      permissions: "0755"
+      owner: "root"
+      group: "root"
+
+# 安装步骤定义 (可被脚本读取)
+installation_steps:
+  pre_install:
+    - action: "check_root"
+      description: "验证 root 权限"
+    
+    - action: "check_systemd"
+      description: "验证 systemd 版本 >= 249"
+    
+    - action: "backup_existing"
+      description: "备份现有配置文件"
+      paths:
+        - "/etc/lap/com/slot_mapping.yaml"
+        - "/etc/lap/com/allowed_executables.yaml"
+  
+  install:
+    - action: "create_users"
+      description: "创建系统用户和组"
+    
+    - action: "create_directories"
+      description: "创建运行时目录"
+    
+    - action: "install_executables"
+      description: "安装可执行文件"
+    
+    - action: "install_configs"
+      description: "安装配置文件"
+    
+    - action: "install_systemd_units"
+      description: "安装 systemd 单元文件"
+    
+    - action: "systemd_daemon_reload"
+      description: "重新加载 systemd 配置"
+    
+    - action: "enable_sockets"
+      description: "启用 socket 单元"
+    
+    - action: "start_sockets"
+      description: "启动 socket 单元"
+  
+  post_install:
+    - action: "verify_sockets"
+      description: "验证 socket 创建成功"
+      check_files:
+        - "/run/lap/registry.sock"
+        - "/run/lap/registry-asil.sock"
+    
+    - action: "verify_permissions"
+      description: "验证文件权限正确"
+    
+    - action: "display_status"
+      description: "显示服务状态"
+      commands:
+        - "systemctl status lap-registry.socket"
+        - "systemctl status lap-registry-asil.socket"
+
+# 卸载步骤
+uninstallation_steps:
+  - action: "stop_sockets"
+    description: "停止 socket 单元"
+  
+  - action: "disable_sockets"
+    description: "禁用 socket 单元"
+  
+  - action: "remove_systemd_units"
+    description: "删除 systemd 单元文件"
+  
+  - action: "remove_executables"
+    description: "删除可执行文件"
+  
+  - action: "backup_configs"
+    description: "备份配置文件到 /var/backup/lap"
+  
+  - action: "remove_configs"
+    description: "删除配置文件"
+  
+  - action: "systemd_daemon_reload"
+    description: "重新加载 systemd"
+
+# 验证检查
+verification:
+  checks:
+    - name: "socket_exists"
+      description: "验证 socket 文件存在"
+      files:
+        - "/run/lap/registry.sock"
+        - "/run/lap/registry-asil.sock"
+    
+    - name: "socket_permissions"
+      description: "验证 socket 权限"
+      expected:
+        - path: "/run/lap/registry.sock"
+          mode: "0666"
+        - path: "/run/lap/registry-asil.sock"
+          mode: "0660"
+          group: "lap-control"
+    
+    - name: "service_status"
+      description: "验证服务状态"
+      systemd_units:
+        - name: "lap-registry.socket"
+          expected_state: "active"
+        - name: "lap-registry-asil.socket"
+          expected_state: "active"
+    
+    - name: "config_integrity"
+      description: "验证配置文件完整性"
+      files:
+        - "/etc/lap/com/slot_mapping.yaml"
+        - "/etc/lap/com/allowed_executables.yaml"
+
+# 故障排查
+troubleshooting:
+  common_issues:
+    - symptom: "socket 文件不存在"
+      cause: "systemd socket 单元未启动"
+      solution:
+        - "systemctl start lap-registry.socket"
+        - "journalctl -u lap-registry.socket -n 50"
+    
+    - symptom: "权限被拒绝"
+      cause: "进程不在 lap-control 组"
+      solution:
+        - "usermod -aG lap-control <username>"
+        - "getent group lap-control"
+    
+    - symptom: "配置文件找不到"
+      cause: "安装路径不正确"
+      solution:
+        - "检查 /etc/lap/com/ 目录"
+        - "重新运行 install_yaml.sh"

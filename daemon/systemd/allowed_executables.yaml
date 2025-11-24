@@ -1,0 +1,221 @@
+# ============================================================================
+# LightAP Communication Module - Executable Whitelist Configuration
+# ============================================================================
+# Purpose: Prevent external injection attacks by validating executable files
+# Security: SHA256 hash verification prevents binary replacement attacks
+# FuSa: Different safety levels have different access permissions
+# ============================================================================
+
+version: "1.0"
+
+# ============================================================================
+# ASIL-D Level Executables (最高安全级别)
+# ============================================================================
+# Only these executables can WRITE to ASIL-D registry slots (924-1023)
+# ============================================================================
+asil_d_executables:
+  - path: /usr/bin/lap-control
+    sha256: "abc123def456789...000"  # 替换为实际 SHA256 哈希
+    description: "Vehicle Control Application (ASIL-D certified)"
+    permissions:
+      read_qm: true
+      write_qm: false
+      read_asil: true
+      write_asil: true
+    
+  - path: /usr/bin/lap-safety-monitor
+    sha256: "789abc123def456...111"
+    description: "Safety Monitor Daemon (ASIL-D certified)"
+    permissions:
+      read_qm: true
+      write_qm: false
+      read_asil: true
+      write_asil: true
+
+# ============================================================================
+# QM Level Executables (普通应用进程)
+# ============================================================================
+# Can read/write QM slots (0-923), read-only access to ASIL-D slots
+# ============================================================================
+qm_executables:
+  # === Perception Services ===
+  - path: /usr/bin/lap-perception
+    sha256: "def456789abc123...222"
+    description: "Sensor Fusion & Perception"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  - path: /usr/bin/lap-camera-driver
+    sha256: "456789abcdef123...333"
+    description: "Camera Driver Service"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  - path: /usr/bin/lap-lidar-driver
+    sha256: "789def123abc456...444"
+    description: "LiDAR Driver Service"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  # === Planning Services ===
+  - path: /usr/bin/lap-planning
+    sha256: "123abc456def789...555"
+    description: "Motion Planning Service"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  - path: /usr/bin/lap-behavior
+    sha256: "456def789abc123...666"
+    description: "Behavior Planning Service"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  # === System Services ===
+  - path: /usr/bin/lap-diagnostics
+    sha256: "789123abcdef456...777"
+    description: "Diagnostics Manager"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  - path: /usr/bin/lap-state-manager
+    sha256: "abc456def123789...888"
+    description: "State Management Service"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: true
+      write_asil: false
+  
+  - path: /usr/bin/lap-log-collector
+    sha256: "def789abc456123...999"
+    description: "Log Collection Service"
+    permissions:
+      read_qm: true
+      write_qm: false  # Read-only for safety
+      read_asil: true
+      write_asil: false
+
+# ============================================================================
+# Development/Testing Executables (仅开发环境)
+# ============================================================================
+# WARNING: Remove this section in production builds!
+# ============================================================================
+dev_executables:
+  - path: /usr/bin/lap-test-client
+    sha256: "000111222333444...aaa"
+    description: "Test Client (DEV ONLY)"
+    permissions:
+      read_qm: true
+      write_qm: true
+      read_asil: false
+      write_asil: false
+  
+  - path: /opt/lap/tools/registry-inspector
+    sha256: "111222333444555...bbb"
+    description: "Registry Inspector Tool (DEV ONLY)"
+    permissions:
+      read_qm: true
+      write_qm: false
+      read_asil: true
+      write_asil: false
+
+# ============================================================================
+# Security Configuration
+# ============================================================================
+security:
+  # 启用 SHA256 验证 (生产环境必须为 true)
+  enable_hash_verification: true
+  
+  # 允许未在白名单中的可执行文件 (开发环境可设为 true，生产环境必须 false)
+  allow_unlisted_executables: false
+  
+  # 违规处理策略
+  violation_policy:
+    log_violations: true              # 记录违规到审计日志
+    alert_on_violation: true          # 发送告警 (syslog)
+    terminate_on_violation: true      # 终止违规进程 (SIGKILL)
+    block_access: true                # 拒绝访问注册表
+  
+  # 哈希验证策略
+  hash_verification_policy:
+    cache_verification_results: true  # 缓存验证结果 (性能优化)
+    cache_ttl_seconds: 300            # 缓存过期时间 (5分钟)
+    verify_on_first_access_only: false  # 每次访问都验证 (更安全)
+  
+  # 审计日志
+  audit_log:
+    enabled: true
+    max_entries: 10000                # 最大日志条数
+    rotation_policy: "size"           # size / time
+    rotation_threshold: 100MB         # 日志轮转阈值
+
+# ============================================================================
+# Group-based Access Control (组权限配置)
+# ============================================================================
+# Processes in these groups have special permissions
+# ============================================================================
+groups:
+  - name: lap-control
+    gid: 1000  # 替换为实际 GID
+    description: "Control processes with ASIL-D write access"
+    permissions:
+      write_asil: true
+  
+  - name: lap-perception
+    gid: 1001
+    description: "Perception processes (QM level)"
+    permissions:
+      write_asil: false
+  
+  - name: lap-planning
+    gid: 1002
+    description: "Planning processes (QM level)"
+    permissions:
+      write_asil: false
+
+# ============================================================================
+# SELinux Integration (可选)
+# ============================================================================
+selinux:
+  enabled: false  # 设为 true 启用 SELinux 策略
+  policy_module: "lap_registry"
+  
+  # Type enforcement rules
+  types:
+    - name: lap_registry_qm_t
+      description: "QM level registry memory"
+      allow_read: ["lap_domain_t"]
+      allow_write: ["lap_domain_t"]
+    
+    - name: lap_registry_asil_t
+      description: "ASIL-D level registry memory"
+      allow_read: ["lap_domain_t"]
+      allow_write: ["lap_control_t"]  # Only control processes
+
+# ============================================================================
+# Notes & Usage
+# ============================================================================
+# 1. Generate SHA256 hash: sha256sum /path/to/executable
+# 2. Update hashes after every binary rebuild
+# 3. Production builds MUST have allow_unlisted_executables=false
+# 4. Test whitelist: /opt/lap/tools/verify-whitelist.sh
+# 5. Audit logs: journalctl -t lap-registry-security
+# ============================================================================

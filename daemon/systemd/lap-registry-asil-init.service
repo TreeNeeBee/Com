@@ -1,0 +1,44 @@
+[Unit]
+Description=LightAP Service Registry ASIL Initializer
+Documentation=file:///usr/share/doc/lap/com/SERVICE_DISCOVERY_ARCHITECTURE.md
+Requires=lap-registry-asil.socket
+After=lap-registry-asil.socket
+
+[Service]
+Type=exec
+ExecStart=/home/ddk/1_workspace/2_middleware/LightAP/build/modules/Com/lap-registry-init --type=asil --socket=/run/lap/registry_asil.sock
+
+# 标准输入/输出
+StandardOutput=journal
+StandardError=journal
+
+# 资源限制 (ASIL 级别更严格)
+MemoryMax=50M
+CPUQuota=20%
+TasksMax=20
+
+# 运行时目录
+RuntimeDirectory=lap
+RuntimeDirectoryMode=0755
+
+# 安全加固 (ASIL-D 级别)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+ReadWritePaths=/run/lap
+
+# 超时控制
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+
+# 重启策略
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

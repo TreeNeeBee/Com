@@ -1,0 +1,84 @@
+# LightAP Communication Binding Configuration
+# Version: 1.0
+# Date: 2025-11-21
+#
+# This configuration file defines the transport bindings available for ara::com
+# communication. Bindings are selected based on priority (higher = preferred).
+#
+# Default priority order (IMPLEMENTATION_PLAN_UPDATED.md Phase 2):
+#   1. iceoryx2 (100) - Zero-copy IPC, < 1µs latency
+#   2. DDS (80)       - Network communication with AF_XDP, < 15µs latency
+#   3. SOME/IP (60)   - AUTOSAR standard automotive protocol
+#   4. Socket (40)    - Fallback for testing and development
+#   5. D-Bus (20)     - Legacy integration
+
+bindings:
+  # iceoryx2 Zero-Copy IPC Binding
+  - name: iceoryx2
+    priority: 100
+    library: /usr/lib/lap/com/liblap_binding_iceoryx2.so
+    enabled: true
+    parameters:
+      domain_id: 0
+      node_name: lap_com_node
+      max_publishers: 128
+      max_subscribers: 128
+
+  # DDS over AF_XDP Network Binding
+  - name: dds
+    priority: 80
+    library: /usr/lib/lap/com/liblap_binding_dds.so
+    enabled: true
+    parameters:
+      domain_id: 42
+      qos_profile: automotive
+      transport: af_xdp
+      interface: eth0
+
+  # SOME/IP Automotive Binding
+  - name: someip
+    priority: 60
+    library: /usr/lib/lap/com/liblap_binding_someip.so
+    enabled: true
+    parameters:
+      multicast_group: 239.0.0.1
+      port_range: "30500-30600"
+      protocol_version: 1
+
+  # Socket-based Fallback Binding
+  - name: socket
+    priority: 40
+    library: /usr/lib/lap/com/liblap_binding_socket.so
+    enabled: true
+    parameters:
+      protocol: tcp
+      port_base: 50000
+
+  # D-Bus Legacy Binding
+  - name: dbus
+    priority: 20
+    library: /usr/lib/lap/com/liblap_binding_dbus.so
+    enabled: false  # Disabled by default
+    parameters:
+      bus_type: system
+      well_known_name: com.lap.ara
+
+# Static Service-to-Binding Mappings
+# Override default priority-based selection for specific services
+static_mappings:
+  # Force ASIL-D services to use iceoryx2 (guaranteed < 1µs latency)
+  - service_id: 0xF001  # ASIL-D brake control
+    instance_id: 0x0001
+    binding: iceoryx2
+
+  - service_id: 0xF002  # ASIL-D steering control
+    instance_id: 0x0001
+    binding: iceoryx2
+
+  # Force inter-ECU diagnostics to use SOME/IP
+  - service_id: 0x0301  # Diagnostic service
+    binding: someip  # instance_id omitted = apply to all instances
+
+  # Force legacy services to D-Bus
+  - service_id: 0x0200  # Infotainment service
+    binding: dbus

@@ -1,0 +1,41 @@
+[package]
+name = "iceoryx2-ffi-c"
+description = "iceoryx2 ffi C bindings"
+categories = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+keywords = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+rust-version = { workspace = true }
+version = { workspace = true }
+readme = { workspace = true }
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["rlib", "cdylib", "staticlib"] # without "rlib" the doc examples are not run
+
+[build-dependencies]
+cbindgen = { workspace = true }
+
+[dependencies]
+iceoryx2 = { workspace = true }
+iceoryx2-bb-container = { workspace = true }
+iceoryx2-bb-derive-macros = { workspace = true }
+iceoryx2-bb-elementary = { workspace = true }
+iceoryx2-bb-elementary-traits = { workspace = true }
+iceoryx2-bb-lock-free = { workspace = true }
+iceoryx2-bb-log = { workspace = true }
+iceoryx2-bb-system-types = { workspace = true }
+iceoryx2-bb-posix = { workspace = true }
+iceoryx2-cal = { workspace = true }
+iceoryx2-ffi-macros = { workspace = true }
+iceoryx2-pal-concurrency-sync = { workspace = true }
+
+[dev-dependencies]
+iceoryx2-bb-testing = { workspace = true }
+iceoryx2-pal-testing = { workspace = true }
+generic-tests = { workspace = true }

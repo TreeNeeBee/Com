@@ -1,0 +1,29 @@
+[Unit]
+Description=LightAP Com ASIL Registry Initialization Service
+Documentation=https://github.com/TreeNeeBee/LightAP
+Requires=lap-registry-asil.socket
+After=lap-registry-asil.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lap-registry-init --type=asil --socket=/run/lap/registry_asil.sock
+Restart=on-failure
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/lap
+
+# ASIL-specific: Run as dedicated user
+User=root
+Group=asil
+
+# Resource limits
+MemoryLimit=10M
+TasksMax=10
+
+[Install]
+WantedBy=multi-user.target

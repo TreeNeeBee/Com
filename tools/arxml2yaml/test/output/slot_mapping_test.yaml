@@ -1,0 +1,57 @@
+version: '1.0'
+metadata:
+  generated_by: arxml2yaml.py
+  source: AUTOSAR ARXML
+  date: '2025-11-19'
+  total_services: 4
+slot_mapping:
+  static_allocations: []
+  dynamic_allocations:
+  - slot_index: 200
+    service_name: UnknownService_0
+    service_id: '0x6D020E9F'
+    instance_id: 0
+    version: '1.0'
+    binding: iceoryx2
+    endpoint: /lap/UnknownService_0
+    safety_level: QM
+    description: ''
+  - slot_index: 201
+    service_name: UnknownService_1
+    service_id: '0x6C020D0C'
+    instance_id: 1
+    version: '1.0'
+    binding: iceoryx2
+    endpoint: /lap/UnknownService_1
+    safety_level: QM
+    description: ''
+  - slot_index: 202
+    service_name: UnknownService_2
+    service_id: '0x6F0211C5'
+    instance_id: 2
+    version: '1.0'
+    binding: iceoryx2
+    endpoint: /lap/UnknownService_2
+    safety_level: QM
+    description: ''
+  - slot_index: 203
+    service_name: UnknownService_3
+    service_id: '0x6E021032'
+    instance_id: 3
+    version: '1.0'
+    binding: iceoryx2
+    endpoint: /lap/UnknownService_3
+    safety_level: QM
+    description: ''
+  asil_allocations: []
+system_config:
+  total_slots: 1024
+  static_range: 0-199
+  dynamic_range: 200-923
+  asil_range: 924-1023
+  enable_hugepages: true
+  enable_guard_pages: true
+security:
+  enable_crc32_check: true
+  enable_exec_whitelist: true
+  qm_asil_separation: true

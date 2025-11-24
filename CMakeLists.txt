@@ -33,15 +33,79 @@ file(CREATE_LINK ${CMAKE_SOURCE_DIR}/modules/Core/source/inc
 file(CREATE_LINK ${CMAKE_SOURCE_DIR}/modules/LogAndTrace/source/inc 
      ${CMAKE_CURRENT_BINARY_DIR}/include/lap/log SYMBOLIC)
 
+# Set source directories first (required by MODULE_EXTERNAL_INCLUDE_DIR)
+set ( MODULE_SOURCE_DIR ${MODULE_ROOT_DIR}/source )
+set ( MODULE_INSTALL_SRC_DIR ${MODULE_SOURCE_DIR}/api)
+
 set ( ENABLE_BUILD_SHARED_LIBRARY ON CACHE BOOL "Build com shared library" FORCE )
-set ( MODULE_EXTERNAL_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/include )
+set ( MODULE_EXTERNAL_INCLUDE_DIR 
+    ${CMAKE_CURRENT_BINARY_DIR}/include 
+    ${MODULE_SOURCE_DIR}/runtime/inc
+    ${MODULE_SOURCE_DIR}/registry/inc
+    ${MODULE_SOURCE_DIR}/inc
+)
 set ( MODULE_EXTERNAL_LIB_DIR /usr/local/lib )
 set ( MODULE_EXTERNAL_LIB pthread rt lap_core lap_log sdbus-c++ ${Protobuf_LIBRARIES} ${LOCAL_PROTO_NAME} )
 
-set ( MODULE_SOURCE_DIR ${MODULE_ROOT_DIR}/source )
-set ( MODULE_SOURCE_CXX_DIR ${MODULE_ROOT_DIR}/source/comapi )
-set ( MODULE_INSTALL_SRC_DIR ${MODULE_SOURCE_DIR}/inc)
+# Use multi-directory source collection (BuildTemplate supports MODULE_SOURCE_CXX_DIRS since v1.1.0)
+set ( MODULE_SOURCE_CXX_DIRS 
+    ${MODULE_SOURCE_DIR}/runtime/src
+    ${MODULE_SOURCE_DIR}/registry/src
+)
+
 include ( ../../BuildTemplate/SharedLibrary.cmake.in )
+
+# Symbol visibility control: Hide all symbols by default, export only LAP_COM_API marked symbols
+set_target_properties(lap_com PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+# Define LAP_COM_BUILDING when compiling the library (for Windows DLL export)
+target_compile_definitions(lap_com PRIVATE LAP_COM_BUILDING)
+
+# ============================================================================
+# Phase 2: Registry Initialization Daemon (UDS FD Passing)
+# ============================================================================
+
+# lap-registry-init daemon
+add_executable( lap-registry-init
+    ${MODULE_ROOT_DIR}/daemon/lap-registry-init.cpp
+    ${MODULE_SOURCE_DIR}/registry/src/RegistryInitializer.cpp
+)
+
+target_include_directories( lap-registry-init PRIVATE
+    ${MODULE_SOURCE_DIR}/inc
+    ${MODULE_SOURCE_DIR}/registry/inc
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+target_link_libraries( lap-registry-init PRIVATE
+    lap_core
+    lap_log
+    pthread
+)
+
+# Install daemon to /usr/local/bin
+install(TARGETS lap-registry-init
+    RUNTIME DESTINATION bin
+)
+
+# Install systemd service units
+install(FILES
+    ${MODULE_ROOT_DIR}/systemd/lap-registry-qm.socket
+    ${MODULE_ROOT_DIR}/systemd/lap-registry-qm-init.service
+    ${MODULE_ROOT_DIR}/systemd/lap-registry-asil.socket
+    ${MODULE_ROOT_DIR}/systemd/lap-registry-asil-init.service
+    DESTINATION /etc/systemd/system
+)
+
+# Create runtime directory for sockets
+install(DIRECTORY DESTINATION /run/lap
+    DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE 
+                          GROUP_READ GROUP_WRITE GROUP_EXECUTE 
+                          WORLD_READ WORLD_EXECUTE
+)
 
 # ============================================================================
 # D-Bus Examples
@@ -358,6 +422,98 @@ include ( ../../BuildTemplate/Test.cmake.in )
 add_test(NAME com_tests COMMAND com_test)
 
 # ============================================================================
+# Phase 1: Service Registry Tests (Zero-Daemon Architecture)
+# ============================================================================
+
+# Test: SeqLock mechanism (Week 1)
+add_executable( test_seqlock
+    ${MODULE_ROOT_DIR}/test/registry/test_seqlock.cpp
+)
+
+target_include_directories( test_seqlock PRIVATE
+    ${MODULE_SOURCE_DIR}/registry/inc
+    ${MODULE_SOURCE_DIR}/runtime/inc
+    ${MODULE_SOURCE_DIR}/api
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+target_link_libraries( test_seqlock PRIVATE
+    lap_core
+    pthread
+    GTest::GTest
+    GTest::Main
+)
+
+add_test( NAME SeqLockTest COMMAND test_seqlock )
+
+# Test: SharedMemoryRegistry (Week 2)
+add_executable( test_registry
+    ${MODULE_ROOT_DIR}/test/registry/test_registry.cpp
+    ${MODULE_ROOT_DIR}/source/registry/src/SharedMemoryRegistry.cpp
+)
+
+target_include_directories( test_registry PRIVATE
+    ${MODULE_SOURCE_DIR}/registry/inc
+    ${MODULE_SOURCE_DIR}/runtime/inc
+    ${MODULE_SOURCE_DIR}/api
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+target_link_libraries( test_registry PRIVATE
+    lap_core
+    pthread
+    rt
+    GTest::GTest
+    GTest::Main
+)
+
+add_test( NAME SharedMemoryRegistryTest COMMAND test_registry )
+
+# Test: Runtime Integration (Week 3)
+add_executable( test_runtime
+    ${MODULE_ROOT_DIR}/test/runtime/test_runtime.cpp
+)
+
+target_include_directories( test_runtime PRIVATE
+    ${MODULE_SOURCE_DIR}/runtime/inc
+    ${MODULE_SOURCE_DIR}/registry/inc
+    ${MODULE_SOURCE_DIR}/api
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+target_link_libraries( test_runtime PRIVATE
+    lap_com
+    lap_core
+    pthread
+    rt
+    GTest::GTest
+    GTest::Main
+)
+
+add_test( NAME RuntimeIntegrationTest COMMAND test_runtime )
+
+# Test: Runtime systemd Socket Activation (Phase 2)
+add_executable( test_runtime_systemd
+    ${MODULE_ROOT_DIR}/test/runtime/test_runtime_systemd.cpp
+)
+
+target_include_directories( test_runtime_systemd PRIVATE
+    ${MODULE_SOURCE_DIR}/runtime/inc
+    ${MODULE_SOURCE_DIR}/registry/inc
+    ${MODULE_SOURCE_DIR}/api
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+)
+
+target_link_libraries( test_runtime_systemd PRIVATE
+    lap_com
+    lap_core
+    pthread
+    rt
+)
+
+message( STATUS "Phase 1 service registry tests configured" )
+
+# ============================================================================
 # Socket Transport Unit Tests
 # ============================================================================
 
@@ -437,6 +593,36 @@ endif()
 message( STATUS "Socket transport unit tests configured" )
 
 # ============================================================================
+# Phase 2: Multi-Process Registry Test
+# ============================================================================
+
+if( BUILD_TESTING )
+    add_executable( test_multiprocess_registry
+        ${MODULE_ROOT_DIR}/test/unittest/test_multiprocess_registry.cpp
+        ${MODULE_SOURCE_DIR}/registry/src/RegistryInitializer.cpp
+        ${MODULE_SOURCE_DIR}/registry/src/SharedMemoryRegistry.cpp
+    )
+    
+    target_include_directories( test_multiprocess_registry PRIVATE
+        ${MODULE_SOURCE_DIR}/inc
+        ${MODULE_SOURCE_DIR}/registry/inc
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+    
+    target_link_libraries( test_multiprocess_registry PRIVATE
+        lap_core
+        lap_log
+        pthread
+        GTest::GTest
+        GTest::Main
+    )
+    
+    add_test( NAME MultiProcessRegistryTest COMMAND test_multiprocess_registry )
+    
+    message( STATUS "Phase 2 multi-process registry test configured" )
+endif()
+
+# ============================================================================
 # Socket Event/Field Unit Tests
 # ============================================================================
 
@@ -487,3 +673,258 @@ if( PROTO_FILES )
     add_test( NAME SocketFieldBindingTest COMMAND com_socket_field_test )
     add_dependencies( com_socket_field_test generate_protobuf_code )
 endif()
+
+# ============================================================================
+# iceoryx2 Binding (Zero-Copy IPC)
+# ============================================================================
+
+option( ENABLE_ICEORYX_BINDING "Enable iceoryx binding for zero-copy IPC" ON )
+
+if( ENABLE_ICEORYX_BINDING )
+    message( STATUS "iceoryx2 binding enabled (v0.7.0)" )
+
+    # Set iceoryx2 paths
+    set( ICEORYX2_ROOT_DIR "${MODULE_ROOT_DIR}/third_library/iceoryx2-0.7.0" )
+    set( ICEORYX2_CXX_INCLUDE_DIR "${ICEORYX2_ROOT_DIR}/iceoryx2-cxx/include" )
+    set( ICEORYX2_C_INCLUDE_DIR "${ICEORYX2_ROOT_DIR}/target/release/iceoryx2-ffi-c-cbindgen/include" )
+    set( ICEORYX2_FFI_LIB "${ICEORYX2_ROOT_DIR}/target/release/libiceoryx2_ffi_c.so" )
+
+    # Check if iceoryx2 C FFI library exists
+    if( EXISTS "${ICEORYX2_FFI_LIB}" )
+        message( STATUS "iceoryx2 C FFI library found: ${ICEORYX2_FFI_LIB}" )
+    else()
+        message( WARNING "iceoryx2 C FFI library not found. Run 'cargo build --release -p iceoryx2-ffi-c' in ${ICEORYX2_ROOT_DIR}" )
+    endif()
+
+    message( STATUS "iceoryx2 source: ${ICEORYX2_ROOT_DIR}" )
+    message( STATUS "iceoryx2 C++ include: ${ICEORYX2_CXX_INCLUDE_DIR}" )
+    message( STATUS "iceoryx2 C include: ${ICEORYX2_C_INCLUDE_DIR}" )
+
+    # Build iceoryx2 binding as shared library (.so)
+    add_library( lap_com_binding_iceoryx SHARED
+        ${MODULE_ROOT_DIR}/source/binding/iceoryx2/src/Iceoryx2Binding.cpp
+    )
+
+    target_include_directories( lap_com_binding_iceoryx PRIVATE
+        ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+        ${MODULE_ROOT_DIR}/source/binding/common
+        ${MODULE_ROOT_DIR}/source/binding/inc
+        ${MODULE_ROOT_DIR}/source/inc
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+        ${ICEORYX2_CXX_INCLUDE_DIR}
+        ${ICEORYX2_C_INCLUDE_DIR}
+    )
+
+    target_link_libraries( lap_com_binding_iceoryx PRIVATE
+        lap_core
+        lap_log
+        pthread
+        dl
+    )
+
+    # Link iceoryx2 C FFI library with absolute path
+    target_link_libraries( lap_com_binding_iceoryx PRIVATE ${ICEORYX2_FFI_LIB} )
+
+    # Set RPATH for runtime library lookup
+    set_target_properties( lap_com_binding_iceoryx PROPERTIES
+        BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        INSTALL_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+    )
+
+    # Install binding library
+    install( TARGETS lap_com_binding_iceoryx
+        LIBRARY DESTINATION lib
+    )
+
+    # Install binding header
+    install( FILES
+        ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc/Iceoryx2Binding.hpp
+        DESTINATION include/lap/com/binding
+    )
+
+    # Unit tests for iceoryx binding
+    if( ENABLE_BUILD_TESTS )
+        add_executable( test_iceoryx_binding
+            ${MODULE_ROOT_DIR}/test/unit/binding/test_iceoryx2_binding.cpp
+        )
+
+        target_include_directories( test_iceoryx_binding PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/inc
+            ${MODULE_ROOT_DIR}/source/inc
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+            ${ICEORYX_INCLUDE_DIR}
+        )
+
+        target_link_libraries( test_iceoryx_binding PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            pthread
+            GTest::GTest
+            GTest::Main
+        )
+
+        add_test( NAME Iceoryx2BindingTest COMMAND test_iceoryx_binding )
+        
+        # Simple pub/sub test
+        add_executable( test_iceoryx2_pubsub
+            ${MODULE_ROOT_DIR}/test/binding/iceoryx2/test_iceoryx2_pubsub.cpp
+        )
+        
+        target_include_directories( test_iceoryx2_pubsub PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/common/inc
+            ${ICEORYX2_C_INCLUDE_DIR}
+        )
+        
+        target_link_libraries( test_iceoryx2_pubsub PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            pthread
+        )
+        
+        # Set RPATH for test executable
+        set_target_properties( test_iceoryx2_pubsub PROPERTIES
+            BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        )
+        
+        # Multi-size message test
+        add_executable( test_multi_size_messages
+            ${MODULE_ROOT_DIR}/test/binding/iceoryx2/test_multi_size_messages.cpp
+        )
+        
+        target_include_directories( test_multi_size_messages PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/common/inc
+            ${ICEORYX2_C_INCLUDE_DIR}
+        )
+        
+        target_link_libraries( test_multi_size_messages PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            pthread
+        )
+        
+        set_target_properties( test_multi_size_messages PROPERTIES
+            BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        )
+
+        # iceoryx2 + BindingManager Integration Test
+        add_executable( test_iceoryx2_binding_manager_integration
+            ${MODULE_ROOT_DIR}/test/binding/iceoryx2/test_iceoryx2_binding_manager_integration.cpp
+        )
+        
+        target_include_directories( test_iceoryx2_binding_manager_integration PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/manager/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/common/inc
+            ${ICEORYX2_C_INCLUDE_DIR}
+            ${GTEST_INCLUDE_DIRS}
+        )
+        
+        target_link_libraries( test_iceoryx2_binding_manager_integration PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            ${GTEST_BOTH_LIBRARIES}
+            pthread
+        )
+        
+        set_target_properties( test_iceoryx2_binding_manager_integration PROPERTIES
+            BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        )
+        
+        # Add to CTest
+        add_test(
+            NAME test_iceoryx2_binding_manager_integration
+            COMMAND test_iceoryx2_binding_manager_integration
+        )
+    endif()
+
+    # iceoryx2 Examples
+    if( ENABLE_BUILD_EXAMPLES )
+        # Publisher example
+        add_executable( iceoryx2_publisher_example
+            ${MODULE_ROOT_DIR}/examples/iceoryx2/publisher_example.cpp
+        )
+        
+        target_include_directories( iceoryx2_publisher_example PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/common/inc
+            ${ICEORYX2_C_INCLUDE_DIR}
+        )
+        
+        target_link_libraries( iceoryx2_publisher_example PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            pthread
+        )
+        
+        set_target_properties( iceoryx2_publisher_example PROPERTIES
+            BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        )
+
+        # Subscriber example
+        add_executable( iceoryx2_subscriber_example
+            ${MODULE_ROOT_DIR}/examples/iceoryx2/subscriber_example.cpp
+        )
+        
+        target_include_directories( iceoryx2_subscriber_example PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/common/inc
+            ${ICEORYX2_C_INCLUDE_DIR}
+        )
+        
+        target_link_libraries( iceoryx2_subscriber_example PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            pthread
+        )
+        
+        set_target_properties( iceoryx2_subscriber_example PROPERTIES
+            BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        )
+
+        # Ping-Pong example
+        add_executable( iceoryx2_ping_pong_example
+            ${MODULE_ROOT_DIR}/examples/iceoryx2/ping_pong_example.cpp
+        )
+        
+        target_include_directories( iceoryx2_ping_pong_example PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/iceoryx2/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/common/inc
+            ${ICEORYX2_C_INCLUDE_DIR}
+        )
+        
+        target_link_libraries( iceoryx2_ping_pong_example PRIVATE
+            lap_com_binding_iceoryx
+            lap_core
+            lap_log
+            pthread
+        )
+        
+        set_target_properties( iceoryx2_ping_pong_example PROPERTIES
+            BUILD_RPATH "${ICEORYX2_ROOT_DIR}/target/release"
+        )
+
+        message( STATUS "iceoryx2 examples configured: publisher, subscriber, ping-pong" )
+    endif()
+endif()
+
+# =============================================================================
+# Phase 4: DDS Binding Configuration
+# =============================================================================
+
+include( ${CMAKE_CURRENT_SOURCE_DIR}/cmake/DdsBindingConfig.cmake )
+

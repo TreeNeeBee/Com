@@ -1,0 +1,26 @@
+[Unit]
+Description=LightAP Service Registry QM Socket
+Documentation=file:///usr/share/doc/lap/com/SERVICE_DISCOVERY_ARCHITECTURE.md
+PartOf=lap-registry.target
+Before=multi-user.target
+
+[Socket]
+# Unix Domain Socket 配置 - QM 注册表
+ListenStream=/run/lap/registry_qm.sock
+
+# 权限: 所有进程可访问 (QM + ASIL-A/B)
+SocketMode=0666
+SocketUser=root
+SocketGroup=root
+
+# 性能优化
+Backlog=128
+Accept=false
+KeepAlive=true
+MaxConnections=1024
+
+# Socket 清理
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

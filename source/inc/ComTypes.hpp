@@ -16,6 +16,7 @@
 #include <core/CResult.hpp>
 #include <core/COptional.hpp>
 #include <core/CInstanceSpecifier.hpp>
+#include <lap/log/CLog.hpp>
 
 #include <cstdint>
 #include <chrono>
@@ -31,6 +32,29 @@ namespace com
     using lap::core::StringView;
     using lap::core::InstanceSpecifier;
     using lap::core::ErrorCode;
+
+    // ========================================================================
+    // Logging Configuration
+    // ========================================================================
+    #define LAP_COM_LOG_CONTEXT_ID       "COM"
+    #define LAP_COM_LOG_CONTEXT_DESC     "COM log ctx"
+
+    #define LAP_DEBUG
+
+#ifdef LAP_DEBUG
+    #define LAP_COM_LOG                  LAP_LOG( LAP_COM_LOG_CONTEXT_ID, LAP_COM_LOG_CONTEXT_DESC, ::lap::log::LogLevel::kVerbose )
+    #define LAP_COM_LOG_VERBOSE          LAP_COM_LOG.LogVerbose().WithLocation( __FILE__, __LINE__ )
+    #define LAP_COM_LOG_DEBUG            LAP_COM_LOG.LogDebug().WithLocation( __FILE__, __LINE__ )
+    #define LAP_COM_LOG_INFO             LAP_COM_LOG.LogInfo().WithLocation( __FILE__, __LINE__ )
+#else
+    #define LAP_COM_LOG                  LAP_LOG( LAP_COM_LOG_CONTEXT_ID, LAP_COM_LOG_CONTEXT_DESC, ::lap::log::LogLevel::kWarn )
+    #define LAP_COM_LOG_VERBOSE          LAP_COM_LOG.LogOff()
+    #define LAP_COM_LOG_DEBUG            LAP_COM_LOG.LogOff()
+    #define LAP_COM_LOG_INFO             LAP_COM_LOG.LogOff()
+#endif
+    #define LAP_COM_LOG_WARN             LAP_COM_LOG.LogWarn().WithLocation( __FILE__, __LINE__ )
+    #define LAP_COM_LOG_ERROR            LAP_COM_LOG.LogError().WithLocation( __FILE__, __LINE__ )
+    #define LAP_COM_LOG_FATAL            LAP_COM_LOG.LogFatal().WithLocation( __FILE__, __LINE__ )
     
     // ========================================================================
     // Communication Management Error Codes (SWS_CM_00300)
@@ -42,31 +66,54 @@ namespace com
      */
     enum class ComErrc : lap::core::ErrorDomain::CodeType
     {
-        kServiceNotAvailable        = 1,    ///< Service is not available
-        kMaxSamplesExceeded         = 2,    ///< Maximum number of samples exceeded
-        kNetworkBindingFailure      = 3,    ///< Network binding failed
-        kGrantEnforcementError      = 4,    ///< Grant enforcement error
-        kFieldValueIsNotValid       = 5,    ///< Field value is not valid
-        kSetHandlerNotSet           = 6,    ///< Set handler not set
-        kUnsetFailure               = 7,    ///< Unset operation failed
-        kIllegalUseOfAllocate       = 8,    ///< Illegal use of Allocate
-        kBindingConnectionError     = 9,    ///< Binding connection error
-        kCommunicationLinkError     = 10,   ///< Communication link error
-        kNoClientsConnected         = 11,   ///< No clients connected
-        kInvalidArgument            = 12,   ///< Invalid argument provided
-        kServiceNotOffered          = 13,   ///< Service not offered
-        kWrongMethodCallProcessing  = 14,   ///< Wrong method call processing mode
-        kPeerIsUnreachable          = 15,   ///< Peer is unreachable
-        kSampleAllocationFailure    = 16,   ///< Sample allocation failed
-        kMaxSampleCountNotRealizable = 17,  ///< Maximum sample count not realizable
-        kNotInitialized             = 18,   ///< Component not initialized
-        kTimeout                    = 19,   ///< Operation timed out
-        kMessageTooLarge            = 20,   ///< Message size exceeds limit
-        kSerializationError         = 21,   ///< Serialization failed
-        kDeserializationError       = 22,   ///< Deserialization failed
-        kNotSupported               = 23,   ///< Operation not supported
-        kInvalidState               = 24,   ///< Invalid state for operation
-        kInternal                   = 25,   ///< Internal error
+        // ====================================================================
+        // General Communication Errors (0x01 - 0x1F)
+        // ====================================================================
+        kServiceNotAvailable        = 0x01,  ///< Service is not available
+        kMaxSamplesExceeded         = 0x02,  ///< Maximum number of samples exceeded
+        kNetworkBindingFailure      = 0x03,  ///< Network binding failed
+        kGrantEnforcementError      = 0x04,  ///< Grant enforcement error
+        kFieldValueIsNotValid       = 0x05,  ///< Field value is not valid
+        kSetHandlerNotSet           = 0x06,  ///< Set handler not set
+        kUnsetFailure               = 0x07,  ///< Unset operation failed
+        kIllegalUseOfAllocate       = 0x08,  ///< Illegal use of Allocate
+        kBindingConnectionError     = 0x09,  ///< Binding connection error
+        kCommunicationLinkError     = 0x0A,  ///< Communication link error
+        kNoClientsConnected         = 0x0B,  ///< No clients connected
+        kInvalidArgument            = 0x0C,  ///< Invalid argument provided
+        kServiceNotOffered          = 0x0D,  ///< Service not offered
+        kWrongMethodCallProcessing  = 0x0E,  ///< Wrong method call processing mode
+        kPeerIsUnreachable          = 0x0F,  ///< Peer is unreachable
+        kSampleAllocationFailure    = 0x10,  ///< Sample allocation failed
+        kMaxSampleCountNotRealizable = 0x11, ///< Maximum sample count not realizable
+        kNotInitialized             = 0x12,  ///< Component not initialized
+        kTimeout                    = 0x13,  ///< Operation timed out
+        kMessageTooLarge            = 0x14,  ///< Message size exceeds limit
+        kSerializationError         = 0x15,  ///< Serialization failed
+        kDeserializationError       = 0x16,  ///< Deserialization failed
+        kNotSupported               = 0x17,  ///< Operation not supported
+        kInvalidState               = 0x18,  ///< Invalid state for operation
+        kInternal                   = 0x19,  ///< Internal error
+        kNotImplemented             = 0x1A,  ///< Feature not yet implemented
+        
+        // ====================================================================
+        // Registry-Specific Errors (0x100 - 0x1FF)
+        // ====================================================================
+        kSharedMemoryCreationFailed = 0x100, ///< Failed to create shared memory
+        kSharedMemoryResizeFailed   = 0x101, ///< Failed to resize shared memory
+        kSharedMemoryMappingFailed  = 0x102, ///< Failed to mmap shared memory
+        kSlotIndexInvalid           = 0x103, ///< Slot index out of range or reserved
+        kSlotConflict               = 0x104, ///< Slot already occupied by different service
+        kSlotAlreadyReserved        = 0x105, ///< Slot already reserved
+        kMemfdCreateFailed          = 0x106, ///< memfd_create system call failed
+        kMemfdSealingFailed         = 0x107, ///< Failed to seal memfd
+        kSocketCreationFailed       = 0x108, ///< Failed to create Unix domain socket
+        kSocketBindFailed           = 0x109, ///< Failed to bind socket
+        kSocketConnectFailed        = 0x10A, ///< Failed to connect to socket
+        kSocketListenFailed         = 0x10B, ///< Failed to listen on socket
+        kFdPassingFailed            = 0x10C, ///< Failed to pass file descriptor via SCM_RIGHTS
+        kFdReceiveFailed            = 0x10D, ///< Failed to receive file descriptor
+        kPermissionDenied           = 0x10E, ///< Insufficient permissions
     };
     
     /**
@@ -143,6 +190,38 @@ namespace com
                     return "Invalid state for operation";
                 case ComErrc::kInternal:
                     return "Internal error";
+                case ComErrc::kNotImplemented:
+                    return "Feature not yet implemented";
+                case ComErrc::kSharedMemoryCreationFailed:
+                    return "Failed to create shared memory";
+                case ComErrc::kSharedMemoryResizeFailed:
+                    return "Failed to resize shared memory";
+                case ComErrc::kSharedMemoryMappingFailed:
+                    return "Failed to mmap shared memory";
+                case ComErrc::kSlotIndexInvalid:
+                    return "Slot index out of range or reserved";
+                case ComErrc::kSlotConflict:
+                    return "Slot already occupied by different service";
+                case ComErrc::kSlotAlreadyReserved:
+                    return "Slot already reserved";
+                case ComErrc::kMemfdCreateFailed:
+                    return "memfd_create system call failed";
+                case ComErrc::kMemfdSealingFailed:
+                    return "Failed to seal memfd";
+                case ComErrc::kSocketCreationFailed:
+                    return "Failed to create Unix domain socket";
+                case ComErrc::kSocketBindFailed:
+                    return "Failed to bind socket";
+                case ComErrc::kSocketConnectFailed:
+                    return "Failed to connect to socket";
+                case ComErrc::kSocketListenFailed:
+                    return "Failed to listen on socket";
+                case ComErrc::kFdPassingFailed:
+                    return "Failed to pass file descriptor via SCM_RIGHTS";
+                case ComErrc::kFdReceiveFailed:
+                    return "Failed to receive file descriptor";
+                case ComErrc::kPermissionDenied:
+                    return "Insufficient permissions";
                 default:
                     return "Unknown Communication Management error";
             }

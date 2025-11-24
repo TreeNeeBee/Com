@@ -1,0 +1,55 @@
+[Unit]
+Description=LightAP Service Registry Initializer (Oneshot)
+Documentation=https://github.com/TreeNeeBee/LightAP/blob/master/modules/Com/doc/SERVICE_DISCOVERY_ARCHITECTURE.md
+Requires=lap-registry.socket
+After=lap-registry.socket
+
+[Service]
+# Oneshot 类型: 执行完成后立即退出，无常驻进程
+Type=oneshot
+
+# 初始化程序路径
+ExecStart=/usr/lib/lap/com/lap-registry-init
+
+# 标准输入/输出/错误
+StandardInput=socket
+StandardOutput=journal
+StandardError=journal
+
+# 资源限制 (初始化进程非常轻量)
+MemoryMax=10M
+CPUQuota=10%
+TasksMax=10
+
+# 安全加固 (遵循 systemd 最佳实践)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictNamespaces=true
+ReadWritePaths=/run/lap
+
+# 环境变量
+Environment="LAP_REGISTRY_SIZE=262144"
+Environment="LAP_REGISTRY_SLOTS=1024"
+Environment="LAP_SLOT_SIZE=256"
+Environment="LAP_LOG_LEVEL=INFO"
+Environment="LAP_ENABLE_HUGEPAGES=true"
+Environment="LAP_HUGEPAGE_SIZE=1GB"
+
+# 超时控制
+TimeoutStartSec=5s
+TimeoutStopSec=2s
+
+# Oneshot 完成后不保持 active 状态
+RemainAfterExit=no
+
+# 日志标识
+SyslogIdentifier=lap-registry-init
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    AUTOSAR Adaptive Platform Service Manifest Example
+    
+    Purpose: Demonstrate ARXML service definitions for LightAP
+    Compliance: AUTOSAR AP R24-11
+    Generated: 2025-11-19
+-->
+<AUTOSAR xmlns="http://autosar.org/schema/r4.0" 
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://autosar.org/schema/r4.0 AUTOSAR_00049.xsd">
+    
+    <AR-PACKAGES>
+        <!-- Service Interface Definitions -->
+        <AR-PACKAGE>
+            <SHORT-NAME>ServiceInterfaces</SHORT-NAME>
+            <ELEMENTS>
+                
+                <!-- Perception Service -->
+                <SERVICE-INTERFACE>
+                    <SHORT-NAME>PerceptionService</SHORT-NAME>
+                    <MAJOR-VERSION>1</MAJOR-VERSION>
+                    <MINOR-VERSION>0</MINOR-VERSION>
+                    <DESC>Sensor fusion and object detection service</DESC>
+                    <EVENTS>
+                        <EVENT>
+                            <SHORT-NAME>ObjectList</SHORT-NAME>
+                            <DESC>Detected objects in sensor field of view</DESC>
+                        </EVENT>
+                    </EVENTS>
+                    <METHODS>
+                        <METHOD>
+                            <SHORT-NAME>GetObjectList</SHORT-NAME>
+                            <DESC>Retrieve current object list</DESC>
+                        </METHOD>
+                    </METHODS>
+                </SERVICE-INTERFACE>
+                
+                <!-- Planning Service -->
+                <SERVICE-INTERFACE>
+                    <SHORT-NAME>PlanningService</SHORT-NAME>
+                    <MAJOR-VERSION>1</MAJOR-VERSION>
+                    <MINOR-VERSION>0</MINOR-VERSION>
+                    <DESC>Motion planning and trajectory generation</DESC>
+                    <EVENTS>
+                        <EVENT>
+                            <SHORT-NAME>Trajectory</SHORT-NAME>
+                            <DESC>Planned vehicle trajectory</DESC>
+                        </EVENT>
+                    </EVENTS>
+                </SERVICE-INTERFACE>
+                
+                <!-- Control Service (ASIL-D) -->
+                <SERVICE-INTERFACE>
+                    <SHORT-NAME>VehicleControlService</SHORT-NAME>
+                    <MAJOR-VERSION>2</MAJOR-VERSION>
+                    <MINOR-VERSION>0</MINOR-VERSION>
+                    <DESC>Vehicle control commands (ASIL-D safety level)</DESC>
+                    <METHODS>
+                        <METHOD>
+                            <SHORT-NAME>SetSteeringAngle</SHORT-NAME>
+                            <DESC>Set target steering angle</DESC>
+                        </METHOD>
+                        <METHOD>
+                            <SHORT-NAME>SetThrottle</SHORT-NAME>
+                            <DESC>Set throttle position</DESC>
+                        </METHOD>
+                        <METHOD>
+                            <SHORT-NAME>SetBrake</SHORT-NAME>
+                            <DESC>Set brake pressure</DESC>
+                        </METHOD>
+                    </METHODS>
+                </SERVICE-INTERFACE>
+                
+                <!-- State Manager Service -->
+                <SERVICE-INTERFACE>
+                    <SHORT-NAME>StateManagerService</SHORT-NAME>
+                    <MAJOR-VERSION>1</MAJOR-VERSION>
+                    <MINOR-VERSION>0</MINOR-VERSION>
+                    <DESC>System state management and coordination</DESC>
+                    <EVENTS>
+                        <EVENT>
+                            <SHORT-NAME>StateChanged</SHORT-NAME>
+                            <DESC>System state transition notification</DESC>
+                        </EVENT>
+                    </EVENTS>
+                    <METHODS>
+                        <METHOD>
+                            <SHORT-NAME>GetCurrentState</SHORT-NAME>
+                        </METHOD>
+                        <METHOD>
+                            <SHORT-NAME>RequestStateChange</SHORT-NAME>
+                        </METHOD>
+                    </METHODS>
+                </SERVICE-INTERFACE>
+                
+            </ELEMENTS>
+        </AR-PACKAGE>
+        
+        <!-- Service Instance Deployments -->
+        <AR-PACKAGE>
+            <SHORT-NAME>ServiceDeployments</SHORT-NAME>
+            
+            <!-- Perception Instance -->
+            <SERVICE-INSTANCE-DEPLOYMENTS>
+                <PROVIDED-SERVICE-INSTANCE>
+                    <SHORT-NAME>PerceptionInstance_01</SHORT-NAME>
+                    <SERVICE-INTERFACE-REF DEST="SERVICE-INTERFACE">/ServiceInterfaces/PerceptionService</SERVICE-INTERFACE-REF>
+                    <INSTANCE-ID>0x0001</INSTANCE-ID>
+                    <SD-SERVER-CONFIG>
+                        <INITIAL-OFFER-BEHAVIOR>
+                            <INITIAL-DELAY-MAX-VALUE>0.1</INITIAL-DELAY-MAX-VALUE>
+                            <INITIAL-DELAY-MIN-VALUE>0.05</INITIAL-DELAY-MIN-VALUE>
+                            <INITIAL-REPETITIONS-BASE-DELAY>0.01</INITIAL-REPETITIONS-BASE-DELAY>
+                            <INITIAL-REPETITIONS-MAX>3</INITIAL-REPETITIONS-MAX>
+                        </INITIAL-OFFER-BEHAVIOR>
+                    </SD-SERVER-CONFIG>
+                    <COMMUNICATION-CONNECTOR>
+                        <TYPE>ICEORYX2</TYPE>
+                        <ENDPOINT>/lap/perception/objects</ENDPOINT>
+                    </COMMUNICATION-CONNECTOR>
+                </PROVIDED-SERVICE-INSTANCE>
+                
+                <!-- Planning Instance -->
+                <PROVIDED-SERVICE-INSTANCE>
+                    <SHORT-NAME>PlanningInstance_01</SHORT-NAME>
+                    <SERVICE-INTERFACE-REF DEST="SERVICE-INTERFACE">/ServiceInterfaces/PlanningService</SERVICE-INTERFACE-REF>
+                    <INSTANCE-ID>0x0001</INSTANCE-ID>
+                    <COMMUNICATION-CONNECTOR>
+                        <TYPE>ICEORYX2</TYPE>
+                        <ENDPOINT>/lap/planning/trajectory</ENDPOINT>
+                    </COMMUNICATION-CONNECTOR>
+                </PROVIDED-SERVICE-INSTANCE>
+                
+                <!-- Control Instance (ASIL-D) -->
+                <PROVIDED-SERVICE-INSTANCE>
+                    <SHORT-NAME>ControlInstance_01</SHORT-NAME>
+                    <SERVICE-INTERFACE-REF DEST="SERVICE-INTERFACE">/ServiceInterfaces/VehicleControlService</SERVICE-INTERFACE-REF>
+                    <INSTANCE-ID>0x0001</INSTANCE-ID>
+                    <SAFETY-LEVEL>ASIL-D</SAFETY-LEVEL>
+                    <COMMUNICATION-CONNECTOR>
+                        <TYPE>ICEORYX2</TYPE>
+                        <ENDPOINT>/lap/control/vehicle</ENDPOINT>
+                    </COMMUNICATION-CONNECTOR>
+                </PROVIDED-SERVICE-INSTANCE>
+                
+                <!-- State Manager Instance -->
+                <PROVIDED-SERVICE-INSTANCE>
+                    <SHORT-NAME>StateManagerInstance_01</SHORT-NAME>
+                    <SERVICE-INTERFACE-REF DEST="SERVICE-INTERFACE">/ServiceInterfaces/StateManagerService</SERVICE-INTERFACE-REF>
+                    <INSTANCE-ID>0x0001</INSTANCE-ID>
+                    <COMMUNICATION-CONNECTOR>
+                        <TYPE>ICEORYX2</TYPE>
+                        <ENDPOINT>/lap/system/state</ENDPOINT>
+                    </COMMUNICATION-CONNECTOR>
+                </PROVIDED-SERVICE-INSTANCE>
+            </SERVICE-INSTANCE-DEPLOYMENTS>
+            
+        </AR-PACKAGE>
+        
+    </AR-PACKAGES>
+    
+</AUTOSAR>

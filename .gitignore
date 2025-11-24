@@ -84,3 +84,10 @@ _build_standalone/
 
 # BuildTemplate submodule local artifacts
 BuildTemplate/
+
+# Temporary test and build directories
+build_dds_test/
+build_*/
+
+# Archive and documentation summaries
+DOC_ORGANIZATION_SUMMARY.md

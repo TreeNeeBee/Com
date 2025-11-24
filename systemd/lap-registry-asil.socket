@@ -1,0 +1,15 @@
+[Unit]
+Description=LightAP Com ASIL Registry Unix Domain Socket
+Documentation=https://github.com/TreeNeeBee/LightAP
+PartOf=lap-registry-asil-init.service
+
+[Socket]
+ListenStream=/run/lap/registry_asil.sock
+SocketMode=0640
+SocketUser=root
+SocketGroup=asil
+Accept=false
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target
