@@ -91,3 +91,10 @@ build_*/
 
 # Archive and documentation summaries
 DOC_ORGANIZATION_SUMMARY.md
+
+# Third-party libraries (ignore extracted folders, keep .tar files)
+third_library/*/
+!third_library/*.tar
+!third_library/*.tar.gz
+!third_library/*.tar.bz2
+!third_library/*.tar.xz
