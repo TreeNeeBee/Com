@@ -20,6 +20,7 @@ int main(int argc, char** argv)
 
     std::string mode(argv[1]);
     DdsBinding binding;
+    binding.SetDiscoveryServer("tcp://127.0.0.1:42102");
 
     if (!binding.Initialize().HasValue()) {
         std::cerr << "Failed to initialize DDS binding" << std::endl;

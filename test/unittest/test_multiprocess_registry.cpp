@@ -13,7 +13,7 @@
 
 #include <gtest/gtest.h>
 #include "RegistryInitializer.hpp"
-#include "SharedMemoryRegistry.hpp"
+#include "ServiceRegistry.hpp"
 
 #include <sys/wait.h>
 #include <unistd.h>

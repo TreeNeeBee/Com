@@ -4,7 +4,7 @@
  * @brief       Unit tests for Runtime service discovery integration
  * @date        2025-11-20
  * @details     Tests Runtime::Initialize/Deinitialize, RegisterService, FindService APIs.
- *              Validates integration with SharedMemoryRegistry backend.
+ *              Validates integration with ServiceRegistry backend.
  * @copyright   Copyright (c) 2025
  * @note        Week 3: Runtime API integration testing
  * sdk:

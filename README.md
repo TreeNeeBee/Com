@@ -13,7 +13,7 @@
 **Version:** 3.1.0  
 **Last Updated:** 2025-11-24  
 **Architecture:** Zero-Daemon + Fixed Slot + Dual Registry + Plugin Bindings  
-**Status:** Phase 3 Complete (iceoryx2), Phase 4 Active (DDS + AF_XDP 70%)
+**Status:** Phase 3 Complete (Core IPC), Phase 4 Active (DDS + AF_XDP 70%)
 
 ---
 
@@ -55,7 +55,7 @@ LightAP Com is an **AUTOSAR Adaptive Platform R24-11** compliant communication m
 
 | Binding | Priority | Latency | Throughput | Status | Use Case |
 |---------|----------|---------|------------|--------|----------|
-| **iceoryx2** | 100 | <1µs | >10GB/s | ✅ Complete | Camera, LiDAR |
+| **Core IPC** | 100 | <5µs | >10GB/s | ✅ Complete | Camera, LiDAR |
 | **DDS (AF_XDP)** | 50 | ~10µs | ~1GB/s | 🔄 70% | Cross-ECU RT |
 | **Custom Protocol** | 20 | <10µs | ~500MB/s | 📋 Planned | Legacy IPC |
 | **Legacy Gateway** | 10 | ~50µs | ~100MB/s | 📋 Planned | SOME/IP bridge |
@@ -67,7 +67,7 @@ LightAP Com is an **AUTOSAR Adaptive Platform R24-11** compliant communication m
 ### Zero-Daemon Fixed Slot Service Discovery
 
 **Traditional (iceoryx v1):** App → RouDi Daemon → Registry → SHM (1-5µs, SPOF)  
-**LightAP (iceoryx2):** App → Direct memfd → seqlock O(1) (<500ns, no SPOF)
+**LightAP (Core IPC):** App → Direct memfd → seqlock O(1) (<500ns, no SPOF)
 
 **Core Mechanisms:**
 

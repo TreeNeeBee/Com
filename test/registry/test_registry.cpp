@@ -1,12 +1,12 @@
 /**
  * @file        test_registry.cpp
  * @author      LightAP Development Team
- * @brief       Unit tests for SharedMemoryRegistry (dual QM+AB/ASIL-CD registries v3.0)
+ * @brief       Unit tests for ServiceRegistry (dual QM+AB/ASIL-CD registries v3.0)
  * @date        2025-11-20
  * @copyright   Copyright (c) 2025
  */
 
-#include "SharedMemoryRegistry.hpp"
+#include "ServiceRegistry.hpp"
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -21,13 +21,13 @@ using namespace std::chrono;
 // Test Fixture
 // ============================================================================
 
-class SharedMemoryRegistryTest : public ::testing::Test
+class ServiceRegistryTest : public ::testing::Test
 {
 protected:
     void SetUp() override
     {
         // Initialize dual registries
-        registry_ = std::make_unique<SharedMemoryRegistry>();
+        registry_ = std::make_unique<ServiceRegistry>();
         auto result = registry_->Initialize();
         ASSERT_TRUE(result.HasValue()) << "Failed to initialize registry";
     }
@@ -41,7 +41,7 @@ protected:
         shm_unlink("/lap_com_registry_asil");
     }
 
-    std::unique_ptr<SharedMemoryRegistry> registry_;
+    std::unique_ptr<ServiceRegistry> registry_;
 };
 
 // ============================================================================
@@ -51,7 +51,7 @@ protected:
 /**
  * @test Verify registry initialization
  */
-TEST_F(SharedMemoryRegistryTest, Initialization)
+TEST_F(ServiceRegistryTest, Initialization)
 {
     // Registry should be initialized in SetUp
     EXPECT_NE(registry_, nullptr);
@@ -61,7 +61,7 @@ TEST_F(SharedMemoryRegistryTest, Initialization)
  * @test Register a QM service (QM + ASIL-A/B with security)
  * @req SWS_CM_00002 (OfferService)
  */
-TEST_F(SharedMemoryRegistryTest, RegisterQM_AB_Service)
+TEST_F(ServiceRegistryTest, RegisterQM_AB_Service)
 {
     uint64_t service_id = 0x0100;  // QM service range (0x0001~0x0417)
     uint64_t instance_id = 1;
@@ -82,7 +82,7 @@ TEST_F(SharedMemoryRegistryTest, RegisterQM_AB_Service)
  * @test Register an ASIL service (ASIL-C/D only, isolated)
  * @req SWS_CM_00002 (OfferService)
  */
-TEST_F(SharedMemoryRegistryTest, RegisterASIL_CD_Service)
+TEST_F(ServiceRegistryTest, RegisterASIL_CD_Service)
 {
     uint64_t service_id = 0xF100;  // ASIL service range (0xF001~0xF3FE)
     uint64_t instance_id = 1;
@@ -102,7 +102,7 @@ TEST_F(SharedMemoryRegistryTest, RegisterASIL_CD_Service)
 /**
  * @test Register a broadcast service (both registries)
  */
-TEST_F(SharedMemoryRegistryTest, RegisterBroadcastService)
+TEST_F(ServiceRegistryTest, RegisterBroadcastService)
 {
     uint64_t service_id = 0xFFFF;  // Broadcast service ID
     uint64_t instance_id = 0;
@@ -123,7 +123,7 @@ TEST_F(SharedMemoryRegistryTest, RegisterBroadcastService)
  * @test Find a registered QM service
  * @req SWS_CM_00001 (FindService)
  */
-TEST_F(SharedMemoryRegistryTest, FindQM_AB_Service)
+TEST_F(ServiceRegistryTest, FindQM_AB_Service)
 {
     uint64_t service_id = 0x0200;
     uint64_t instance_id = 1;
@@ -148,7 +148,7 @@ TEST_F(SharedMemoryRegistryTest, FindQM_AB_Service)
  * @test Find a registered ASIL service
  * @req SWS_CM_00001 (FindService)
  */
-TEST_F(SharedMemoryRegistryTest, FindASIL_CD_Service)
+TEST_F(ServiceRegistryTest, FindASIL_CD_Service)
 {
     uint64_t service_id = 0xF200;
     uint64_t instance_id = 2;
@@ -172,7 +172,7 @@ TEST_F(SharedMemoryRegistryTest, FindASIL_CD_Service)
  * @test Unregister a service
  * @req SWS_CM_00111 (StopOfferService)
  */
-TEST_F(SharedMemoryRegistryTest, UnregisterService)
+TEST_F(ServiceRegistryTest, UnregisterService)
 {
     uint64_t service_id = 0x0300;
     
@@ -199,7 +199,7 @@ TEST_F(SharedMemoryRegistryTest, UnregisterService)
  * @test Update heartbeat
  * @req SWS_CM_00311 (Service liveness)
  */
-TEST_F(SharedMemoryRegistryTest, UpdateHeartbeat)
+TEST_F(ServiceRegistryTest, UpdateHeartbeat)
 {
     uint64_t service_id = 0x0401;  // Valid service_id (slot 1)
     
@@ -233,7 +233,7 @@ TEST_F(SharedMemoryRegistryTest, UpdateHeartbeat)
 /**
  * @test Verify fixed slot mapping (slot = service_id & 1023)
  */
-TEST_F(SharedMemoryRegistryTest, FixedSlotMapping)
+TEST_F(ServiceRegistryTest, FixedSlotMapping)
 {
     // Test QM+AB service (0x0001 → slot 1)
     uint64_t qm_service = 0x0001;
@@ -258,7 +258,7 @@ TEST_F(SharedMemoryRegistryTest, FixedSlotMapping)
 /**
  * @test Reject invalid service IDs (slot 0)
  */
-TEST_F(SharedMemoryRegistryTest, RejectSlotZero)
+TEST_F(ServiceRegistryTest, RejectSlotZero)
 {
     // 0x0000 maps to slot 0 (reserved)
     auto result1 = registry_->RegisterService(0x0000, 1, 1, 0, "test", "test");
@@ -273,7 +273,7 @@ TEST_F(SharedMemoryRegistryTest, RejectSlotZero)
  * @test Verify QM service ID boundary (0x0001~0x0417)
  * @note QM registry hosts QM + ASIL-A/B services
  */
-TEST_F(SharedMemoryRegistryTest, QM_AB_ServiceID_Boundary)
+TEST_F(ServiceRegistryTest, QM_AB_ServiceID_Boundary)
 {
     // Min valid: 0x0001
     auto result_min = registry_->RegisterService(0x0001, 1, 1, 0, "iceoryx2", "test");
@@ -292,7 +292,7 @@ TEST_F(SharedMemoryRegistryTest, QM_AB_ServiceID_Boundary)
  * @test Verify ASIL service ID boundary (0xF001~0xF3FE)
  * @note ASIL registry hosts ASIL-C/D services only (physically isolated)
  */
-TEST_F(SharedMemoryRegistryTest, ASIL_CD_ServiceID_Boundary)
+TEST_F(ServiceRegistryTest, ASIL_CD_ServiceID_Boundary)
 {
     // Min valid: 0xF001
     auto result_min = registry_->RegisterService(0xF001, 1, 1, 0, "dds", "test");
@@ -315,7 +315,7 @@ TEST_F(SharedMemoryRegistryTest, ASIL_CD_ServiceID_Boundary)
 /**
  * @test Measure FindService latency (target: < 500ns)
  */
-TEST_F(SharedMemoryRegistryTest, FindServiceLatency)
+TEST_F(ServiceRegistryTest, FindServiceLatency)
 {
     // Register service
     uint64_t service_id = 0x0500;
@@ -362,7 +362,7 @@ TEST_F(SharedMemoryRegistryTest, FindServiceLatency)
 /**
  * @test Measure RegisterService latency
  */
-TEST_F(SharedMemoryRegistryTest, RegisterServiceLatency)
+TEST_F(ServiceRegistryTest, RegisterServiceLatency)
 {
     constexpr int NUM_SAMPLES = 100;  // Reduced to avoid slot collisions
     std::vector<uint64_t> latencies_ns;

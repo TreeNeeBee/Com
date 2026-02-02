@@ -605,7 +605,7 @@ struct alignas(64) ServiceSlot {  // 64字节对齐，匹配 CPU Cache Line
     uint32_t qos_profile;            ///< [48-51] QoS 配置标志位（iceoryx2 专用）
                                      ///<   bit[0-7]:   reliability (0=best_effort, 1=reliable)
                                      ///<   bit[8-15]:  history depth (0-255)
-                                     ///<   bit[16-23]: max_subscribers (0=unlimited, 1-255=limit)
+                                     ///<   bit[16-23]: max_channels (0=unlimited, 1-255=limit)
                                      ///<   bit[24-31]: 预留
     uint32_t subscriber_count;       ///< [52-55] 当前订阅者数量（实时统计）
                                      ///<   用途: 监控/调试，判断服务是否有消费者
@@ -665,7 +665,7 @@ static_assert(alignof(ServiceSlot) == 64, "ServiceSlot must be 64-byte aligned")
      - `1`: reliable（保证送达，适合控制指令）
    - **bit[8-15]**: history_depth
      - 保留最近 N 个样本（0-255）
-   - **bit[16-23]**: max_subscribers
+   - **bit[16-23]**: max_channels
      - 订阅者数量上限（0=不限制）
    - **bit[24-31]**: 预留扩展
 
@@ -2604,7 +2604,7 @@ public:
         uint32_t qos_profile = EncodeQoSProfile(
             publisher.value().reliability(),     // best_effort / reliable
             publisher.value().history_depth(),   // 历史深度
-            publisher.value().max_subscribers()  // 最大订阅者数
+            publisher.value().max_channels()  // 最大订阅者数
         );
         
         // 4. 注册到固定槽位
@@ -2652,12 +2652,12 @@ private:
     uint32_t EncodeQoSProfile(
         Reliability reliability,
         uint8_t history_depth,
-        uint8_t max_subscribers
+        uint8_t max_channels
     ) {
         uint32_t qos = 0;
         qos |= (reliability == Reliability::Reliable ? 1 : 0);  // bit[0]
         qos |= (static_cast<uint32_t>(history_depth) << 8);      // bit[8-15]
-        qos |= (static_cast<uint32_t>(max_subscribers) << 16);   // bit[16-23]
+        qos |= (static_cast<uint32_t>(max_channels) << 16);   // bit[16-23]
         return qos;
     }
     
@@ -2727,7 +2727,7 @@ Result<std::vector<ServiceInstanceInfo>> Iceoryx2Binding::FindService(
     // 5. 解码 QoS 配置
     uint8_t reliability = snapshot.qos_profile & 0x1;
     uint8_t history_depth = (snapshot.qos_profile >> 8) & 0xFF;
-    uint8_t max_subscribers = (snapshot.qos_profile >> 16) & 0xFF;
+    uint8_t max_channels = (snapshot.qos_profile >> 16) & 0xFF;
     
     // 6. 构建 ServiceInstanceInfo
     ServiceInstanceInfo info{
@@ -2740,7 +2740,7 @@ Result<std::vector<ServiceInstanceInfo>> Iceoryx2Binding::FindService(
         .qos = {
             .reliability = (reliability == 1 ? Reliability::Reliable : Reliability::BestEffort),
             .history_depth = history_depth,
-            .max_subscribers = max_subscribers
+            .max_channels = max_channels
         },
         .subscriber_count = snapshot.subscriber_count,  // 实时统计
         .last_heartbeat = std::chrono::nanoseconds(snapshot.last_heartbeat_ns)
@@ -3501,7 +3501,7 @@ ServiceSlot slot_1 = {
     // iceoryx2 端点（SD Proxy 内部通信）
     .endpoint_offset = 0x1000,  // SD Proxy 共享内存偏移
     .mempool_base_ptr = 0x7f1234567000,
-    .qos_profile = 0x00010100,  // reliable, history=1, max_subscribers=0
+    .qos_profile = 0x00010100,  // reliable, history=1, max_channels=0
     .subscriber_count = 0,  // 被应用查询次数（统计用）
     
     // 绑定类型
@@ -5257,7 +5257,7 @@ dds_qos:
 
 # iceoryx2 QoS 配置 (本地通信)
 iceoryx2_qos:
-  max_subscribers: 8
+  max_channels: 8
   max_samples: 16
   node_name: "radar_provider"
 ```

@@ -42,11 +42,12 @@
 #include <fastdds/dds/subscriber/DataReaderListener.hpp>
 #include <fastdds/dds/topic/Topic.hpp>
 #include <fastdds/dds/topic/TypeSupport.hpp>
-#include <fastdds/rtps/writer/WriterDiscoveryInfo.h>
+#include <fastdds/rtps/builtin/data/PublicationBuiltinTopicData.hpp>
+#include <fastdds/rtps/writer/WriterDiscoveryStatus.hpp>
 
 // Generated IDL type
-#include "LapComMessage.h"
-#include "LapComMessagePubSubTypes.h"
+#include "LapComMessage.hpp"
+#include "LapComMessagePubSubTypes.hpp"
 
 #include <atomic>
 #include <memory>
@@ -118,9 +119,11 @@ namespace binding
     public:
         DdsDiscoveryListener(DdsBinding* binding) : binding_(binding) {}
 
-        void on_publisher_discovery(
+        void on_data_writer_discovery(
             eprosima::fastdds::dds::DomainParticipant* participant,
-            eprosima::fastrtps::rtps::WriterDiscoveryInfo&& info
+            eprosima::fastdds::rtps::WriterDiscoveryStatus reason,
+            const eprosima::fastdds::rtps::PublicationBuiltinTopicData& info,
+            bool& should_be_ignored
         ) override;
 
         /**
@@ -229,6 +232,9 @@ namespace binding
         bool SupportsService(uint64_t service_id) const noexcept override;
         TransportMetrics GetMetrics() const noexcept override;
 
+        // Configuration
+        void SetDiscoveryServer(const std::string& address) noexcept;
+
     private:
         // Helper methods
         eprosima::fastdds::dds::Topic* GetOrCreateTopic(
@@ -256,6 +262,9 @@ namespace binding
         Result<void> InitializeAfXdp() noexcept;
         Result<void> SendViaAfXdp(const ByteBuffer& data) noexcept;
         std::string MakeKey(uint64_t service_id, uint64_t instance_id, uint32_t event_id) const noexcept;
+        std::string MakeMethodKey(uint64_t service_id, uint64_t instance_id, uint32_t method_id) const noexcept;
+        std::string MakeMethodTopicName(uint64_t service_id, uint64_t instance_id,
+                        uint32_t method_id, bool is_request) const noexcept;
 
         // Member variables
         DdsConfig config_;
@@ -271,6 +280,14 @@ namespace binding
         std::unordered_map<std::string, eprosima::fastdds::dds::DataReader*> readers_;
         std::unordered_map<std::string, std::unique_ptr<DdsReaderListener>> listeners_;
         std::unique_ptr<DdsDiscoveryListener> discovery_listener_;
+
+        // Method request/reply
+        std::unordered_map<std::string, eprosima::fastdds::dds::Topic*> method_topics_;
+        std::unordered_map<std::string, eprosima::fastdds::dds::DataWriter*> method_writers_;
+        std::unordered_map<std::string, eprosima::fastdds::dds::DataReader*> method_readers_;
+        std::unordered_map<std::string, std::unique_ptr<eprosima::fastdds::dds::DataReaderListener>> method_listeners_;
+        std::unordered_map<std::string, MethodCallback> method_handlers_;
+        std::unordered_map<std::string, std::unique_ptr<std::mutex>> method_mutexes_;
 
         mutable TransportMetrics metrics_;
     };

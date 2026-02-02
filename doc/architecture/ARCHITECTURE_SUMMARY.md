@@ -23,7 +23,7 @@
 - **槽位 0 保护**: 禁止使用槽位 0，用于错误检测和边界保护
 - **双注册表隔离**: QM+AB Registry 和 ASIL-CD Registry 物理隔离
 - **广播双向互通**: 槽位 1023 实现跨安全等级广播事件
-- **共享内存直接访问**: iceoryx2 memfd + seqlock 无锁读取
+- **共享内存直接访问**: Core IPC memfd + seqlock 无锁读取
 - **< 500ns 延迟**: 零 IPC/网络通信，O(1) 查找
 - **零单点故障**: 完全去中心化，无任何守护进程
 - **双层 IDL 架构**: Franca IDL (SSOT) → AUTOSAR API + DDS IDL
@@ -45,9 +45,9 @@ Com模块实现了以下核心功能集群（Functional Cluster）：
 - ✅ **Field Notification**
 - ✅ **Pluggable Transport Bindings** (运行时动态加载 .so 插件，配置驱动)
 - ✅ **DDS Security Integration** (基于 AUTOSAR AP TR DDS Security)
-- ✅ **High-Performance IPC** (iceoryx2 零拷贝 + epoll + mempool 自管理)
+- ✅ **High-Performance IPC** (Core IPC 零拷贝 + epoll + mempool 自管理)
 - ✅ **Configuration-Driven Architecture** (YAML manifest 控制，应用零修改)
-- ✅ **True Zero-Copy Communication** (iceoryx2 共享内存，完全无守护进程)
+- ✅ **True Zero-Copy Communication** (Core IPC 共享内存，完全无守护进程)
 - ✅ **Zero-Daemon Service Discovery** (固定槽位 + seqlock + 心跳，< 500ns 延迟)
 - ✅ **FuSa-Ready Architecture** (QM/ASIL-D 槽位物理隔离 + Guard Page 保护)
 
@@ -106,12 +106,12 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 ┌──────────────────────────────────────────────────────────────────────────┐
 │         可插拔 Transport Binding (.so 动态库，按需加载)                   │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ binding_iceoryx2.so (priority: 100, 本地零拷贝)                    │  │
-│  │  - iceoryx2 完全无守护进程架构 (vs iceoryx v1 需要 RouDi)         │  │
-│  │  - 固定槽位服务发现 (共享内存 + seqlock，< 500ns)                 │  │
-│  │  - MemPool 进程自管理 (QM 槽位 0-923 / ASIL-D 槽位 924-1023)      │  │
-│  │  - 零拷贝数据传输 (<1μs 延迟, >10GB/s 吞吐)                        │  │
-│  │  - Lock-free Queue (Rust 实现，内存安全)                          │  │
+│  │ binding_coreipc.so (priority: 100, 本地零拷贝)                    │  │
+│  │  - Core IPC 进程自管理架构（无守护进程，基于Core模块）            │  │
+│  │  - 内存服务注册表（临时实现，后续迁移到Core）                     │  │
+│  │  - Publisher/Subscriber API（基于lap::core::ipc）               │  │
+│  │  - 零拷贝数据传输 (<5μs 延迟, >10GB/s 吞吐)                        │  │
+│  │  - Lock-free Queue (RingBufferBlock实现，内存安全)                │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │ binding_dds.so (priority: 50, 跨 ECU 通信)                         │  │
@@ -202,13 +202,13 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 # 转换工具: arxml2yaml (AUTOSAR ARXML → YAML)
 
 bindings:
-  - type: iceoryx2
-    library: /usr/lib/lap/com/binding_iceoryx2.so
+  - type: coreipc
+    library: /usr/lib/lap/com/binding_coreipc.so
     priority: 100
     enabled: true
     config:
       domain_name: lightap_com
-      mempool_config: /etc/iceoryx2/mempool_config.toml
+      mempool_config: /etc/lightap/core_ipc_config.toml
       system_optimization:
         use_huge_pages: true
         huge_page_size: 1G
@@ -230,7 +230,7 @@ bindings:
       af_xdp_config:
         interface: eth0
         queue_ids: [0, 1, 2, 3]
-        umem_shared_with_iceoryx2: true
+        umem_shared_with_coreipc: true
         zero_copy: true
         xdp_mode: drv
       payload_routing:
@@ -276,7 +276,7 @@ static_service_configuration:
   - service_instance:
       service_id: 0x1234
       instance_id: 0x0001
-      binding: iceoryx2
+      binding: coreipc
       endpoint:
         type: SharedMemory
         service_name: /perception/camera_front
@@ -295,31 +295,30 @@ static_service_configuration:
           durability: TRANSIENT_LOCAL
 ```
 
-#### mempool_config.toml（iceoryx2 MemPool 进程自管理）
+#### core_ipc_config.toml（Core IPC 配置示例）
 
 ```toml
-# iceoryx2 配置 - 无需中央 RouDi，每个进程自管理
+# Core IPC 配置 - 进程自管理，基于 lap::core::ipc
 [domain]
 name = "lightap_com"
 
-# QM 等级感知数据池（摄像头、LiDAR）
+# 摄像头服务
 [[services]]
 name = "camera_front"
-safety_level = "QM"
 
 [services.publisher]
-max_payload_size = 8388608  # 8MB（4K 摄像头帧）
-max_publishers = 10
-max_subscribers = 20
+max_chunks = 64
+chunk_size = 8388608  # 8MB（4K 摄像头帧）
+publish_timeout = 100000000  # 100ms
 
 [[services]]
 name = "lidar_points"
-safety_level = "QM"
 
 [services.publisher]
-max_payload_size = 2097152  # 2MB（LiDAR 点云）
+max_chunks = 128
+chunk_size = 2097152  # 2MB（LiDAR 点云）
 max_publishers = 5
-max_subscribers = 15
+max_channels = 15
 
 # ASIL-D 等级控制数据池（转向、制动）
 [[services]]
@@ -329,7 +328,7 @@ safety_level = "ASIL-D"
 [services.publisher]
 max_payload_size = 4096  # 4KB（控制指令）
 max_publishers = 1  # 单一控制源
-max_subscribers = 10
+max_channels = 10
 access_mode = "read_only_subscribers"  # 订阅者只读
 
 [[services]]
@@ -339,7 +338,7 @@ safety_level = "ASIL-D"
 [services.publisher]
 max_payload_size = 4096
 max_publishers = 1
-max_subscribers = 10
+max_channels = 10
 access_mode = "read_only_subscribers"
 ```
 
@@ -467,12 +466,12 @@ int main() {
     // 2. 查找服务（透明使用静态配置 / 共享内存注册表 / 动态发现）
     auto handles = FindService<CameraServiceProxy>();
     
-    // 3. 创建代理（自动选择最优 Binding: iceoryx > dds > legacy）
+    // 3. 创建代理（自动选择最优 Binding: coreipc > dds > legacy）
     auto proxy = std::make_shared<CameraServiceProxy>(handles[0]);
     
     // 4. 订阅事件（零拷贝自动生效，应用无感知）
     proxy->ImageData.Subscribe([](const Image& img) {
-        ProcessImage(img);  // img 可能是 iceoryx 零拷贝对象，应用不关心
+        ProcessImage(img);  // img 可能是 Core IPC 零拷贝对象，应用不关心
     });
     
     // 5. 调用方法（自动路由到正确的 Binding）
@@ -898,155 +897,166 @@ public:
 - 网关进程内部处理 SOME/IP/D-Bus 编解码
 - lap::com ↔ 网关协议（Protobuf/YAML）
 
-### 9. iceoryx2 Binding (source/binding/iceoryx2/) 🔥 新增
+### 9. Core IPC Binding (source/binding/coreipc/) 🔥 新增
 
 #### 9.1 设计定位
 
-**核心目标**: 提供**真正零拷贝**的超高性能本地进程间通信（IPC）方案
+**核心目标**: 提供**真正零拷贝**的超高性能本地进程间通信（IPC）方案，基于LightAP Core模块的IPC实现
 
-**iceoryx2 优势** (相比 iceoryx v1):
-- ✅ **无需 RouDi 守护进程**: 每个进程自管理，消除单点故障
-- ✅ **Rust 实现**: 内存安全，无数据竞争
+**Core IPC 优势**:
+- ✅ **无需守护进程**: 每个进程自管理，消除单点故障
+- ✅ **C++17实现**: 类型安全，现代C++特性
 - ✅ **零配置启动**: 自动发现与连接
-- ✅ **更好的 FuSa 支持**: 进程隔离更彻底
+- ✅ **更好的集成**: 与LightAP架构无缝集成
+- ✅ **内置FuSa支持**: AUTOSAR标准ErrorCode/Result模式
+- ✅ **固定槽位注册**: 使用Com模块的ServiceRegistry实现O(1)服务发现
 
 **适用场景**:
 - 🚀 **极致性能**: 传感器融合、感知算法、大规模数据流处理
-- ⚡ **超低延迟**: < 1μs 端到端延迟，实时控制系统
+- ⚡ **超低延迟**: < 5μs 端到端延迟，实时控制系统
 - 🔒 **零拷贝**: 共享内存直接访问，消除内存复制
 - 📊 **大吞吐量**: > 10 GB/s 单连接，支持4K视频、LiDAR点云
 
-**性能指标** (应用 5 步优化后):
-- 延迟: **< 1μs** → **< 500ns** (P99, io_uring SQPOLL + 大页)
-- 吞吐量: **> 10 GB/s** → **> 15 GB/s** (1GB 大页 + THP)
-- CPU占用: **< 0.5%** → **< 0.2%** (io_uring 零系统调用)
-- 内存占用: 固定MemPool，2MB chunk 对齐大页边界
-- 确定性: Lock-free算法 + CPU 隔离 (isolcpus 4-7)
+**性能指标**:
+- 延迟: **< 5μs** (P99)
+- 吞吐量: **> 10 GB/s**
+- CPU占用: **< 0.5%**
+- 内存占用: 固定MemPool，2MB chunk对齐
+- 确定性: Lock-free算法 + RAII管理
 
-#### 9.2 iceoryx2 核心特性
+#### 9.2 Core IPC 核心特性
 
-**1. 真零拷贝架构（无需 RouDi）**
+**1. 真零拷贝架构（无需守护进程）**
 ```cpp
-// iceoryx2: 进程自动初始化，无需 RouDi 守护进程
+// Core IPC: 进程自动初始化，基于lap::core::ipc API
 // 发布端：直接在共享内存中构造数据
-auto node = iox2::NodeBuilder("camera_node").create();
-auto publisher = node.publish<SensorData>("LidarPoints");
-auto sample = publisher.loan();  // 从进程自管理 MemPool 借用
+using namespace lap::core::ipc;
 
-// 直接在共享内存中写入数据（零拷贝）
-sample->timestamp = getCurrentTime();
-sample->points.resize(10000);    // 预分配内存池
-for (size_t i = 0; i < 10000; ++i) {
-    sample->points[i] = lidar.readPoint(i);
-}
+PublisherConfig config;
+config.max_chunks = 64;
+config.chunk_size = 2 * 1024 * 1024;  // 2MB
 
-publisher.publish(sample);  // 仅传递指针，无数据复制
+auto pub_result = Publisher::Create("/lap_ipc_1234_5678", config);
+auto publisher = std::move(pub_result).Value();
+
+// 使用lambda写入数据（零拷贝）
+publisher.Send([&](Byte* buffer, Size size) -> Size {
+    auto* data = reinterpret_cast<SensorData*>(buffer);
+    data->timestamp = getCurrentTime();
+    data->points.resize(10000);
+    for (size_t i = 0; i < 10000; ++i) {
+        data->points[i] = lidar.readPoint(i);
+    }
+    return sizeof(SensorData);
+});
 ```
 
 ```cpp
 // 订阅端：直接访问共享内存数据
-auto subscriber = runtime.CreateSubscriber<SensorData>("LidarPoints");
+SubscriberConfig sub_config;
+sub_config.channel_capacity = 32;
 
-subscriber.subscribe([](const SensorData* sample) {
-    // 直接读取共享内存，零拷贝
-    processLidarData(sample->points);  
-    // 数据在回调结束后自动释放回MemPool
-});
+auto sub_result = Subscriber::Create("/lap_ipc_1234_5678", sub_config);
+auto subscriber = std::move(sub_result).Value();
+
+// 接收数据（零拷贝）
+auto sample_result = subscriber.Receive();
+if (sample_result) {
+    auto sample = std::move(sample_result).Value();
+    auto* data = reinterpret_cast<const SensorData*>(sample.RawData());
+    processLidarData(data->points);
+    // Sample析构时自动释放回MemPool
+}
 ```
 
-**2. 内存池（MemPool）进程自管理**
+**2. 内存池（MemPool）管理**
 ```cpp
-// iceoryx2: 每个进程自己管理 MemPool，无需中央配置
-auto config = iox2::Config::default()
-    .with_domain("lightap_com")
-    .with_max_publishers(10)
-    .with_max_subscribers(20);
+// Core IPC: 每个Publisher/Subscriber管理自己的MemPool
+PublisherConfig config;
+config.max_chunks = 64;              // 最大chunk数量
+config.chunk_size = 2 * 1024 * 1024; // 2MB per chunk
+config.publish_timeout = 100000000;   // 100ms
+config.policy = PublishPolicy::kOverwrite;
 
-auto node = iox2::NodeBuilder("sensor_node")
-    .config(config)
-    .create();
-
-// 自动分配共享内存，无需 RouDi
-auto publisher = node.publish<LidarData>("lidar_points")
-    .max_payload_size(2 * 1024 * 1024)  // 2MB
-    .max_publishers(5)
-    .create();
+// 自动创建共享内存和chunk pool
+auto publisher = Publisher::Create(shm_path, config).Value();
 ```
 
 **3. Lock-free Queue**
-- **无锁算法**: SPSC (Single Producer Single Consumer) 队列
+- **无锁算法**: RingBufferBlock实现，支持SPSC/MPMC模式
 - **实时保证**: 无优先级反转，无死锁
 - **确定性延迟**: 最坏情况可预测
+- **原子引用计数**: 安全的多订阅者消息共享
 
-**4. 服务发现（去中心化，无需 RouDi）**
+**4. 服务发现（基于Com ServiceRegistry）**
 ```cpp
-// iceoryx2: 去中心化服务发现，通过共享内存自动同步
-auto publisher = node.publish<CameraImage>("FrontCamera").create();
-// 自动在共享内存区域注册服务元数据
+// CoreIPCBinding使用Com的固定槽位注册表
+// Publisher注册服务
+String shm_path = "/lap_ipc_" + std::to_string(service_id) + 
+                  "_" + std::to_string(instance_id);
 
-auto subscriber = node.subscribe<CameraImage>("FrontCamera").create();
-// 自动扫描共享内存区域，发现可用服务
-// 通过固定槽位映射，< 500ns 延迟
+// 1. 计算固定槽位
+uint32_t slot_index = service_id & 0x03FF;  // Slots 1-1023
+
+// 2. 注册到ServiceRegistry
+registry_->RegisterService(
+    slot_index,
+    service_id,
+    instance_id,
+    major_version,
+    minor_version,
+    "coreipc",
+    shm_path.c_str()  // endpoint = Core IPC共享内存路径
+);
+
+// Consumer查找服务
+auto result = registry_->FindService(service_id);
+if (result) {
+    auto& slot = result.Value();
+    String shm_path = slot.endpoint;  // 获取共享内存路径
+    // 使用shm_path创建Subscriber
+    auto subscriber = Subscriber::Create(shm_path, config);
+}
 ```
 
 #### 9.3 架构组成
 
 | 组件 | 功能 | 文件 |
 |------|------|------|
-| `Iceoryx2NodeManager` | iceoryx2 Node 管理（进程自管理） + CPU 亲和性 | `Iceoryx2Node.hpp` |
-| `Iceoryx2Publisher` | 零拷贝发布器（Rust FFI） + io_uring SQPOLL | `Iceoryx2Publisher.hpp` |
-| `Iceoryx2Subscriber` | 零拷贝订阅器（Rust FFI） + io_uring 异步接收 | `Iceoryx2Subscriber.hpp` |
-| `Iceoryx2ConfigManager` | 配置管理（无需 RouDi） + 大页内存配置 | `Iceoryx2Config.hpp` |
-| `Iceoryx2EventBinding` | Event 通信绑定 | `Iceoryx2EventBinding.hpp` |
-| `Iceoryx2MethodBinding` | Method 调用绑定 | `Iceoryx2MethodBinding.hpp` |
-| `Iceoryx2FieldBinding` | Field 通知绑定 | `Iceoryx2FieldBinding.hpp` |
-| `Iceoryx2IoUringIntegration` | io_uring SQPOLL 零系统调用（Step 3） | `Iceoryx2IoUring.hpp` |
-| `Iceoryx2HugePageAllocator` | 大页内存分配器（Step 1） | `HugePageAllocator.hpp` |
+| `CoreIPCBinding` | Core IPC传输绑定主类 | `CoreIPCBinding.hpp` |
+| `PublisherWrapper` | Publisher封装 + Com注册表服务管理 | `CoreIPCBinding.cpp` |
+| `SubscriberWrapper` | Subscriber封装 + 事件监听 | `CoreIPCBinding.cpp` |
+| `Com::ServiceRegistry` | 固定槽位服务注册表（QM/ASIL双注册表） | `registry/ServiceRegistry.hpp` |
+| `EventProtocol` | Event ID协议封装（4字节头） | `CoreIPCBinding.cpp` |
 
 #### 9.4 核心技术
 
 **1. POSIX Shared Memory**
 ```cpp
-// 共享内存创建（由RouDi管理）
-int shm_fd = shm_open("/iceoryx_mgmt", O_CREAT | O_RDWR, 0666);
-ftruncate(shm_fd, MEMPOOL_SIZE);
-void* shm_addr = mmap(nullptr, MEMPOOL_SIZE, 
-                      PROT_READ | PROT_WRITE, 
-                      MAP_SHARED, shm_fd, 0);
+// 共享内存创建（由Publisher自动管理）
+// Core IPC使用memfd创建匿名共享内存
+String shm_path = "/lap_ipc_" + std::to_string(service_id) + 
+                  "_" + std::to_string(instance_id);
+auto publisher = Publisher::Create(shm_path, config);
 ```
 
 **2. MemPool 分配策略**
 ```cpp
-class IceoryxMemPool {
-public:
-    // 从内存池借用chunk
-    template<typename T>
-    T* loan() {
-        // 1. 从空闲列表获取chunk（lock-free）
-        auto chunk = freeList_.pop();
-        if (!chunk) {
-            // 2. 内存池耗尽，返回错误
-            return nullptr;
-        }
-        
-        // 3. Placement new构造对象
-        return new (chunk->data()) T();
-    }
-    
-    // 发布后自动释放
-    template<typename T>
-    void release(T* sample) {
-        // 1. 调用析构函数
-        sample->~T();
-        
-        // 2. 归还chunk到空闲列表（lock-free）
-        auto chunk = getChunkFromSample(sample);
-        freeList_.push(chunk);
-    }
-    
-private:
-    LockFreeStack<Chunk> freeList_;  // 无锁栈
-};
+// Core IPC ChunkPoolAllocator
+// 从内存池借用chunk (loan-based API)
+auto sample_result = publisher.Loan();
+if (sample_result) {
+    auto sample = std::move(sample_result).Value();
+    // 写入数据...
+    publisher.Send(std::move(sample));
+}
+
+// 或使用lambda API（推荐）
+publisher.Send([](Byte* buf, Size size) -> Size {
+    // 直接写入共享内存
+    std::memcpy(buf, data, data_size);
+    return data_size;
+});
 ```
 
 **3. Lock-free SPSC Queue**
@@ -1087,257 +1097,105 @@ private:
 };
 ```
 
-**4. iceoryx2 去中心化架构（无需 RouDi）+ 系统级优化**
+**4. Core IPC 进程自管理架构**
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│      共享内存区域 (1GB Huge Pages + THP, Step 1)               │
+│   Com ServiceRegistry (固定槽位，QM/ASIL双注册表)          │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 服务元数据区（去中心化，所有进程共享）                   │   │
-│  │ - Service Registry (共享内存数据结构)                   │   │
-│  │ - Publishers: Lock-free HashMap<Topic, PublisherList>   │   │
-│  │ - Subscribers: Lock-free HashMap<Topic, SubscriberList> │   │
+│  │ ServiceSlot[1024] (256 bytes/slot, 256KB total)         │   │
+│  │ - service_id → slot mapping (O(1) lookup)               │   │
+│  │ - instance_id, binding_type, endpoint (shm path)        │   │
+│  │ - seqlock无锁并发控制 (<100ns read)                      │   │
+│  └─────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+         ↓ endpoint指向Core IPC共享内存路径
+┌─────────────────────────────────────────────────────────────────┐
+│      Core IPC 共享内存区域 (per-service, POSIX shm)             │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ ControlBlock (128KB)                                     │   │
+│  │ - pool_state: 块分配状态                                 │   │
+│  │ - registry: ChannelRegistry (128个订阅者位图)         │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 数据缓冲区（每个服务独立 MemPool，2MB chunk 对齐）       │   │
-│  │ - /camera_front: 8MB × 50 chunks (1GB 大页)             │   │
-│  │ - /lidar_points: 2MB × 100 chunks (THP 优化)            │   │
-│  │ - /steering_control: 4KB × 1000 chunks (ASIL-D)         │   │
+│  │ SubscriberQueues (800KB, 100 × 8KB)                     │   │
+│  │ - RingBufferBlock: lock-free环形队列                     │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ io_uring SQPOLL 提交队列（Step 3，CPU 2 绑核）           │   │
-│  │ - SQ (Submission Queue): 32K entries                    │   │
-│  │ - CQ (Completion Queue): 32K entries                    │   │
-│  │ - SQPOLL Kernel Thread: 绑定小核 CPU 2                  │   │
+│  │ ChunkPool (动态大小)                                      │   │
+│  │ - 2MB × 64 chunks = 128MB                                │   │
+│  │ - ChunkPoolAllocator: SHRINK/NORMAL/EXTEND策略           │   │
 │  └─────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
          ↑                                       ↑
-         │ 进程自管理 mmap                        │ 进程自管理 mmap
+         │ Publisher::Create(shm_path)           │ Subscriber::Create(shm_path)
          │                                       │
 ┌────────┴─────────────┐              ┌─────────┴────────────────┐
 │  Publisher App       │              │ Subscriber App           │
-│  (Camera Node)       │              │ (Fusion Node)            │
-│  - 自己创建/映射 SHM  │              │ - 自己映射 SHM           │
-│  - 自己管理 MemPool  │              │ - Lock-free 读取         │
+│  1. OfferService()   │              │  1. FindService()        │
+│     → 注册到Registry  │              │     → 查询Registry        │
+│     → 写入shm_path   │              │     → 获取shm_path       │
+│  2. Publisher::      │              │  2. Subscriber::         │
+│     Create(path)     │              │     Create(path)         │
+│     → 创建/打开SHM    │              │     → 打开已存在SHM       │
 └──────────────────────┘              └──────────────────────────┘
-         │                                       │
-         └────── 共享内存服务注册表 (固定槽位映射) ─────┘
-                    (零守护进程，< 500ns 延迟)
 ```
 
-#### 9.5 FuSa MemPool 物理隔离（QM / ASIL-D）
+#### 9.5 配置示例
 
-**核心设计**: iceoryx2 进程自管理 + Binding 强制权限控制，**应用无感知**
+Core IPC Binding使用Com模块的统一配置文件格式：
 
-**iceoryx2 优势**: 无中央 RouDi，消除单点故障风险，进程级隔离更彻底
+##### 9.5.1 运行时配置 (runtime_config.yaml)
 
-##### 9.5.1 MemPool 隔离策略
-
-| Safety Level | MemPool 名称 | 用途 | 访问权限 | FuSa 保证 |
-|--------------|--------------|------|----------|-----------|
-| **QM** | `QM_PerceptionPool` | 摄像头图像、LiDAR 点云 | Read/Write | 非安全关键数据 |
-| **ASIL-D** | `ASIL_ControlPool` | 转向指令、制动信号 | Write (控制进程)<br>Read-only (其他) | 物理隔离，防篡改 |
-| **ASIL-B** | `ASIL_SensorPool` | 轮速、IMU 数据 | Read/Write | 中等安全等级 |
-
-##### 9.5.2 mempool_config.toml 配置（iceoryx2 进程自管理）
-
-```toml
-# iceoryx2 配置 - 每个进程自己管理，无需 RouDi
-[domain]
-name = "lightap_com"
-shm_path = "/dev/shm/iceoryx2_lightap"
-
-# 系统级优化：大页内存支持（对应 Step 1）
-[system]
-use_huge_pages = true          # 启用 1GB 大页内存
-huge_page_size = "1G"          # 1GB 大页
-transparent_huge_pages = true  # 启用 THP
-alignment = 2097152            # 2MB chunk 对齐大页边界
-
-# QM 等级：感知数据（摄像头、LiDAR）
-[[services]]
-name = "camera_front"
-safety_level = "QM"
-max_payload_size = 8388608  # 8MB（4K 摄像头帧）
-max_publishers = 5
-max_subscribers = 20
-history_size = 10
-
-[[services]]
-name = "lidar_points"
-safety_level = "QM"
-max_payload_size = 2097152  # 2MB（LiDAR 点云）
-max_publishers = 3
-max_subscribers = 15
-history_size = 5
-
-# ASIL-D 等级：关键控制指令（转向、制动）
-[[services]]
-name = "steering_control"
-safety_level = "ASIL-D"
-max_payload_size = 4096  # 4KB（控制指令）
-max_publishers = 1  # 单一控制源
-max_subscribers = 10
-history_size = 100  # 高历史记录用于审计
-access_mode = "read_only_subscribers"  # 订阅者强制只读
-
-[[services]]
-name = "brake_control"
-safety_level = "ASIL-D"
-max_payload_size = 4096
-max_publishers = 1
-max_subscribers = 10
-history_size = 100
-access_mode = "read_only_subscribers"
-
-# ASIL-B 等级：传感器数据
-[[services]]
-name = "wheel_speed"
-safety_level = "ASIL-B"
-max_payload_size = 1024  # 1KB（轮速、IMU）
-max_publishers = 4  # 4个轮速传感器
-max_subscribers = 20
-history_size = 50
+```yaml
+services:
+  - service_id: 0x1234
+    instance_id: 0x5678
+    interfaces:
+      events:
+        - event_id: 0x0001
+          transport_binding:
+            type: coreipc
+            priority: 100
+            config:
+              max_chunks: 64
+              chunk_size: 2097152  # 2MB
+              channel_capacity: 32
+              timeout_ms: 100
 ```
 
-##### 9.5.3 物理隔离实现机制
+##### 9.5.2 使用建议
 
-**1. MemPool 段分离（iceoryx2 进程自管理，Linux 内核级别隔离）**
+**推荐使用场景**:
+- ✅ **本地高性能通信**: 同设备进程间大数据量传输
+- ✅ **实时系统**: 传感器数据融合、感知算法管道
+- ✅ **零拷贝需求**: 4K视频流、LiDAR点云处理
 
-```cpp
-// iceoryx2: 每个进程启动时自己创建独立共享内存段
-class Iceoryx2MemPoolManager {
-public:
-    void InitializeService(const ServiceConfig& config) {
-        // 每个服务使用独立的 shm 文件（按安全等级隔离）
-        std::string shm_name = "/iceoryx2_" + config.domain_name 
-                             + "_" + config.service_name
-                             + "_" + config.safety_level;
-        
-        int shm_fd = shm_open(shm_name.c_str(), 
-                               O_CREAT | O_RDWR, 
-                               0600);  // 严格权限控制
-        
-        size_t total_size = config.max_payload_size 
-                          * config.max_publishers 
-                          * config.history_size;
-        ftruncate(shm_fd, total_size);
-        
-        // mmap 创建隔离的内存段
-        void* addr = mmap(nullptr, total_size,
-                         PROT_READ | PROT_WRITE,
-                         MAP_SHARED, shm_fd, 0);
-        
-        services_[config.service_name] = {addr, shm_fd, config};
-    }
-    
-private:
-    std::map<std::string, ServiceMemory> services_;
-};
-```
-```
+**性能优化建议**:
+- 调整 `chunk_size` 以匹配数据负载大小
+- 使用 `max_chunks` 控制内存使用
+- 考虑 `PublishPolicy::kOverwrite` 减少阻塞
 
-**2. 进程访问权限控制（POSIX ACL）**
+##### 9.5.3 后续增强计划
 
-```cpp
-class IceoryxAccessControl {
-public:
-    void EnforceReadOnlyAccess(int shm_fd, pid_t reader_pid) {
-        // 为非 writer 进程强制只读映射
-        if (!IsWriter(reader_pid)) {
-            // 使用 mprotect 强制只读
-            void* addr = GetSegmentAddress(shm_fd);
-            size_t size = GetSegmentSize(shm_fd);
-            
-            mprotect(addr, size, PROT_READ);  // 移除写权限
-            
-            // 记录审计日志
-            LogFuSaEvent("READ_ONLY_ENFORCED", reader_pid, shm_fd);
-        }
-    }
-    
-private:
-    bool IsWriter(pid_t pid) {
-        // 检查进程是否在 writer 白名单
-        return writer_whitelist_.count(pid) > 0;
-    }
-};
-```
+根据 [CORE_IPC_INTERFACE_REQUIREMENTS.md](../../../CORE_IPC_INTERFACE_REQUIREMENTS.md)，计划增强：
 
-**3. Binding 层自动权限检查**
+| 功能 | 优先级 | 说明 | 状态 |
+|------|-------|------|------|
+| ServiceRegistry集成 | **已完成** | 使用Com模块的固定槽位注册表 | ✅ 架构已定义 |
+| MethodChannel | P0 | 支持Method调用（请求-响应模式） | 📋 待实现 |
+| EventID Protocol | P1 | 标准化Event ID编码格式 | 📋 待实现 |
+| FuSa MemPool | P2 | 安全等级隔离（QM/ASIL-D） | 📋 待实现 |
 
-```cpp
-// binding_iceoryx2.so 内部实现
-template<typename DataType>
-class Iceoryx2Subscriber {
-public:
-    Result<void> Subscribe(EventReceiveHandler handler) {
-        // 加载服务配置（自动识别安全等级）
-        auto service_cfg = config_manager_.GetServiceConfig(service_name_);
-        
-        // iceoryx2: 进程自己创建订阅者，自动强制只读（ASIL-D 数据）
-        auto subscriber = node_->subscribe<DataType>(service_name_)
-            .max_payload_size(service_cfg.max_payload_size)
-            .create();
-        
-        // 如果是 ASIL-D 服务，强制 mprotect 只读
-        if (service_cfg.safety_level == "ASIL-D" && 
-            service_cfg.access_mode == "read_only_subscribers") {
-            EnforceReadOnlyMapping(subscriber.shm_address());
-        }
-        
-        subscriber.set_receive_handler([handler](const DataType* sample) {
-            // 应用代码无感知，但底层是只读映射
-            handler(*sample);  // 尝试修改会触发 SIGSEGV
-        });
-        
-        return Result<void>::Ok();
-    }
-};```
-```
-
-##### 9.5.4 FuSa 审计与验证
-
-**审计日志（符合 ISO 26262）**
-
-```cpp
-struct FuSaAuditLog {
-    uint64_t timestamp_us;
-    pid_t process_id;
-    std::string mempool_name;
-    enum class Event {
-        MEMPOOL_CREATED,
-        READ_ONLY_ENFORCED,
-        WRITE_ATTEMPT_BLOCKED,
-        SEGMENT_VIOLATION
-    } event;
-    std::string details;
-};
-
-// 实时记录到持久化存储
-void LogFuSaEvent(const FuSaAuditLog& log) {
-    // 写入 /var/log/ara/com/fusa_audit.log
-    std::ofstream log_file(FUSA_AUDIT_PATH, std::ios::app);
-    log_file << log.timestamp_us << ","
-             << log.process_id << ","
-             << log.mempool_name << ","
-             << static_cast<int>(log.event) << ","
-             << log.details << "\n";
-}
-```
-
-**FuSa 认证关键点**：
-- ✅ **物理隔离**: 不同 ASIL 等级使用独立 shm 段（按服务隔离）
-- ✅ **访问控制**: POSIX mprotect 强制只读权限
-- ✅ **审计追溯**: 所有访问事件记录到审计日志
-- ✅ **应用透明**: lap::com API 无需修改，Binding 层自动处理
-- ✅ **故障安全**: 非法写入触发 SIGSEGV，进程立即终止
-- ✅ **去中心化**: 无 RouDi 单点故障，进程级隔离更彻底
-- ✅ **Rust 安全**: iceoryx2 Rust 实现，内存安全保证
-
-**认证优势**：
-> **"FuSa 一句话过审"** —— 通过 iceoryx2 进程自管理 + Binding 强制权限控制，无需修改应用代码即可满足 ISO 26262 ASIL-D 要求。
-> 
-> **iceoryx2 额外优势**: 消除 RouDi 单点故障，进程崩溃不影响其他进程，符合 ISO 26262 "Freedom from Interference" 要求。
+**服务注册流程**:
+1. CoreIPCBinding调用`OfferService()`时：
+   - 创建Core IPC Publisher（生成shm_path）
+   - 计算固定槽位：`slot = service_id & 0x03FF`
+   - 注册到ServiceRegistry，endpoint字段存储shm_path
+   
+2. CoreIPCBinding调用`FindService()`时：
+   - 查询ServiceRegistry获取ServiceSlot
+   - 从slot.endpoint读取shm_path
+   - 使用shm_path创建Core IPC Subscriber
 
 ---
 
@@ -1350,9 +1208,9 @@ void LogFuSaEvent(const FuSaAuditLog& log) {
 **适用场景**:
 - 🔧 **遗留系统集成**: 适配已有的私有协议系统
 - 🎯 **特殊需求**: 自定义序列化格式、特殊加密算法
-- ⚡ **轻量级通信**: 无需 DDS/iceoryx 复杂性的简单场景
+- ⚡ **轻量级通信**: 无需 DDS/Core IPC 复杂性的简单场景
 - 🔒 **本地安全**: Unix Domain Socket 本地进程通信
-- 🚀 **快速原型**: 快速开发验证，后期可迁移到 DDS/iceoryx
+- 🚀 **快速原型**: 快速开发验证，后期可迁移到 DDS/Core IPC
 
 **性能指标**:
 - 延迟: < 10μs (流式模式，SOCK_STREAM)
@@ -1628,12 +1486,12 @@ generate_custom_binding MyService.fidl --output source/binding/custom_protocol/
 
 #### 10.6 性能基准
 
-| 指标 | D-Bus | SOME/IP | iceoryx2 | **Custom+UDS** |
+| 指标 | D-Bus | SOME/IP | Core IPC | **Custom+UDS** |
 |------|-------|---------|----------|----------------|
-| 延迟 (小消息) | 50-100μs | 20-50μs | < 1μs | **< 10μs** |
+| 延迟 (小消息) | 50-100μs | 20-50μs | < 5μs | **< 10μs** |
 | 吞吐量 (MB/s) | 50-100 | 200-300 | > 10,000 | **> 500** |
 | CPU 占用 | 3-5% | 2-4% | < 0.5% | **< 1%** |
-| 外部依赖 | libdbus | vsomeip | iceoryx2 | **无** |
+| 外部依赖 | libdbus | vsomeip | lap_core | **无** |
 | 学习曲线 | 中 | 高 | 中 | **低** |
 | 跨网络 | ❌ | ✅ | ❌ | **❌** |
 
@@ -1697,13 +1555,13 @@ services:
 
 #### 10.10 与其他 Binding 对比
 
-| 特性 | iceoryx2 | DDS | Custom+UDS | Legacy Gateway |
+| 特性 | Core IPC | DDS | Custom+UDS | Legacy Gateway |
 |------|---------|-----|------------|----------------|
-| **延迟** | <1μs | 10-30μs | <10μs | >50μs |
+| **延迟** | <5μs | 10-30μs | <10μs | >50μs |
 | **吞吐量** | >10GB/s | 500-800MB/s | >500MB/s | <300MB/s |
 | **零拷贝** | ✅ | ✅ | ❌ | ❌ |
 | **跨ECU** | ❌ | ✅ | ❌ | ✅ |
-| **外部依赖** | iceoryx2 | Fast-DDS | 无 | vsomeip/dbus |
+| **外部依赖** | lap_core | Fast-DDS | 无 | vsomeip/dbus |
 | **定制性** | 低 | 中 | **高** | 低 |
 | **学习曲线** | 中 | 高 | **低** | 中 |
 | **适用场景** | 本地高性能 | 分布式 | **遗留集成/原型** | 遗留兼容 |
@@ -1712,82 +1570,45 @@ services:
 
 #### 9.6 接口示例
 
-**IceoryxPublisher.hpp**
+**CoreIPCPublisher示例**
 ```cpp
-template<typename DataType>
-class IceoryxPublisher {
-public:
-    IceoryxPublisher(const std::string& service_name, 
-                     const std::string& instance_name)
-        : publisher_(iox::popo::Publisher<DataType>(
-              {service_name, instance_name, "EventData"})) {}
-    
-    // 借用共享内存（零拷贝）
-    Result<DataType*> Loan() {
-        auto sample = publisher_.loan();
-        if (!sample.has_value()) {
-            return MakeError(ComErrc::kMemoryPoolExhausted);
-        }
-        return sample.value();
-    }
-    
-    // 发布（仅传递指针）
-    Result<void> Publish(DataType* sample) {
-        publisher_.publish(sample);
+// Core IPC Publisher使用示例
+using namespace lap::core::ipc;
+
+PublisherConfig config;
+config.max_chunks = 64;
+config.chunk_size = 2 * 1024 * 1024;
+
+auto pub_result = Publisher::Create("/lap_ipc_1234_5678", config);
+auto publisher = std::move(pub_result).Value();
+
+// 使用lambda发布数据（零拷贝）
+publisher.Send([&](Byte* buffer, Size size) -> Size {
+    auto* data = reinterpret_cast<SensorData*>(buffer);
+    data->timestamp = getCurrentTime();
+    return sizeof(SensorData);
+});
         return Result<void>();
     }
-    
-    // RAII自动发布
-    class SampleGuard {
-    public:
-        SampleGuard(IceoryxPublisher& pub, DataType* sample)
-            : publisher_(pub), sample_(sample) {}
-        
-        ~SampleGuard() {
-            if (sample_) publisher_.Publish(sample_);
-        }
-        
-        DataType* operator->() { return sample_; }
-        DataType& operator*() { return *sample_; }
-        
-    private:
-        IceoryxPublisher& publisher_;
-        DataType* sample_;
-    };
-    
-    Result<SampleGuard> LoanScoped() {
-        auto sample = Loan();
-        if (!sample.has_value()) return sample.error();
-        return SampleGuard(*this, sample.value());
-    }
-    
-private:
-    iox::popo::Publisher<DataType> publisher_;
-};
-```
 
-**IceoryxSubscriber.hpp**
+**CoreIPCSubscriber示例**
 ```cpp
-template<typename DataType>
-class IceoryxSubscriber {
-public:
-    IceoryxSubscriber(const std::string& service_name,
-                      const std::string& instance_name)
-        : subscriber_(iox::popo::Subscriber<DataType>(
-              {service_name, instance_name, "EventData"})) {
-        subscriber_.subscribe(QUEUE_CAPACITY);
-    }
-    
-    // 设置回调（零拷贝访问）
-    void SetReceiveHandler(std::function<void(const DataType*)> handler) {
-        handler_ = handler;
-        
-        // 启动接收线程
-        receive_thread_ = std::thread([this]() {
-            while (running_) {
-                subscriber_.take().and_then([&](auto& sample) {
-                    handler_(sample.get());  // 零拷贝访问
-                });
+// Core IPC Subscriber使用示例
+using namespace lap::core::ipc;
+
+SubscriberConfig config;
+config.channel_capacity = 32;
+
+auto sub_result = Subscriber::Create("/lap_ipc_1234_5678", config);
+auto subscriber = std::move(sub_result).Value();
+
+// 接收数据（零拷贝）
+auto sample_result = subscriber.Receive();
+if (sample_result) {
+    auto sample = std::move(sample_result).Value();
+    auto* data = reinterpret_cast<const SensorData*>(sample.RawData());
+    processData(data);
+}
                 std::this_thread::sleep_for(std::chrono::microseconds(100));
             }
         });
@@ -1857,10 +1678,10 @@ private:
 
 #### 9.7 性能基准
 
-| 指标 | D-Bus | SOME/IP | DDS | **iceoryx v2** |
+| 指标 | D-Bus | SOME/IP | DDS | **Core IPC** |
 |------|-------|---------|-----|---------------|
-| 延迟 (64B) | 50-100μs | 20-50μs | 10-30μs | **< 1μs** |
-| 延迟 (1MB) | ~20ms | ~5ms | <100μs | **< 10μs** |
+| 延迟 (64B) | 50-100μs | 20-50μs | 10-30μs | **< 5μs** |
+| 延迟 (1MB) | ~20ms | ~5ms | <100μs | **< 20μs** |
 | 吞吐量 (MB/s) | 50-100 | 200-300 | 500-800 | **> 10,000** |
 | CPU 占用 | 3-5% | 2-4% | 4-6% | **< 0.5%** |
 | 内存拷贝 | 3次 | 2次 | 1次 | **0次** |
@@ -1872,35 +1693,29 @@ private:
 
 | 场景 | 数据量 | 频率 | 推荐传输 | 延迟要求 |
 |------|--------|------|----------|----------|
-| **摄像头图像** (4K) | 8MB/frame | 30fps | **iceoryx** | < 5ms |
-| **LiDAR点云** | 2MB/scan | 10Hz | **iceoryx** | < 1ms |
-| **传感器融合结果** | 100KB | 100Hz | **iceoryx** | < 100μs |
-| **实时控制指令** | 64B | 1kHz | **iceoryx** | < 10μs |
+| **摄像头图像** (4K) | 8MB/frame | 30fps | **Core IPC** | < 5ms |
+| **LiDAR点云** | 2MB/scan | 10Hz | **Core IPC** | < 1ms |
+| **传感器融合结果** | 100KB | 100Hz | **Core IPC** | < 100μs |
+| **实时控制指令** | 64B | 1kHz | **Core IPC** | < 10μs |
 | **地图更新** | 50MB | 1Hz | DDS | < 1s |
 | **跨ECU通信** | 任意 | 任意 | DDS/SOME/IP | < 100ms |
 
 #### 9.9 配置示例
 
-**RouDi配置 (roudi_config.toml)**
-```toml
-[general]
-version = 2
-
-[[segment]]
-[[segment.mempool]]
-size = 1024          # 1KB - 控制消息
-count = 1024
-
-[[segment.mempool]]
-size = 102400        # 100KB - 传感器数据
-count = 256
-
-[[segment.mempool]]
-size = 1048576       # 1MB - 小图像
-count = 64
-
-[[segment.mempool]]
-size = 8388608       # 8MB - 4K图像
+**runtime_config.yaml 配置**
+```yaml
+services:
+  - service_id: 0x1234
+    instance_id: 0x5678
+    interfaces:
+      events:
+        - event_id: 0x0001
+          transport_binding:
+            type: coreipc
+            priority: 100
+            config:
+              max_chunks: 64
+              chunk_size: 8388608  # 8MB
 count = 16
 
 [[segment.mempool]]
@@ -1914,39 +1729,33 @@ count = 4
 {
     "service": "CameraService",
     "instance": "FrontCamera",
-    "binding": "iceoryx",
+    "binding": "coreipc",
     "config": {
+        "max_chunks": 64,           // 最大chunk数量
         "chunk_size": 8388608,      // 8MB chunk
-        "queue_capacity": 16,       // 订阅端队列深度
-        "history_request": 1        // Late-joiner支持
+        "channel_capacity": 32,       // 订阅端队列深度
+        "timeout_ms": 100           // 发布超时
     }
 }
 ```
 
-#### 9.10 实施计划
+#### 9.10 实施现状
 
-**Phase 1: iceoryx基础集成** (2周)
-- Week 1: RouDi集成、MemPool配置
-- Week 2: Publisher/Subscriber基础实现
+**已完成**:
+- ✅ Core IPC基础集成（基于lap::core::ipc）
+- ✅ Event通信绑定（Publisher/Subscriber）
+- ✅ 服务注册与发现（临时内存实现）
+- ✅ CMake构建系统集成
+- ✅ 编译验证（liblap_com_binding_coreipc.so）
 
-**Phase 2: ara::com绑定** (2周)
-- Week 3: Event通信绑定
-- Week 4: Method/Field绑定
-
-**Phase 3: 性能优化** (1周)
-- Week 5: 性能测试与调优
-
-**依赖库**:
-```bash
-# 安装iceoryx v2
-git clone https://github.com/eclipse-iceoryx/iceoryx.git
-cd iceoryx && mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc) && sudo make install
-```
+**后续计划**:
+- 📋 迁移服务注册到Core模块
+- 📋 实现Method通信（请求-响应）
+- 📋 实现Field通信（Getter/Setter）
+- 📋 性能优化与测试
 
 > **💡 设计归档**: Protobuf + Domain Socket Binding 已移除，详见 [`archive/PROTOBUF_SOCKET_BINDING_ARCHIVED.md`](../archive/PROTOBUF_SOCKET_BINDING_ARCHIVED.md)  
-> **替代方案**: 使用 **iceoryx v2 Binding** (§9) 提供更优异的本地IPC性能（<1μs延迟，>10GB/s吞吐量）
+> **替代方案**: 使用 **Core IPC Binding** (§9) 提供更优异的本地IPC性能（<5μs延迟，>10GB/s吞吐量）
 
 ---
 
@@ -2676,7 +2485,7 @@ modules/Com/
 
 > **📦 序列化实现细节已归档**: D-Bus/SOME/IP 序列化、Protobuf over Socket、自定义协议的详细设计已移至归档文件
 > 
-> **当前架构**: 4 个插件化 Binding (iceoryx2 + DDS + Custom Protocol + Legacy Gateway)
+> **当前架构**: 4 个插件化 Binding (Core IPC + DDS + Custom Protocol + Legacy Gateway)
 > 
 > 详见归档文档:
 > - [`archive/LEGACY_COMMONAPI_IMPLEMENTATION.md`](../archive/LEGACY_COMMONAPI_IMPLEMENTATION.md) - CommonAPI 序列化、Franca IDL 工作流
@@ -2695,43 +2504,32 @@ modules/Com/
 
 ---
 
-### 12.2 完整 5 步优化清单（生产级性能提升）
+### 12.2 性能优化参考（历史文档）
 
-基于 iceoryx2 + DDS + Custom Protocol 的插拔式架构，通过系统级和运行时优化，实现端到端性能最大化。
+基于 Core IPC + DDS + Custom Protocol 的插拔式架构，性能优化建议：
 
-#### **优化前后架构对比**
+#### **架构对比**
 
-| 架构维度 | 优化前 (原始设计) | 优化后 (应用 5 步优化) | 性能提升 |
-|---------|------------------|----------------------|---------|
-| **ECU 内通信** | iceoryx2 (基础) | + 1GB 大页 + io_uring SQPOLL + CPU 隔离 | **延迟 1μs → 500ns** (+50%) |
-| **跨 ECU 大包** | Fast-DDS (UDP) | + AF_XDP ZERO_COPY + 专用队列 | **延迟 500μs → 15μs** (+3233%) |
-| **跨 ECU 小包** | DDS (UDP) | + SHM-only | **延迟 200μs → 50μs** (+300%) |
-| **内存效率** | 标准 4KB 页 | 1GB 大页 + THP | **TLB Miss -80%** |
-| **CPU 开销** | 标准调度 | isolcpus + IRQ 亲和性 | **调度抖动 50μs → 5μs** |
-| **系统调用** | 标准 syscall | io_uring SQPOLL (零 syscall) | **Publish 开销 2μs → 500ns** |
-| **网络栈** | 内核网络栈 | AF_XDP 用户态栈 | **吞吐量 3GB/s → 9GB/s** |
+| 架构维度 | 基础实现 | 优化方向 | 潜在提升 |
+|---------|---------|---------|---------|
+| **ECU 内通信** | Core IPC (基础) | 大页内存 + CPU 隔离 | 延迟可优化至 **< 2μs** |
+| **跨 ECU 通信** | Fast-DDS (UDP) | AF_XDP ZERO_COPY + 专用队列 | 延迟可优化至 **< 50μs** |
+| **内存效率** | 标准 4KB 页 | 1GB 大页 + THP | TLB Miss 可减少 **80%** |
 
-#### **优化目标**
+#### **优化建议**
 
-| 优化阶段 | 性能提升 | 开发周期 | 技术栈 |
-|---------|---------|---------|--------|
-| Step 1: 系统级硬优化 | +60% | 1 周 | 大页内存 + CPU 隔离 + IRQ 亲和性 |
-| Step 2: iceoryx2 去中心化 | +30% | 1 周 | 移除 RouDi + memfd + 进程自管理 |
-| Step 3: io_uring SQPOLL | +40% | 2 周 | 零系统调用 + 内核轮询线程 |
-| Step 4: AF_XDP ZERO_COPY | +200% (跨 ECU) | 3-4 周 | XDP 用户态网络栈 |
-| Step 5: DDS 优化 | +50% (跨 ECU) | 2 周 | SHM-only 本地传输 |
-
-**累计性能提升**:
-- ECU 内通信: **3-5μs** (从原始 100μs)
-- 跨 ECU 大包: **15-20μs** (从原始 500μs)
+| 优化方向 | 实施难度 | 预期提升 | 说明 |
+|---------|---------|---------|------|
+| 大页内存 | 低 | +20% | 减少TLB Miss |
+| CPU 隔离 | 中 | +15% | 减少调度抖动 |
+| DDS SHM优化 | 中 | +30% | 本地共享内存 |
 
 **架构优化应用点**:
 
-1. **binding_iceoryx2.so**:
-   - ✅ 大页内存配置 (mempool_config.toml)
-   - ✅ CPU 亲和性绑核 (IceoryxNodeManager)
-   - ✅ io_uring SQPOLL 集成 (Iceoryx2Publisher/Subscriber)
-   - ✅ memfd 替代 POSIX SHM
+1. **binding_coreipc.so**:
+   - ✅ 基于Core IPC的零拷贝实现
+   - ⏳ 可考虑大页内存配置
+   - ⏳ 可考虑CPU亲和性绑核
 
 2. **binding_dds.so**:
    - ✅ AF_XDP Transport 层

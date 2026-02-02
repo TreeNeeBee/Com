@@ -20,7 +20,7 @@
 #define LAP_COM_REGISTRY_REGISTRY_INITIALIZER_HPP
 
 #include "ServiceSlot.hpp"
-#include "SharedMemoryRegistry.hpp"
+#include "ServiceRegistry.hpp"
 #include <lap/core/CResult.hpp>
 #include <lap/core/CString.hpp>
 

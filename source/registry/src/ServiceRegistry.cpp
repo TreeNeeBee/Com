@@ -1,5 +1,5 @@
 /**
- * @file        SharedMemoryRegistry.cpp
+ * @file        ServiceRegistry.cpp
  * @author      LightAP Development Team
  * @brief       Anonymous shared memory registry with memfd_create + UDS (v4.0)
  * @date        2025-11-20
@@ -12,7 +12,7 @@
  */
 
 #include "ComTypes.hpp"
-#include "SharedMemoryRegistry.hpp"
+#include "ServiceRegistry.hpp"
 #include <chrono>
 #include <cerrno>
 #include <cstring>
@@ -375,10 +375,10 @@ namespace registry
     }
 
     // ========================================================================
-    // SharedMemoryRegistry Implementation
+    // ServiceRegistry Implementation
     // ========================================================================
 
-    Result<void> SharedMemoryRegistry::Initialize() noexcept
+    Result<void> ServiceRegistry::Initialize() noexcept
     {
         // Initialize QM registry (QM + ASIL-A/B services)
         auto qm_result = qm_registry_.Initialize();
@@ -395,7 +395,7 @@ namespace registry
         return Result<void>::FromValue();
     }
 
-    Result<void> SharedMemoryRegistry::InitializeFromSocket(
+    Result<void> ServiceRegistry::InitializeFromSocket(
         const String& qm_socket_path,
         const String& asil_socket_path) noexcept
     {
@@ -415,7 +415,7 @@ namespace registry
     }
 
 
-    Result<void> SharedMemoryRegistry::RegisterService(
+    Result<void> ServiceRegistry::RegisterService(
         uint64_t service_id,
         uint64_t instance_id,
         uint32_t major_version,
@@ -460,7 +460,7 @@ namespace registry
         }
     }
 
-    Result<void> SharedMemoryRegistry::UnregisterService(uint64_t service_id) noexcept
+    Result<void> ServiceRegistry::UnregisterService(uint64_t service_id) noexcept
     {
         uint32_t slot_index = CalculateSlot(service_id);
         if (slot_index == 0) {
@@ -479,7 +479,7 @@ namespace registry
         }
     }
 
-    Optional<ServiceSlot> SharedMemoryRegistry::FindService(uint64_t service_id) const noexcept
+    Optional<ServiceSlot> ServiceRegistry::FindService(uint64_t service_id) const noexcept
     {
         RegistryType reg_type = SelectRegistry(service_id);
 
@@ -491,7 +491,7 @@ namespace registry
         }
     }
 
-    Result<void> SharedMemoryRegistry::UpdateHeartbeat(uint64_t service_id, uint64_t timestamp_ns) noexcept
+    Result<void> ServiceRegistry::UpdateHeartbeat(uint64_t service_id, uint64_t timestamp_ns) noexcept
     {
         uint32_t slot_index = CalculateSlot(service_id);
         if (slot_index == 0) {

@@ -10,24 +10,33 @@
 message( STATUS "=== Configuring DDS Binding ===" )
 
 # Try to find FastDDS (eProsima Fast-DDS) first
-find_package( fastrtps QUIET )
+find_package( fastdds QUIET )
 
-if( fastrtps_FOUND )
-    message( STATUS "FastDDS (fastrtps) found: ${fastrtps_VERSION}" )
+if( fastdds_FOUND )
+    message( STATUS "FastDDS (fastdds) found: ${fastdds_VERSION}" )
     set( DDS_IMPL "FastDDS" )
-    set( DDS_LIBRARIES fastrtps )
+    set( DDS_LIBRARIES fastdds )
     set( DDS_FOUND TRUE )
 else()
-    # Try CycloneDDS as fallback
-    find_package( CycloneDDS QUIET )
-    
-    if( CycloneDDS_FOUND )
-        message( STATUS "CycloneDDS found: ${CycloneDDS_VERSION}" )
-        set( DDS_IMPL "CycloneDDS" )
-        set( DDS_LIBRARIES CycloneDDS::ddsc )
+    # Legacy package name fallback
+    find_package( fastrtps QUIET )
+    if( fastrtps_FOUND )
+        message( STATUS "FastDDS (fastrtps) found: ${fastrtps_VERSION}" )
+        set( DDS_IMPL "FastDDS" )
+        set( DDS_LIBRARIES fastrtps )
         set( DDS_FOUND TRUE )
     else()
-        set( DDS_FOUND FALSE )
+        # Try CycloneDDS as fallback
+        find_package( CycloneDDS QUIET )
+    
+        if( CycloneDDS_FOUND )
+            message( STATUS "CycloneDDS found: ${CycloneDDS_VERSION}" )
+            set( DDS_IMPL "CycloneDDS" )
+            set( DDS_LIBRARIES CycloneDDS::ddsc )
+            set( DDS_FOUND TRUE )
+        else()
+            set( DDS_FOUND FALSE )
+        endif()
     endif()
 endif()
 
@@ -39,6 +48,7 @@ if( DDS_FOUND )
     set( IDL_SOURCES
         ${IDL_GENERATED_DIR}/LapComMessage.cxx
         ${IDL_GENERATED_DIR}/LapComMessagePubSubTypes.cxx
+        ${IDL_GENERATED_DIR}/LapComMessageTypeObjectSupport.cxx
     )
     
     # Build DDS binding as shared library
@@ -60,6 +70,10 @@ if( DDS_FOUND )
         lap_log
         ${DDS_LIBRARIES}
         pthread
+    )
+
+    target_compile_definitions( lap_com_binding_dds PUBLIC
+        FASTDDS_GEN_API_VER=3
     )
     
     # Add DDS implementation define
@@ -170,8 +184,28 @@ if( DDS_FOUND )
             ${DDS_LIBRARIES}
             pthread
         )
+
+        # Cross-process full functional test (event/method/field)
+        add_executable( test_dds_full
+            ${MODULE_ROOT_DIR}/test/binding/dds/test_dds_full.cpp
+        )
+
+        target_include_directories( test_dds_full PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/dds/inc
+            ${MODULE_ROOT_DIR}/source/binding/dds/idl
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/inc
+        )
+
+        target_link_libraries( test_dds_full PRIVATE
+            lap_com_binding_dds
+            lap_core
+            lap_log
+            ${DDS_LIBRARIES}
+            pthread
+        )
         
-        message( STATUS "DDS Binding tests configured (test_discovery, test_dds_cross_process)" )
+        message( STATUS "DDS Binding tests configured (test_discovery, test_dds_cross_process, test_dds_full)" )
         
         # DDS Publisher/Subscriber examples
         message( STATUS "Configuring DDS examples" )

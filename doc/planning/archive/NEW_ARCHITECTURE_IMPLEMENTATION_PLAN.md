@@ -689,7 +689,7 @@ private:
     struct MemPoolConfig {
         size_t max_payload_size;
         size_t max_publishers;
-        size_t max_subscribers;
+        size_t max_channels;
         std::string safety_level;  // "QM" / "ASIL-D"
     };
     std::unordered_map<std::string, MemPoolConfig> mempool_configs_;
@@ -722,7 +722,7 @@ name = "camera_front"
 safety_level = "QM"
 max_payload_size = 8388608  # 8MB
 max_publishers = 5
-max_subscribers = 20
+max_channels = 20
 history_size = 10
 
 [[services]]
@@ -730,7 +730,7 @@ name = "lidar_points"
 safety_level = "QM"
 max_payload_size = 2097152  # 2MB
 max_publishers = 3
-max_subscribers = 15
+max_channels = 15
 
 # ASIL-D等级：控制指令
 [[services]]
@@ -738,7 +738,7 @@ name = "steering_control"
 safety_level = "ASIL-D"
 max_payload_size = 4096
 max_publishers = 1
-max_subscribers = 10
+max_channels = 10
 history_size = 100
 access_mode = "read_only_subscribers"  # 强制只读
 
@@ -747,7 +747,7 @@ name = "brake_control"
 safety_level = "ASIL-D"
 max_payload_size = 4096
 max_publishers = 1
-max_subscribers = 10
+max_channels = 10
 access_mode = "read_only_subscribers"
 ```
 

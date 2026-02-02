@@ -23,7 +23,7 @@
 #define _FAST_DDS_GENERATED_LAP_COM_BINDING_LAPCOMMESSAGE_H_
 
 
-#include <fastrtps/utils/fixed_size_string.hpp>
+#include <fastcdr/cdr/fixed_size_string.hpp>
 
 #include <stdint.h>
 #include <array>

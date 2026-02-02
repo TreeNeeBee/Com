@@ -3,7 +3,7 @@
  * @author      LightAP Development Team
  * @brief       AUTOSAR Communication Runtime implementation (Zero-Daemon Architecture)
  * @date        2025-11-20
- * @details     Implements ara::com Runtime APIs with SharedMemoryRegistry backend.
+ * @details     Implements ara::com Runtime APIs with ServiceRegistry backend.
  *              Architecture: Zero-daemon + Fixed-slot + Dual-registry (QM+AB/ASIL-CD)
  *              Performance: < 500ns service discovery (P99 target)
  * @copyright   Copyright (c) 2025
@@ -31,7 +31,7 @@
  */
 
 #include "Runtime.hpp"
-#include "SharedMemoryRegistry.hpp"
+#include "ServiceRegistry.hpp"
 #include "ComTypes.hpp"
 
 #include <thread>
@@ -53,7 +53,7 @@ namespace com
     // Static member initialization
     // ========================================================================
     
-    static std::unique_ptr<registry::SharedMemoryRegistry> g_dual_registry{nullptr};
+    static std::unique_ptr<registry::ServiceRegistry> g_dual_registry{nullptr};
     static std::unique_ptr<std::thread> g_heartbeat_thread{nullptr};
     static std::atomic<bool> g_heartbeat_running{false};
     static std::atomic<bool> g_initialized{false};
@@ -98,7 +98,7 @@ namespace com
      * 
      * Initialization sequence (systemd socket activation mode):
      * 1. Mutex-protected state check (prevent double initialization)
-     * 2. Create SharedMemoryRegistry instance
+     * 2. Create ServiceRegistry instance
      * 3. Connect to systemd sockets:
      *    - QM socket: /run/lap/registry_qm.sock (QM+AB services)
      *    - ASIL socket: /run/lap/registry_asil.sock (ASIL-CD services)
@@ -132,7 +132,7 @@ namespace com
         }
         
         // Create dual-registry instance (QM+ASIL)
-        g_dual_registry = std::make_unique<registry::SharedMemoryRegistry>();
+        g_dual_registry = std::make_unique<registry::ServiceRegistry>();
         
         // Initialize from systemd sockets (dual-registry mode)
         auto init_result = g_dual_registry->InitializeFromSocket(
@@ -165,7 +165,7 @@ namespace com
      * Deinitialization sequence:
      * 1. Mutex-protected state check (prevent double deinitialization)
      * 2. Stop heartbeat daemon thread (join gracefully)
-     * 3. Destroy SharedMemoryRegistry
+     * 3. Destroy ServiceRegistry
      *    - Note: Shared memory /dev/shm/lap_com_registry_qm persists (zero-daemon)
      *    - Services remain available to other processes until reboot
      * 4. Clear g_initialized flag
@@ -301,7 +301,7 @@ namespace com
             default: binding_str = "unknown"; break;
         }
         
-        // Delegate to SharedMemoryRegistry
+        // Delegate to ServiceRegistry
         // Version 1.0 default, endpoint empty (Phase 2 will populate from manifest)
         auto result = g_dual_registry->RegisterService(
             service_id, instance_id, 
@@ -364,7 +364,7 @@ namespace com
             return lap::core::Optional<registry::ServiceSlot>{};
         }
         
-        // Delegate to SharedMemoryRegistry (seqlock-protected read)
+        // Delegate to ServiceRegistry (seqlock-protected read)
         // Performance: Direct shared memory access, no syscalls
         return g_dual_registry->FindService(service_id);
     }

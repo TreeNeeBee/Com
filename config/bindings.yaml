@@ -22,7 +22,7 @@ bindings:
       domain_id: 0
       node_name: lap_com_node
       max_publishers: 128
-      max_subscribers: 128
+      max_channels: 128
 
   # DDS over AF_XDP Network Binding
   - name: dds

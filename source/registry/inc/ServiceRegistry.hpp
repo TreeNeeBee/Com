@@ -1,5 +1,5 @@
 /**
- * @file        SharedMemoryRegistry.hpp
+ * @file        ServiceRegistry.hpp
  * @author      LightAP Development Team
  * @brief       Dual registry implementation with QM/ASIL-D physical isolation
  * @date        2025-11-20
@@ -23,8 +23,8 @@
  * <tr><td>2025/11/20  <td>1.0      <td>LightAP Team    <td>Initial dual-registry implementation
  * </table>
  */
-#ifndef LAP_COM_REGISTRY_SHARED_MEMORY_REGISTRY_HPP
-#define LAP_COM_REGISTRY_SHARED_MEMORY_REGISTRY_HPP
+#ifndef LAP_COM_REGISTRY_SERVICE_REGISTRY_HPP
+#define LAP_COM_REGISTRY_SERVICE_REGISTRY_HPP
 
 #include "ServiceSlot.hpp"
 #include "SeqLock.hpp"
@@ -362,13 +362,13 @@ namespace registry
      *       - QM Registry: Hosts QM + ASIL-A/B services (security enhanced)
      *       - ASIL Registry: Hosts ASIL-C/D services only (physically isolated)
      */
-    class SharedMemoryRegistry final
+    class ServiceRegistry final
     {
     public:
         /**
          * @brief Constructor
          */
-        SharedMemoryRegistry() noexcept
+        ServiceRegistry() noexcept
             : qm_registry_(RegistryType::QM)
             , asil_registry_(RegistryType::ASIL)
         {
@@ -377,13 +377,13 @@ namespace registry
         /**
          * @brief Destructor
          */
-        ~SharedMemoryRegistry() noexcept = default;
+        ~ServiceRegistry() noexcept = default;
 
         // Disable copy and move
-        SharedMemoryRegistry(const SharedMemoryRegistry&) = delete;
-        SharedMemoryRegistry& operator=(const SharedMemoryRegistry&) = delete;
-        SharedMemoryRegistry(SharedMemoryRegistry&&) = delete;
-        SharedMemoryRegistry& operator=(SharedMemoryRegistry&&) = delete;
+        ServiceRegistry(const ServiceRegistry&) = delete;
+        ServiceRegistry& operator=(const ServiceRegistry&) = delete;
+        ServiceRegistry(ServiceRegistry&&) = delete;
+        ServiceRegistry& operator=(ServiceRegistry&&) = delete;
 
         /**
          * @brief Initialize both QM and ASIL registries

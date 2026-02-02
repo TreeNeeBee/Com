@@ -24,7 +24,7 @@
 #define _FAST_DDS_GENERATED_LAP_COM_BINDING_LAPCOMMESSAGE_PUBSUBTYPES_H_
 
 #include <fastdds/dds/topic/TopicDataType.hpp>
-#include <fastrtps/utils/md5.h>
+#include <fastdds/utils/md5.hpp>
 
 #include "LapComMessage.h"
 
