@@ -18,8 +18,8 @@ protected:
     void SetUp() override
     {
         // Create two separate DDS bindings (simulating different processes)
-        provider_ = std::make_unique<DdsBinding>();
-        consumer_ = std::make_unique<DdsBinding>();
+        provider_ = std::make_unique< DdsBinding > ();
+        consumer_ = std::make_unique< DdsBinding > ();
 
         auto result1 = provider_->Initialize();
         ASSERT_TRUE(result1.HasValue()) << "Provider initialization failed";
@@ -37,8 +37,8 @@ protected:
         provider_->Shutdown();
     }
 
-    std::unique_ptr<DdsBinding> provider_;
-    std::unique_ptr<DdsBinding> consumer_;
+    std::unique_ptr< DdsBinding > provider_;
+    std::unique_ptr< DdsBinding > consumer_;
 };
 
 /**
@@ -46,9 +46,9 @@ protected:
  */
 TEST_F(DdsDiscoveryTest, FindServiceBeforeOffer)
 {
-    uint64_t service_id = 0x1234;
+    uint64_t serviceId = 0x1234;
 
-    auto result = consumer_->FindService(service_id);
+    auto result = consumer_->FindService(serviceId);
     ASSERT_TRUE(result.HasValue());
 
     auto instances = result.Value();
@@ -60,18 +60,18 @@ TEST_F(DdsDiscoveryTest, FindServiceBeforeOffer)
  */
 TEST_F(DdsDiscoveryTest, DiscoverSingleInstance)
 {
-    uint64_t service_id = 0x5678;
-    uint64_t instance_id = 0x0001;
+    uint64_t serviceId = 0x5678;
+    uint64_t instanceId = 0x0001;
 
     // Provider offers service (creates DataWriter)
-    auto offer_result = provider_->OfferService(service_id, instance_id);
+    auto offer_result = provider_->OfferService(serviceId, instanceId);
     ASSERT_TRUE(offer_result.HasValue());
 
     // Wait for discovery propagation
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // Consumer finds service
-    auto find_result = consumer_->FindService(service_id);
+    auto find_result = consumer_->FindService(serviceId);
     ASSERT_TRUE(find_result.HasValue());
 
     auto instances = find_result.Value();
@@ -83,13 +83,13 @@ TEST_F(DdsDiscoveryTest, DiscoverSingleInstance)
  */
 TEST_F(DdsDiscoveryTest, DiscoverMultipleInstances)
 {
-    uint64_t service_id = 0xABCD;
+    uint64_t serviceId = 0xABCD;
 
     // Provider offers multiple instances
-    std::vector<uint64_t> offered_instances = {0x0001, 0x0002, 0x0003};
+    std::vector< uint64_t > offered_instances = {0x0001, 0x0002, 0x0003};
     
-    for (uint64_t instance_id : offered_instances) {
-        auto offer_result = provider_->OfferService(service_id, instance_id);
+    for (uint64_t instanceId : offered_instances) {
+        auto offer_result = provider_->OfferService(serviceId, instanceId);
         ASSERT_TRUE(offer_result.HasValue());
     }
 
@@ -97,7 +97,7 @@ TEST_F(DdsDiscoveryTest, DiscoverMultipleInstances)
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // Consumer finds service
-    auto find_result = consumer_->FindService(service_id);
+    auto find_result = consumer_->FindService(serviceId);
     ASSERT_TRUE(find_result.HasValue());
 
     auto discovered = find_result.Value();
@@ -112,11 +112,11 @@ TEST_F(DdsDiscoveryTest, DiscoverDifferentServices)
 {
     uint64_t service_id_1 = 0x1111;
     uint64_t service_id_2 = 0x2222;
-    uint64_t instance_id = 0x0001;
+    uint64_t instanceId = 0x0001;
 
     // Offer two different services
-    provider_->OfferService(service_id_1, instance_id);
-    provider_->OfferService(service_id_2, instance_id);
+    provider_->OfferService(service_id_1, instanceId);
+    provider_->OfferService(service_id_2, instanceId);
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
@@ -141,7 +141,7 @@ TEST(DdsDiscoveryBasicTest, FindServiceWithoutInitialize)
     
     auto result = binding.FindService(0x9999);
     ASSERT_FALSE(result.HasValue());
-    EXPECT_EQ(result.Error().Value(), static_cast<int>(ComErrc::kNotInitialized));
+    EXPECT_EQ(result.Error().Value(), static_cast< int > (ComErrc::kNotInitialized));
 }
 
 int main(int argc, char** argv)

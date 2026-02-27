@@ -1,0 +1,123 @@
+# Auto-generated CoreIPC slot configuration
+# Source:      Franca IDL package 'lap.examples.helloworld2'
+# Interface:   HelloWorld2Service v1.0.0
+# SchemaHash:  f745e7d8f8138a58
+# Generator:   lap-gen-pipeline v1.0
+# AUTOSAR:     R25-11 (Core IPC binding)
+
+service:
+  name:         HelloWorld2Service
+  qualified:    "lap.examples.helloworld2.HelloWorld2Service"
+  service_id:   0x01D9   # 473 — FNV-1a32 [lap.examples.helloworld2.HelloWorld2Service] % 1022 + 1
+  instance_id:  0x0001   # 1
+  schema_hash:  "f745e7d8f8138a58"
+  version:
+    major: 1
+    minor: 0
+  binding:      coreipc            # lap::core::ipc shared-memory
+  safety_level: QM
+
+  elements:
+    - name:        SayHello
+      slot_id:     0xD900
+      kind:        method
+      ipc_type:    kSPSC    # lap::core::ipc::IPCType::kSPSC
+      qos:
+        reliability:   RELIABLE
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 10
+        timeout_ms:    5000
+
+    - name:        Add
+      slot_id:     0xD901
+      kind:        method
+      ipc_type:    kSPSC    # lap::core::ipc::IPCType::kSPSC
+      qos:
+        reliability:   RELIABLE
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 10
+        timeout_ms:    5000
+
+    - name:        NotifyLog
+      slot_id:     0xD902
+      kind:        fire_and_forget
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      qos:
+        reliability:   BEST_EFFORT
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 1
+
+    - name:        ComputeHash
+      slot_id:     0xD903
+      kind:        method
+      ipc_type:    kSPSC    # lap::core::ipc::IPCType::kSPSC
+      qos:
+        reliability:   RELIABLE
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 10
+        timeout_ms:    5000
+
+    - name:        Greeting
+      slot_id:     0xD904
+      kind:        event
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      qos:
+        reliability:   BEST_EFFORT
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 1
+
+    - name:        StatusChanged
+      slot_id:     0xD905
+      kind:        event
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      qos:
+        reliability:   BEST_EFFORT
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 1
+
+    - name:        DataStream
+      slot_id:     0xD906
+      kind:        event
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      qos:
+        reliability:   BEST_EFFORT
+        durability:    VOLATILE
+        history:       KEEP_LAST
+        history_depth: 1
+
+    - name:        VisitorCount
+      slot_id:     0xD907
+      kind:        field
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      readonly:    true
+      qos:
+        reliability:   RELIABLE
+        durability:    TRANSIENT_LOCAL
+        history:       KEEP_LAST
+        history_depth: 1
+
+    - name:        ServerName
+      slot_id:     0xD908
+      kind:        field
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      qos:
+        reliability:   RELIABLE
+        durability:    TRANSIENT_LOCAL
+        history:       KEEP_LAST
+        history_depth: 1
+
+    - name:        Temperature
+      slot_id:     0xD909
+      kind:        field
+      ipc_type:    kSPMC    # lap::core::ipc::IPCType::kSPMC
+      qos:
+        reliability:   RELIABLE
+        durability:    TRANSIENT_LOCAL
+        history:       KEEP_LAST
+        history_depth: 1

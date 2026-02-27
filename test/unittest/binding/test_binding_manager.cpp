@@ -26,25 +26,37 @@ namespace fs = std::filesystem;
 class MockBinding : public ITransportBinding
 {
 public:
-    MOCK_METHOD(Result<void>, Initialize, (), (noexcept, override));
-    MOCK_METHOD(Result<void>, Shutdown, (), (noexcept, override));
+    // --- Lifecycle ---
+    MOCK_METHOD(Result< void >, Initialize, (), (noexcept, override));
+    MOCK_METHOD(Result< void >, Shutdown, (), (noexcept, override));
     
-    MOCK_METHOD(Result<void>, OfferService, (uint64_t, uint64_t), (noexcept, override));
-    MOCK_METHOD(Result<void>, StopOfferService, (uint64_t, uint64_t), (noexcept, override));
-    MOCK_METHOD(Result<std::vector<uint64_t>>, FindService, (uint64_t), (noexcept, override));
-    
-    MOCK_METHOD(Result<void>, SendEvent, (uint64_t, uint64_t, uint32_t, const ByteBuffer&), (noexcept, override));
-    MOCK_METHOD(Result<void>, SubscribeEvent, (uint64_t, uint64_t, uint32_t, EventCallback), (noexcept, override));
-    MOCK_METHOD(Result<void>, UnsubscribeEvent, (uint64_t, uint64_t, uint32_t), (noexcept, override));
-    
-    MOCK_METHOD(Result<ByteBuffer>, CallMethod, (uint64_t, uint64_t, uint32_t, const ByteBuffer&), (noexcept, override));
-    MOCK_METHOD(Result<void>, RegisterMethod, (uint64_t, uint64_t, uint32_t, MethodCallback), (noexcept, override));
-    
-    MOCK_METHOD(Result<ByteBuffer>, GetField, (uint64_t, uint64_t, uint32_t), (noexcept, override));
-    MOCK_METHOD(Result<void>, SetField, (uint64_t, uint64_t, uint32_t, const ByteBuffer&), (noexcept, override));
-    
+    // --- Service Management ---
+    MOCK_METHOD(Result< void >, OfferService, (uint64_t, uint64_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, StopOfferService, (uint64_t, uint64_t), (noexcept, override));
+    MOCK_METHOD(Result< std::vector< uint64_t > >, FindService, (uint64_t), (noexcept, override));
+    MOCK_METHOD(Result< uint64_t >, StartFindService, (uint64_t, ServiceDiscoveryCallback), (noexcept, override));
+    MOCK_METHOD(Result< void >, StopFindService, (uint64_t), (noexcept, override));
+
+    // --- Public virtuals (non-template) ---
+    MOCK_METHOD(Result< void >, UnsubscribeEvent, (uint64_t, uint64_t, uint32_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, UnsubscribeFieldNotification, (uint64_t, uint64_t, uint32_t), (noexcept, override));
+
+    // --- Diagnostics ---
     MOCK_METHOD(const char*, GetName, (), (const, noexcept, override));
     MOCK_METHOD(uint32_t, GetVersion, (), (const, noexcept, override));
+    MOCK_METHOD(uint32_t, GetPriority, (), (const, noexcept, override));
+    MOCK_METHOD(bool, SupportsZeroCopy, (), (const, noexcept, override));
+    MOCK_METHOD(bool, SupportsService, (uint64_t), (const, noexcept, override));
+    MOCK_METHOD(TransportMetrics, GetMetrics, (), (const, noexcept, override));
+
+    // --- Protected Do* virtuals (mocked as public for GMock) ---
+    MOCK_METHOD(Result< void >, DoSendEvent, (uint64_t, uint64_t, uint32_t, const void*, size_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, DoSubscribeEvent, (uint64_t, uint64_t, uint32_t, EventCallback, size_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, DoCallMethod, (uint64_t, uint64_t, uint32_t, const void*, void*, size_t, size_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, DoRegisterMethod, (uint64_t, uint64_t, uint32_t, MethodHandler, size_t, size_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, DoGetField, (uint64_t, uint64_t, uint32_t, void*, size_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, DoSetField, (uint64_t, uint64_t, uint32_t, const void*, size_t), (noexcept, override));
+    MOCK_METHOD(Result< void >, DoSubscribeFieldNotification, (uint64_t, uint64_t, uint32_t, FieldNotificationCallback, size_t), (noexcept, override));
 };
 
 // ============================================================================
@@ -108,7 +120,7 @@ TEST_F(BindingManagerTest, ManualBindingRegistration)
     auto& manager = BindingManager::GetInstance();
     
     // Create mock binding
-    auto mock_binding = std::make_shared<MockBinding>();
+    auto mock_binding = std::make_shared< MockBinding > ();
     
     EXPECT_CALL(*mock_binding, Initialize())
         .Times(0);  // Initialize not called for manual registration
@@ -116,7 +128,7 @@ TEST_F(BindingManagerTest, ManualBindingRegistration)
     // Register binding
     BindingConfig config;
     config.name = "mock_binding";
-    config.priority = BindingPriority::ICEORYX2;
+    config.priority = BindingPriority::kIceoryx2;
     config.enabled = true;
     
     auto result = manager.RegisterBinding(config, mock_binding);
@@ -146,14 +158,14 @@ TEST_F(BindingManagerTest, UnloadBinding)
     auto& manager = BindingManager::GetInstance();
     
     // Register mock binding
-    auto mock_binding = std::make_shared<MockBinding>();
+    auto mock_binding = std::make_shared< MockBinding > ();
     
     EXPECT_CALL(*mock_binding, Shutdown())
-        .WillOnce(::testing::Return(Result<void>::Ok()));
+        .WillOnce(::testing::Return(Result< void >::Ok()));
     
     BindingConfig config;
     config.name = "test_binding";
-    config.priority = BindingPriority::SOCKET;
+    config.priority = BindingPriority::kSocket;
     
     manager.RegisterBinding(config, mock_binding);
     
@@ -175,8 +187,8 @@ TEST_F(BindingManagerTest, PriorityBasedSelection)
     auto& manager = BindingManager::GetInstance();
     
     // Register multiple bindings with different priorities
-    auto high_priority = std::make_shared<MockBinding>();
-    auto low_priority = std::make_shared<MockBinding>();
+    auto high_priority = std::make_shared< MockBinding > ();
+    auto low_priority = std::make_shared< MockBinding > ();
     
     EXPECT_CALL(*high_priority, GetName())
         .WillRepeatedly(::testing::Return("high"));
@@ -185,12 +197,12 @@ TEST_F(BindingManagerTest, PriorityBasedSelection)
     
     BindingConfig high_config;
     high_config.name = "high_priority";
-    high_config.priority = BindingPriority::ICEORYX2;  // 100
+    high_config.priority = BindingPriority::kIceoryx2;  // 100
     manager.RegisterBinding(high_config, high_priority);
     
     BindingConfig low_config;
     low_config.name = "low_priority";
-    low_config.priority = BindingPriority::DBUS;  // 20
+    low_config.priority = BindingPriority::kDbus;  // 20
     manager.RegisterBinding(low_config, low_priority);
     
     // Select binding (should return high priority)
@@ -268,17 +280,17 @@ TEST_F(BindingManagerTest, StaticMappingOverridesPriority)
     auto& manager = BindingManager::GetInstance();
     
     // Register two bindings
-    auto high_priority = std::make_shared<MockBinding>();
-    auto specific_binding = std::make_shared<MockBinding>();
+    auto high_priority = std::make_shared< MockBinding > ();
+    auto specific_binding = std::make_shared< MockBinding > ();
     
     BindingConfig high_config;
     high_config.name = "high_priority";
-    high_config.priority = BindingPriority::ICEORYX2;
+    high_config.priority = BindingPriority::kIceoryx2;
     manager.RegisterBinding(high_config, high_priority);
     
     BindingConfig specific_config;
     specific_config.name = "specific_binding";
-    specific_config.priority = BindingPriority::SOCKET;  // Lower priority
+    specific_config.priority = BindingPriority::kSocket;  // Lower priority
     manager.RegisterBinding(specific_config, specific_binding);
     
     // Create config with static mapping
@@ -310,14 +322,14 @@ TEST_F(BindingManagerTest, ShutdownCallsBindingShutdown)
 {
     auto& manager = BindingManager::GetInstance();
     
-    auto mock_binding = std::make_shared<MockBinding>();
+    auto mock_binding = std::make_shared< MockBinding > ();
     
     EXPECT_CALL(*mock_binding, Shutdown())
-        .WillOnce(::testing::Return(Result<void>::Ok()));
+        .WillOnce(::testing::Return(Result< void >::Ok()));
     
     BindingConfig config;
     config.name = "test";
-    config.priority = BindingPriority::SOCKET;
+    config.priority = BindingPriority::kSocket;
     
     manager.RegisterBinding(config, mock_binding);
     
@@ -333,17 +345,17 @@ TEST_F(BindingManagerTest, ShutdownWithMultipleBindings)
 {
     auto& manager = BindingManager::GetInstance();
     
-    auto binding1 = std::make_shared<MockBinding>();
-    auto binding2 = std::make_shared<MockBinding>();
-    auto binding3 = std::make_shared<MockBinding>();
+    auto binding1 = std::make_shared< MockBinding > ();
+    auto binding2 = std::make_shared< MockBinding > ();
+    auto binding3 = std::make_shared< MockBinding > ();
     
-    EXPECT_CALL(*binding1, Shutdown()).WillOnce(::testing::Return(Result<void>::Ok()));
-    EXPECT_CALL(*binding2, Shutdown()).WillOnce(::testing::Return(Result<void>::Ok()));
-    EXPECT_CALL(*binding3, Shutdown()).WillOnce(::testing::Return(Result<void>::Ok()));
+    EXPECT_CALL(*binding1, Shutdown()).WillOnce(::testing::Return(Result< void >::Ok()));
+    EXPECT_CALL(*binding2, Shutdown()).WillOnce(::testing::Return(Result< void >::Ok()));
+    EXPECT_CALL(*binding3, Shutdown()).WillOnce(::testing::Return(Result< void >::Ok()));
     
-    BindingConfig config1{"binding1", BindingPriority::ICEORYX2, "", true, {}};
-    BindingConfig config2{"binding2", BindingPriority::DDS, "", true, {}};
-    BindingConfig config3{"binding3", BindingPriority::SOCKET, "", true, {}};
+    BindingConfig config1{"binding1", BindingPriority::kIceoryx2, "", true, {}};
+    BindingConfig config2{"binding2", BindingPriority::kDds, "", true, {}};
+    BindingConfig config3{"binding3", BindingPriority::kSocket, "", true, {}};
     
     manager.RegisterBinding(config1, binding1);
     manager.RegisterBinding(config2, binding2);
@@ -364,18 +376,18 @@ TEST_F(BindingManagerTest, ConcurrentBindingSelection)
 {
     auto& manager = BindingManager::GetInstance();
     
-    auto binding = std::make_shared<MockBinding>();
+    auto binding = std::make_shared< MockBinding > ();
     
     BindingConfig config;
     config.name = "test";
-    config.priority = BindingPriority::ICEORYX2;
+    config.priority = BindingPriority::kIceoryx2;
     manager.RegisterBinding(config, binding);
     
     // Launch multiple threads selecting bindings
     constexpr int num_threads = 10;
     constexpr int iterations = 1000;
     
-    std::vector<std::thread> threads;
+    std::vector< std::thread > threads;
     for (int i = 0; i < num_threads; ++i)
     {
         threads.emplace_back([&manager]() {

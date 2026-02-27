@@ -14,16 +14,9 @@ set ( Boost_USE_MULTITHREADED ON )
 find_package( nlohmann_json REQUIRED )
 
 if( ENABLE_BUILD_TESTS )
+    enable_testing()
     find_package( GTest REQUIRED )
 endif()
-
-# Optional dependencies - only needed for specific bindings
-# find_package( sdbus-c++ REQUIRED )  # Only for D-Bus binding
-# find_package( Protobuf REQUIRED )   # Only for Protobuf serialization
-
-# message( STATUS "Protobuf found: ${Protobuf_VERSION}" )
-# message( STATUS "Protobuf include dir: ${Protobuf_INCLUDE_DIRS}" )
-# message( STATUS "Protobuf libraries: ${Protobuf_LIBRARIES}" )
 
 # Create symlinks for headers to match include structure
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/include)
@@ -49,6 +42,10 @@ file(CREATE_LINK ${CORE_INC_DIR}
 file(CREATE_LINK ${LOG_INC_DIR}
     ${CMAKE_CURRENT_BINARY_DIR}/include/lap/log SYMBOLIC)
 
+# Provide <com/...> include layout (e.g. <com/ComTypes.hpp>)
+file(CREATE_LINK ${CMAKE_CURRENT_SOURCE_DIR}/source/runtime/inc
+    ${CMAKE_CURRENT_BINARY_DIR}/include/com SYMBOLIC)
+
 # Set source directories first (required by MODULE_EXTERNAL_INCLUDE_DIR)
 set ( MODULE_SOURCE_DIR ${MODULE_ROOT_DIR}/source )
 set ( MODULE_INSTALL_SRC_DIR ${MODULE_SOURCE_DIR}/api)
@@ -57,11 +54,20 @@ set ( ENABLE_BUILD_SHARED_LIBRARY ON CACHE BOOL "Build com shared library" FORCE
 set ( MODULE_EXTERNAL_INCLUDE_DIR 
     ${CMAKE_CURRENT_BINARY_DIR}/include 
     ${MODULE_SOURCE_DIR}/runtime/inc
-    ${MODULE_SOURCE_DIR}/registry/inc
-    ${MODULE_SOURCE_DIR}/inc
+    ${MODULE_ROOT_DIR}/registry/inc
+    ${MODULE_SOURCE_DIR}/binding/manager/inc
+    ${MODULE_SOURCE_DIR}/binding/common
+    ${CORE_INC_DIR}
+    ${CORE_INC_DIR}/ipc
 )
 set ( MODULE_EXTERNAL_LIB_DIR /usr/local/lib )
-set ( MODULE_EXTERNAL_LIB pthread rt lap_core lap_log )
+set ( MODULE_EXTERNAL_LIB pthread rt dl yaml-cpp lap_core lap_log )
+
+# ServiceDiscovery.cpp uses FastDDS for service discovery; add transitive link dependency
+find_package(fastdds QUIET)
+if(fastdds_FOUND)
+    list(APPEND MODULE_EXTERNAL_LIB fastdds fastcdr)
+endif()
 
 # Standalone build: use sibling module build outputs when available
 if (NOT DEFINED COM_PARENT_DIR)
@@ -78,7 +84,8 @@ endif()
 # Use multi-directory source collection (BuildTemplate supports MODULE_SOURCE_CXX_DIRS since v1.1.0)
 set ( MODULE_SOURCE_CXX_DIRS 
     ${MODULE_SOURCE_DIR}/runtime/src
-    ${MODULE_SOURCE_DIR}/registry/src
+    ${MODULE_ROOT_DIR}/registry/src
+    ${MODULE_SOURCE_DIR}/binding/manager/src
 )
 
 include ( ../../BuildTemplate/SharedLibrary.cmake.in )
@@ -93,347 +100,13 @@ set_target_properties(lap_com PROPERTIES
 target_compile_definitions(lap_com PRIVATE LAP_COM_BUILDING)
 
 # ============================================================================
-# Phase 2: Registry Initialization Daemon (UDS FD Passing)
+# Registry Daemon (IPC-based service discovery v2.0)
 # ============================================================================
 
-# lap-registry-init daemon
-add_executable( lap-registry-init
-    ${MODULE_ROOT_DIR}/daemon/lap-registry-init.cpp
-    ${MODULE_SOURCE_DIR}/registry/src/RegistryInitializer.cpp
-)
+add_subdirectory( registry )
 
-target_include_directories( lap-registry-init PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${MODULE_SOURCE_DIR}/registry/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( lap-registry-init PRIVATE
-    lap_core
-    lap_log
-    pthread
-)
-
-# Install daemon to /usr/local/bin
-install(TARGETS lap-registry-init
-    RUNTIME DESTINATION bin
-)
-
-# Install systemd service units
-install(FILES
-    ${MODULE_ROOT_DIR}/systemd/lap-registry-qm.socket
-    ${MODULE_ROOT_DIR}/systemd/lap-registry-qm-init.service
-    ${MODULE_ROOT_DIR}/systemd/lap-registry-asil.socket
-    ${MODULE_ROOT_DIR}/systemd/lap-registry-asil-init.service
-    DESTINATION /etc/systemd/system
-)
-
-# Create runtime directory for sockets
-install(DIRECTORY DESTINATION /run/lap
-    DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE 
-                          GROUP_READ GROUP_WRITE GROUP_EXECUTE 
-                          WORLD_READ WORLD_EXECUTE
-)
-
-# ============================================================================
-# D-Bus Examples
-# ============================================================================
-
-# Simple D-Bus Event Publisher (POD only)
-add_executable( simple_dbus_publisher
-    ${MODULE_ROOT_DIR}/test/examples/dbus/simple_publisher.cpp
-)
-
-target_include_directories( simple_dbus_publisher PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( simple_dbus_publisher PRIVATE
-    lap_core
-    lap_log
-    sdbus-c++
-    pthread
-)
-
-# Simple D-Bus Event Subscriber (POD only)
-add_executable( simple_dbus_subscriber
-    ${MODULE_ROOT_DIR}/test/examples/dbus/simple_subscriber.cpp
-)
-
-target_include_directories( simple_dbus_subscriber PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( simple_dbus_subscriber PRIVATE
-    lap_core
-    lap_log
-    sdbus-c++
-    pthread
-)
-
-# D-Bus Method Server
-add_executable( dbus_method_server
-    ${MODULE_ROOT_DIR}/test/examples/dbus/method_server.cpp
-)
-
-target_include_directories( dbus_method_server PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( dbus_method_server PRIVATE
-    lap_core
-    lap_log
-    sdbus-c++
-    pthread
-)
-
-# D-Bus Method Client
-add_executable( dbus_method_client
-    ${MODULE_ROOT_DIR}/test/examples/dbus/method_client.cpp
-)
-
-target_include_directories( dbus_method_client PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( dbus_method_client PRIVATE
-    lap_core
-    lap_log
-    sdbus-c++
-    pthread
-)
-
-# D-Bus Field Server
-add_executable( dbus_field_server
-    ${MODULE_ROOT_DIR}/test/examples/dbus/field_server.cpp
-)
-
-target_include_directories( dbus_field_server PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( dbus_field_server PRIVATE
-    lap_core
-    lap_log
-    sdbus-c++
-    pthread
-)
-
-# D-Bus Field Client
-add_executable( dbus_field_client
-    ${MODULE_ROOT_DIR}/test/examples/dbus/field_client.cpp
-)
-
-target_include_directories( dbus_field_client PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( dbus_field_client PRIVATE
-    lap_core
-    lap_log
-    sdbus-c++
-    pthread
-)
-
-message( STATUS "D-Bus examples configured: Event, Method, Field bindings" )
-
-# ============================================================================
-# Protobuf Code Generation
-# ============================================================================
-
-set( PROTOBUF_TOOL_DIR ${MODULE_ROOT_DIR}/tools/protobuf )
-set( PROTOBUF_GENERATED_DIR ${PROTOBUF_TOOL_DIR}/generated )
-
-# Find all .proto files
-file( GLOB PROTO_FILES ${PROTOBUF_TOOL_DIR}/*.proto )
-
-if( PROTO_FILES )
-    message( STATUS "Found protobuf files: ${PROTO_FILES}" )
-    
-    # Generate C++ code from .proto files
-    set( PROTOBUF_GENERATED_SOURCES )
-    set( PROTOBUF_GENERATED_HEADERS )
-    
-    foreach( PROTO_FILE ${PROTO_FILES} )
-        get_filename_component( PROTO_NAME ${PROTO_FILE} NAME_WE )
-        
-        set( PROTO_SRCS ${PROTOBUF_GENERATED_DIR}/${PROTO_NAME}.pb.cc )
-        set( PROTO_HDRS ${PROTOBUF_GENERATED_DIR}/${PROTO_NAME}.pb.h )
-        
-        list( APPEND PROTOBUF_GENERATED_SOURCES ${PROTO_SRCS} )
-        list( APPEND PROTOBUF_GENERATED_HEADERS ${PROTO_HDRS} )
-        
-        add_custom_command(
-            OUTPUT ${PROTO_SRCS} ${PROTO_HDRS}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${PROTOBUF_GENERATED_DIR}
-            COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-                --cpp_out=${PROTOBUF_GENERATED_DIR}
-                --proto_path=${PROTOBUF_TOOL_DIR}
-                ${PROTO_FILE}
-            DEPENDS ${PROTO_FILE}
-            COMMENT "Generating C++ code from ${PROTO_FILE}"
-            VERBATIM
-        )
-    endforeach()
-    
-    # Create a custom target to ensure protobuf generation happens before main build
-    add_custom_target( generate_protobuf_code ALL
-        DEPENDS ${PROTOBUF_GENERATED_SOURCES} ${PROTOBUF_GENERATED_HEADERS}
-        COMMENT "Generating protobuf C++ code"
-    )
-    
-    message( STATUS "Protobuf code generation configured" )
-else()
-    message( STATUS "No protobuf files found in ${PROTOBUF_TOOL_DIR}" )
-endif()
-
-# ============================================================================
-# Socket Transport Examples (Protobuf)
-# ============================================================================
-
-if( PROTO_FILES )
-    # Calculator Server
-    add_executable( calculator_server
-        ${MODULE_ROOT_DIR}/test/examples/socket/calculator_server.cpp
-        ${PROTOBUF_GENERATED_SOURCES}
-    )
-    
-    target_include_directories( calculator_server PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
-    )
-    
-    target_link_libraries( calculator_server PRIVATE
-        lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
-        pthread
-    )
-    
-    add_dependencies( calculator_server generate_protobuf_code )
-    
-    # Calculator Client
-    add_executable( calculator_client
-        ${MODULE_ROOT_DIR}/test/examples/socket/calculator_client.cpp
-        ${PROTOBUF_GENERATED_SOURCES}
-    )
-    
-    target_include_directories( calculator_client PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
-    )
-    
-    target_link_libraries( calculator_client PRIVATE
-        lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
-        pthread
-    )
-    
-    add_dependencies( calculator_client generate_protobuf_code )
-    
-    message( STATUS "Socket transport examples configured: Calculator Server/Client" )
-endif()
-
-# ============================================================================
-# Socket Event/Field Examples (Protobuf)
-# ============================================================================
-
-if( PROTO_FILES )
-    # Event Publisher
-    add_executable( socket_event_publisher
-        ${MODULE_ROOT_DIR}/test/examples/socket/event_publisher.cpp
-        ${PROTOBUF_GENERATED_SOURCES}
-    )
-    target_include_directories( socket_event_publisher PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
-    )
-    target_link_libraries( socket_event_publisher PRIVATE
-        lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
-        pthread
-    )
-    add_dependencies( socket_event_publisher generate_protobuf_code )
-
-    # Event Subscriber
-    add_executable( socket_event_subscriber
-        ${MODULE_ROOT_DIR}/test/examples/socket/event_subscriber.cpp
-        ${PROTOBUF_GENERATED_SOURCES}
-    )
-    target_include_directories( socket_event_subscriber PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
-    )
-    target_link_libraries( socket_event_subscriber PRIVATE
-        lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
-        pthread
-    )
-    add_dependencies( socket_event_subscriber generate_protobuf_code )
-
-    # Field Server
-    add_executable( socket_field_server
-        ${MODULE_ROOT_DIR}/test/examples/socket/field_server.cpp
-        ${PROTOBUF_GENERATED_SOURCES}
-    )
-    target_include_directories( socket_field_server PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
-    )
-    target_link_libraries( socket_field_server PRIVATE
-        lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
-        pthread
-    )
-    add_dependencies( socket_field_server generate_protobuf_code )
-
-    # Field Client
-    add_executable( socket_field_client
-        ${MODULE_ROOT_DIR}/test/examples/socket/field_client.cpp
-        ${PROTOBUF_GENERATED_SOURCES}
-    )
-    target_include_directories( socket_field_client PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
-    )
-    target_link_libraries( socket_field_client PRIVATE
-        lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
-        pthread
-    )
-    add_dependencies( socket_field_client generate_protobuf_code )
-
-    message( STATUS "Socket event/field examples configured" )
-endif()
+# NOTE: D-Bus, Socket/Protobuf, CommonAPI, SOME/IP examples archived to archive/test/examples/
+# Only CoreIPC and DDS bindings are active.  See cmake/DdsBindingConfig.cmake for DDS examples.
 
 # ============================
 # Unit tests (GTest + CTest)
@@ -441,243 +114,154 @@ endif()
 set ( MODULE_TEST_DIR ${MODULE_ROOT_DIR}/test )
 set ( ENABLE_BUILD_TEST ON CACHE BOOL "Build com tests" FORCE )
 set ( ENABLE_BUILD_UNITTEST ON CACHE BOOL "Build com unit tests" FORCE )
-# Link against core/log, sdbus-c++, pthread and GTest
-set ( MODULE_EXTERNAL_TEST_LIB lap_core lap_log sdbus-c++ ${Protobuf_LIBRARIES} pthread GTest::GTest GTest::Main )
 
-include ( ../../BuildTemplate/Test.cmake.in )
-
-# Register with CTest
-add_test(NAME com_tests COMMAND com_test)
+# Legacy com_test target removed (required sdbus-c++ for obsolete D-Bus/SOME-IP tests).
+# Active tests use standalone targets below.
 
 # ============================================================================
 # Phase 1: Service Registry Tests (Zero-Daemon Architecture)
 # ============================================================================
 
-# Test: SeqLock mechanism (Week 1)
-add_executable( test_seqlock
-    ${MODULE_ROOT_DIR}/test/registry/test_seqlock.cpp
-)
+if(ENABLE_BUILD_TESTS)
+    # ServiceRegistry/SeqLock tests removed (IPC-based v2.0)
 
-target_include_directories( test_seqlock PRIVATE
-    ${MODULE_SOURCE_DIR}/registry/inc
-    ${MODULE_SOURCE_DIR}/runtime/inc
-    ${MODULE_SOURCE_DIR}/api
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( test_seqlock PRIVATE
-    lap_core
-    pthread
-    GTest::GTest
-    GTest::Main
-)
-
-add_test( NAME SeqLockTest COMMAND test_seqlock )
-
-# Test: ServiceRegistry (Week 2)
-add_executable( test_registry
-    ${MODULE_ROOT_DIR}/test/registry/test_registry.cpp
-    ${MODULE_ROOT_DIR}/source/registry/src/ServiceRegistry.cpp
-)
-
-target_include_directories( test_registry PRIVATE
-    ${MODULE_SOURCE_DIR}/registry/inc
-    ${MODULE_SOURCE_DIR}/runtime/inc
-    ${MODULE_SOURCE_DIR}/api
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( test_registry PRIVATE
-    lap_core
-    pthread
-    rt
-    GTest::GTest
-    GTest::Main
-)
-
-add_test( NAME ServiceRegistryTest COMMAND test_registry )
-
-# Test: Runtime Integration (Week 3)
-add_executable( test_runtime
-    ${MODULE_ROOT_DIR}/test/runtime/test_runtime.cpp
-)
-
-target_include_directories( test_runtime PRIVATE
-    ${MODULE_SOURCE_DIR}/runtime/inc
-    ${MODULE_SOURCE_DIR}/registry/inc
-    ${MODULE_SOURCE_DIR}/api
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( test_runtime PRIVATE
-    lap_com
-    lap_core
-    pthread
-    rt
-    GTest::GTest
-    GTest::Main
-)
-
-add_test( NAME RuntimeIntegrationTest COMMAND test_runtime )
-
-# Test: Runtime systemd Socket Activation (Phase 2)
-add_executable( test_runtime_systemd
-    ${MODULE_ROOT_DIR}/test/runtime/test_runtime_systemd.cpp
-)
-
-target_include_directories( test_runtime_systemd PRIVATE
-    ${MODULE_SOURCE_DIR}/runtime/inc
-    ${MODULE_SOURCE_DIR}/registry/inc
-    ${MODULE_SOURCE_DIR}/api
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( test_runtime_systemd PRIVATE
-    lap_com
-    lap_core
-    pthread
-    rt
-)
-
-message( STATUS "Phase 1 service registry tests configured" )
-
-# ============================================================================
-# Socket Transport Unit Tests
-# ============================================================================
-
-# Test: SocketConnectionManager
-add_executable( com_socket_connection_test
-    ${MODULE_ROOT_DIR}/test/unittest/com_socket_connection_test.cpp
-)
-
-target_include_directories( com_socket_connection_test PRIVATE
-    ${MODULE_SOURCE_DIR}/inc
-    ${MODULE_ROOT_DIR}/source
-    ${CMAKE_CURRENT_BINARY_DIR}/include
-)
-
-target_link_libraries( com_socket_connection_test PRIVATE
-    lap_core
-    lap_log
-    pthread
-    GTest::GTest
-    GTest::Main
-)
-
-add_test( NAME SocketConnectionTest COMMAND com_socket_connection_test )
-
-# Test: ProtobufSerializer
-if( PROTO_FILES )
-    add_executable( com_socket_serializer_test
-        ${MODULE_ROOT_DIR}/test/unittest/com_socket_serializer_test.cpp
+    # Test: Runtime Integration (rewritten for R25-11 API)
+    add_executable( test_runtime
+        ${MODULE_ROOT_DIR}/test/runtime/test_runtime.cpp
     )
-    
-    target_include_directories( com_socket_serializer_test PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
+
+    target_include_directories( test_runtime PRIVATE
+        ${MODULE_SOURCE_DIR}/runtime/inc
+        ${MODULE_ROOT_DIR}/registry/inc
+        ${MODULE_SOURCE_DIR}/api
         ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
     )
-    
-    target_link_libraries( com_socket_serializer_test PRIVATE
+
+    target_link_libraries( test_runtime PRIVATE
+        lap_com
         lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
+        pthread
+        rt
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test( NAME RuntimeIntegrationTest COMMAND test_runtime )
+
+    # Test: Runtime Systemd Integration (R25-11 API, rewritten)
+    add_executable( test_runtime_systemd
+        ${MODULE_ROOT_DIR}/test/runtime/test_runtime_systemd.cpp
+    )
+
+    target_include_directories( test_runtime_systemd PRIVATE
+        ${MODULE_SOURCE_DIR}/runtime/inc
+        ${MODULE_ROOT_DIR}/registry/inc
+        ${MODULE_SOURCE_DIR}/api
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+
+    target_link_libraries( test_runtime_systemd PRIVATE
+        lap_com
+        lap_core
+        pthread
+        rt
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test( NAME RuntimeSystemdTest COMMAND test_runtime_systemd )
+
+    message( STATUS "Phase 1 service registry tests configured" )
+
+    # Test: Runtime Serialization Strategies
+    add_executable( com_runtime_serialization_test
+        ${MODULE_ROOT_DIR}/test/unittest/com_runtime_serialization_test.cpp
+    )
+
+    target_include_directories( com_runtime_serialization_test PRIVATE
+        ${MODULE_SOURCE_DIR}/runtime/inc
+        ${MODULE_SOURCE_DIR}/binding/common
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+
+    target_link_libraries( com_runtime_serialization_test PRIVATE
+        lap_com
+        lap_core
+        fastcdr
+        nlohmann_json::nlohmann_json
         pthread
         GTest::GTest
         GTest::Main
     )
-    
-    add_test( NAME ProtobufSerializerTest COMMAND com_socket_serializer_test )
-endif()
 
-# Test: SocketMethodBinding
-if( PROTO_FILES )
-    add_executable( com_socket_method_test
-        ${MODULE_ROOT_DIR}/test/unittest/com_socket_method_test.cpp
+    add_test( NAME RuntimeSerializationTest COMMAND com_runtime_serialization_test )
+
+    # Test: Proxy/Skeleton Communication (MockTransportBinding)
+    add_executable( test_proxy_skeleton
+        ${MODULE_ROOT_DIR}/test/unittest/test_proxy_skeleton.cpp
     )
-    
-    target_include_directories( com_socket_method_test PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_ROOT_DIR}/source
+
+    target_include_directories( test_proxy_skeleton PRIVATE
+        ${MODULE_SOURCE_DIR}/runtime/inc
+        ${MODULE_SOURCE_DIR}/binding/common
+        ${MODULE_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}/include
-        ${PROTOBUF_GENERATED_DIR}
-        ${Protobuf_INCLUDE_DIRS}
     )
-    
-    target_link_libraries( com_socket_method_test PRIVATE
+
+    target_link_libraries( test_proxy_skeleton PRIVATE
+        lap_com
         lap_core
-        lap_log
-        ${Protobuf_LIBRARIES}
         pthread
         GTest::GTest
         GTest::Main
     )
-    
-    add_test( NAME SocketMethodBindingTest COMMAND com_socket_method_test )
-endif()
 
-message( STATUS "Socket transport unit tests configured" )
+    add_test( NAME ProxySkeletonTest COMMAND test_proxy_skeleton )
 
-# ============================================================================
-# Phase 2: Multi-Process Registry Test
-# ============================================================================
+endif()  # ENABLE_BUILD_TESTS Phase 1
 
-if( BUILD_TESTING )
-    add_executable( test_multiprocess_registry
-        ${MODULE_ROOT_DIR}/test/unittest/test_multiprocess_registry.cpp
-        ${MODULE_SOURCE_DIR}/registry/src/RegistryInitializer.cpp
-        ${MODULE_SOURCE_DIR}/registry/src/ServiceRegistry.cpp
-    )
-    
-    target_include_directories( test_multiprocess_registry PRIVATE
-        ${MODULE_SOURCE_DIR}/inc
-        ${MODULE_SOURCE_DIR}/registry/inc
-        ${CMAKE_CURRENT_BINARY_DIR}/include
-    )
-    
-    target_link_libraries( test_multiprocess_registry PRIVATE
-        lap_core
-        lap_log
-        pthread
-        GTest::GTest
-        GTest::Main
-    )
-    
-    add_test( NAME MultiProcessRegistryTest COMMAND test_multiprocess_registry )
-    
-    message( STATUS "Phase 2 multi-process registry test configured" )
-endif()
+# Socket/Protobuf unit tests removed (obsolete binding, files archived).
 
 # ============================================================================
-# Socket Event/Field Unit Tests (DISABLED - Missing dependencies)
+# Socket Event/Field Unit Tests — removed (obsolete binding)
 # ============================================================================
-
-# TODO: Re-enable when Protobuf dependency is resolved
 
 # ============================================================================
 # Core IPC Binding (Zero-Copy Local IPC)
 # ============================================================================
 
 option( ENABLE_COREIPC_BINDING "Enable Core IPC binding for zero-copy local IPC" ON )
+option( ENABLE_BUILD_EXAMPLES "Build example programs" OFF )
 
 if( ENABLE_COREIPC_BINDING )
     message( STATUS "Core IPC binding enabled (v1.0.0)" )
 
     # Build Core IPC binding as shared library (.so)
+    # NOTE: CoreIPC managers depend on CRegistryProxy which depends on CServiceRegistry.
+    # Since liblap_com uses hidden visibility, registry symbols must be compiled here too.
     add_library( lap_com_binding_coreipc SHARED
         ${MODULE_ROOT_DIR}/source/binding/coreipc/src/CoreIPCBinding.cpp
+        ${MODULE_ROOT_DIR}/source/binding/coreipc/src/CCoreIPCCodec.cpp
+        ${MODULE_ROOT_DIR}/source/binding/coreipc/src/CCoreIPCEventManager.cpp
+        ${MODULE_ROOT_DIR}/source/binding/coreipc/src/CCoreIPCMethodManager.cpp
+        ${MODULE_ROOT_DIR}/source/binding/coreipc/src/CCoreIPCServiceManager.cpp
+        ${MODULE_ROOT_DIR}/registry/src/CRegistryProxy.cpp
+        ${MODULE_ROOT_DIR}/registry/src/CRegistryServer.cpp
+        ${MODULE_ROOT_DIR}/registry/src/CRegistryDispatcher.cpp
+        ${MODULE_ROOT_DIR}/registry/src/CServiceRegistry.cpp
     )
 
     target_include_directories( lap_com_binding_coreipc PRIVATE
         ${MODULE_ROOT_DIR}/source/binding/coreipc/inc
         ${MODULE_ROOT_DIR}/source/binding/common
-        ${MODULE_ROOT_DIR}/source/inc
+        ${MODULE_ROOT_DIR}/source/binding/manager/inc
+        ${MODULE_ROOT_DIR}/source/runtime/inc
+        ${MODULE_ROOT_DIR}/registry/inc
         ${CMAKE_CURRENT_BINARY_DIR}/include
     )
 
     target_link_libraries( lap_com_binding_coreipc PRIVATE
+        lap_com
         lap_core
         lap_log
         pthread
@@ -706,12 +290,14 @@ if( ENABLE_COREIPC_BINDING )
         target_include_directories( test_coreipc_binding PRIVATE
             ${MODULE_ROOT_DIR}/source/binding/coreipc/inc
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${MODULE_ROOT_DIR}/registry/inc
             ${CMAKE_CURRENT_BINARY_DIR}/include
         )
 
         target_link_libraries( test_coreipc_binding PRIVATE
             lap_com_binding_coreipc
+            lap_com
             lap_core
             lap_log
             pthread
@@ -720,51 +306,101 @@ if( ENABLE_COREIPC_BINDING )
         )
 
         add_test( NAME CoreIPCBindingTest COMMAND test_coreipc_binding )
+        set_tests_properties( CoreIPCBindingTest PROPERTIES
+            TIMEOUT 30
+            LABELS "infra"
+        )
         
         message( STATUS "Core IPC binding tests configured" )
     endif()
 
     # Core IPC Examples
     if( ENABLE_BUILD_EXAMPLES )
-        # Publisher example
-        add_executable( coreipc_publisher_example
-            ${MODULE_ROOT_DIR}/examples/coreipc/publisher_example.cpp
-        )
-        
-        target_include_directories( coreipc_publisher_example PRIVATE
+
+        # =================================================================
+        # HelloWorld Example — Standard Workflow
+        #
+        #   1. HelloWorld.fidl          (service definition)
+        #   2. gen/                     (generated: Types, Proxy, Skeleton)
+        #   3. helloworld_server.cpp    (server using Skeleton)
+        #   4. helloworld_client.cpp    (client using Proxy)
+        #   5. helloworld_test.cpp      (single-process CI test)
+        # =================================================================
+
+        # -- Generated code include path + runtime / binding headers ------
+        set( HELLOWORLD_INCLUDE_DIRS
+            ${MODULE_ROOT_DIR}/examples/helloworld/gen
+            ${MODULE_ROOT_DIR}/source/runtime/inc
             ${MODULE_ROOT_DIR}/source/binding/coreipc/inc
+            ${MODULE_ROOT_DIR}/source/binding/manager/inc
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source
+            ${MODULE_ROOT_DIR}/registry/inc
             ${CMAKE_CURRENT_BINARY_DIR}/include
         )
-        
-        target_link_libraries( coreipc_publisher_example PRIVATE
+
+        set( HELLOWORLD_LINK_LIBS
             lap_com_binding_coreipc
+            lap_com
             lap_core
             lap_log
             pthread
         )
 
-        # Subscriber example
-        add_executable( coreipc_subscriber_example
-            ${MODULE_ROOT_DIR}/examples/coreipc/subscriber_example.cpp
+        # -- Server (Skeleton-based) -------------------------------------
+        add_executable( helloworld_server
+            ${MODULE_ROOT_DIR}/examples/helloworld/helloworld_server.cpp
         )
-        
-        target_include_directories( coreipc_subscriber_example PRIVATE
-            ${MODULE_ROOT_DIR}/source/binding/coreipc/inc
-            ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
-            ${CMAKE_CURRENT_BINARY_DIR}/include
+        target_include_directories( helloworld_server PRIVATE
+            ${HELLOWORLD_INCLUDE_DIRS} )
+        target_link_libraries( helloworld_server PRIVATE
+            ${HELLOWORLD_LINK_LIBS} )
+
+        # -- Client (Proxy-based) -----------------------------------------
+        add_executable( helloworld_client
+            ${MODULE_ROOT_DIR}/examples/helloworld/helloworld_client.cpp
         )
-        
-        target_link_libraries( coreipc_subscriber_example PRIVATE
-            lap_com_binding_coreipc
-            lap_core
-            lap_log
-            pthread
+        target_include_directories( helloworld_client PRIVATE
+            ${HELLOWORLD_INCLUDE_DIRS} )
+        target_link_libraries( helloworld_client PRIVATE
+            ${HELLOWORLD_LINK_LIBS} )
+
+        # -- Integration Test (single-process, CTest) ---------------------
+        add_executable( helloworld_test
+            ${MODULE_ROOT_DIR}/examples/helloworld/helloworld_test.cpp
+        )
+        target_include_directories( helloworld_test PRIVATE
+            ${HELLOWORLD_INCLUDE_DIRS} )
+        target_link_libraries( helloworld_test PRIVATE
+            ${HELLOWORLD_LINK_LIBS} )
+
+        if( ENABLE_BUILD_TESTS )
+            add_test( NAME HelloWorldIPCTest COMMAND helloworld_test )
+            set_tests_properties( HelloWorldIPCTest PROPERTIES
+                TIMEOUT 30
+                LABELS "example;generated"
+            )
+        endif()
+
+        # -- Code Generation Target (convenience) -------------------------
+        set( FIDL_FILE
+            ${MODULE_ROOT_DIR}/examples/helloworld/HelloWorld.fidl )
+        set( GEN_DIR
+            ${MODULE_ROOT_DIR}/examples/helloworld/gen )
+        set( GENERATOR
+            ${MODULE_ROOT_DIR}/generator/build/lap_sidl_gen )
+
+        add_custom_target( helloworld_generate
+            COMMAND ${GENERATOR}
+                --input  ${FIDL_FILE}
+                --output ${GEN_DIR}
+                --namespace "lap::com::examples"
+                --all
+            COMMENT "Generating HelloWorld framework code from FIDL"
+            WORKING_DIRECTORY ${MODULE_ROOT_DIR}
         )
 
-        message( STATUS "Core IPC examples configured: publisher, subscriber" )
+        message( STATUS "HelloWorld example configured: server, client, test" )
     endif()
 endif()
 

@@ -57,7 +57,7 @@ int main(int argc, char** argv)
         std::mutex field_mutex;
         ByteBuffer field_value = {0x0A};
 
-        auto method_result = binding.RegisterMethod(
+        auto method_result = binding.RegisterMethod< ByteBuffer, ByteBuffer >(
             kServiceId,
             kInstanceId,
             kMethodId,
@@ -73,12 +73,12 @@ int main(int argc, char** argv)
             return 2;
         }
 
-        auto getter_result = binding.RegisterMethod(
+        auto getter_result = binding.RegisterMethod< ByteBuffer, ByteBuffer >(
             kServiceId,
             kInstanceId,
             kFieldGetterId,
             [&field_mutex, &field_value](uint64_t, uint64_t, uint32_t, const ByteBuffer&) {
-                std::lock_guard<std::mutex> lock(field_mutex);
+                std::scoped_lock< std::mutex > lock(field_mutex);
                 return field_value;
             }
         );
@@ -88,12 +88,12 @@ int main(int argc, char** argv)
             return 2;
         }
 
-        auto setter_result = binding.RegisterMethod(
+        auto setter_result = binding.RegisterMethod< ByteBuffer, ByteBuffer >(
             kServiceId,
             kInstanceId,
             kFieldSetterId,
             [&field_mutex, &field_value](uint64_t, uint64_t, uint32_t, const ByteBuffer& request) {
-                std::lock_guard<std::mutex> lock(field_mutex);
+                std::scoped_lock< std::mutex > lock(field_mutex);
                 field_value = request;
                 return ByteBuffer{};
             }
@@ -128,17 +128,17 @@ int main(int argc, char** argv)
 
         std::mutex event_mutex;
         std::condition_variable event_cv;
-        std::atomic<int> event_count{0};
+        std::atomic< int > event_count{0};
         ByteBuffer last_event;
 
-        auto sub_result = binding.SubscribeEvent(
+        auto sub_result = binding.SubscribeEvent< ByteBuffer >(
             kServiceId,
             kInstanceId,
             kEventId,
             [&event_mutex, &event_cv, &event_count, &last_event](
                 uint64_t, uint64_t, uint32_t, const ByteBuffer& data) {
                 {
-                    std::lock_guard<std::mutex> lock(event_mutex);
+                    std::scoped_lock< std::mutex > lock(event_mutex);
                     last_event = data;
                     event_count++;
                 }
@@ -155,7 +155,7 @@ int main(int argc, char** argv)
         std::this_thread::sleep_for(std::chrono::seconds(2));
 
         ByteBuffer method_req = {0x01, 0x02};
-        auto method_result = binding.CallMethod(kServiceId, kInstanceId, kMethodId, method_req);
+        auto method_result = binding.CallMethod< ByteBuffer >(kServiceId, kInstanceId, kMethodId, method_req);
         if (!method_result.HasValue()) {
             std::cerr << "[CLIENT] CallMethod failed" << std::endl;
             return 2;
@@ -174,7 +174,7 @@ int main(int argc, char** argv)
             return 2;
         }
 
-        auto get_result = binding.GetField(kServiceId, kInstanceId, kFieldId);
+        auto get_result = binding.GetField< ByteBuffer >(kServiceId, kInstanceId, kFieldId);
         if (!get_result.HasValue()) {
             std::cerr << "[CLIENT] GetField failed" << std::endl;
             return 2;
@@ -185,7 +185,7 @@ int main(int argc, char** argv)
             return 3;
         }
 
-        std::unique_lock<std::mutex> lock(event_mutex);
+        std::unique_lock< std::mutex > lock(event_mutex);
         bool got_event = event_cv.wait_for(lock, std::chrono::seconds(5), [&event_count]() {
             return event_count.load() > 0;
         });

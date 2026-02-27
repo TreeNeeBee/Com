@@ -19,7 +19,7 @@ class DdsBindingTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        binding_ = std::make_unique<DdsBinding>();
+        binding_ = std::make_unique< DdsBinding > ();
     }
 
     void TearDown() override
@@ -28,7 +28,7 @@ protected:
         binding_.reset();
     }
 
-    std::unique_ptr<DdsBinding> binding_;
+    std::unique_ptr< DdsBinding > binding_;
 };
 
 /**
@@ -56,20 +56,20 @@ TEST_F(DdsBindingTest, OfferServiceLifecycle)
 {
     ASSERT_TRUE(binding_->Initialize().HasValue());
 
-    uint64_t service_id = 0x1234;
-    uint64_t instance_id = 0x0001;
+    uint64_t serviceId = 0x1234;
+    uint64_t instanceId = 0x0001;
 
     // Offer service
-    ASSERT_TRUE(binding_->OfferService(service_id, instance_id).HasValue()) << "OfferService failed";
+    ASSERT_TRUE(binding_->OfferService(serviceId, instanceId).HasValue()) << "OfferService failed";
 
     // Offer again (should succeed - idempotent)
-    ASSERT_TRUE(binding_->OfferService(service_id, instance_id).HasValue()) << "Second OfferService should succeed";
+    ASSERT_TRUE(binding_->OfferService(serviceId, instanceId).HasValue()) << "Second OfferService should succeed";
 
     // Stop offering
-    ASSERT_TRUE(binding_->StopOfferService(service_id, instance_id).HasValue()) << "StopOfferService failed";
+    ASSERT_TRUE(binding_->StopOfferService(serviceId, instanceId).HasValue()) << "StopOfferService failed";
 
     // Stop again (should succeed - idempotent)
-    ASSERT_TRUE(binding_->StopOfferService(service_id, instance_id).HasValue()) << "Second StopOfferService should succeed";
+    ASSERT_TRUE(binding_->StopOfferService(serviceId, instanceId).HasValue()) << "Second StopOfferService should succeed";
 }
 
 /**
@@ -87,17 +87,17 @@ TEST_F(DdsBindingTest, DISABLED_PubSubBasic)
 {
     ASSERT_TRUE(binding_->Initialize().HasValue());
 
-    uint64_t service_id = 0x1234;
-    uint64_t instance_id = 0x0001;
+    uint64_t serviceId = 0x1234;
+    uint64_t instanceId = 0x0001;
     uint32_t event_id = 100;
 
-    std::atomic<int> received_count{0};
+    std::atomic< int > received_count{0};
     ByteBuffer received_data;
 
     // Subscribe to event
-    ASSERT_TRUE(binding_->SubscribeEvent(
-        service_id,
-        instance_id,
+    ASSERT_TRUE(binding_->SubscribeEvent< ByteBuffer >(
+        serviceId,
+        instanceId,
         event_id,
         [&received_count, &received_data](
             uint64_t /* sid */,
@@ -111,20 +111,20 @@ TEST_F(DdsBindingTest, DISABLED_PubSubBasic)
     ).HasValue()) << "SubscribeEvent failed";
 
     // Offer service
-    ASSERT_TRUE(binding_->OfferService(service_id, instance_id).HasValue());
+    ASSERT_TRUE(binding_->OfferService(serviceId, instanceId).HasValue());
 
     // Wait for DDS discovery (publisher-subscriber matching)
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Send event
     ByteBuffer test_data = {0x01, 0x02, 0x03, 0x04, 0x05};
-    ASSERT_TRUE(binding_->SendEvent(service_id, instance_id, event_id, test_data).HasValue()) << "SendEvent failed";
+    ASSERT_TRUE(binding_->SendEvent(serviceId, instanceId, event_id, test_data).HasValue()) << "SendEvent failed";
 
     // NOTE: In same-process, DDS intra-process optimization prevents callback firing
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
 
     // Unsubscribe
-    ASSERT_TRUE(binding_->UnsubscribeEvent(service_id, instance_id, event_id).HasValue()) << "UnsubscribeEvent failed";
+    ASSERT_TRUE(binding_->UnsubscribeEvent(serviceId, instanceId, event_id).HasValue()) << "UnsubscribeEvent failed";
 }
 
 /**
@@ -137,20 +137,20 @@ TEST_F(DdsBindingTest, DISABLED_MetricsCollection)
 {
     ASSERT_TRUE(binding_->Initialize().HasValue());
 
-    uint64_t service_id = 0x5678;
-    uint64_t instance_id = 0x0002;
+    uint64_t serviceId = 0x5678;
+    uint64_t instanceId = 0x0002;
     uint32_t event_id = 200;
 
     // Create a dummy subscriber to avoid RELIABLE QoS blocking
-    std::atomic<int> dummy_count{0};
-    ASSERT_TRUE(binding_->SubscribeEvent(
-        service_id, instance_id, event_id,
+    std::atomic< int > dummy_count{0};
+    ASSERT_TRUE(binding_->SubscribeEvent< ByteBuffer >(
+        serviceId, instanceId, event_id,
         [&dummy_count](uint64_t, uint64_t, uint32_t, const ByteBuffer&) {
             dummy_count++;
         }
     ).HasValue());
 
-    ASSERT_TRUE(binding_->OfferService(service_id, instance_id).HasValue());
+    ASSERT_TRUE(binding_->OfferService(serviceId, instanceId).HasValue());
 
     // Wait for DDS matching
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -160,7 +160,7 @@ TEST_F(DdsBindingTest, DISABLED_MetricsCollection)
     ByteBuffer test_data(128, 0xAB);  // 128 bytes
 
     for (int i = 0; i < num_messages; i++) {
-        ASSERT_TRUE(binding_->SendEvent(service_id, instance_id, event_id, test_data).HasValue());
+        ASSERT_TRUE(binding_->SendEvent(serviceId, instanceId, event_id, test_data).HasValue());
     }
 
     // Wait for messages to be processed
@@ -168,13 +168,13 @@ TEST_F(DdsBindingTest, DISABLED_MetricsCollection)
 
     // Check metrics
     auto metrics = binding_->GetMetrics();
-    EXPECT_GE(metrics.messages_sent, num_messages);
-    EXPECT_GE(metrics.bytes_sent, num_messages * test_data.size());
-    EXPECT_GT(metrics.avg_latency_ns, 0.0);
-    EXPECT_GT(metrics.max_latency_ns, 0);
+    EXPECT_GE(metrics.messagesSent, num_messages);
+    EXPECT_GE(metrics.bytesSent, num_messages * test_data.size());
+    EXPECT_GT(metrics.avgLatencyNs, 0.0);
+    EXPECT_GT(metrics.maxLatencyNs, 0);
 
     // Cleanup
-    binding_->UnsubscribeEvent(service_id, instance_id, event_id);
+    binding_->UnsubscribeEvent(serviceId, instanceId, event_id);
 }
 
 /**
@@ -187,18 +187,18 @@ TEST_F(DdsBindingTest, UnimplementedMethods)
     ByteBuffer dummy_data = {0x01, 0x02};
 
     // CallMethod
-    auto method_result = binding_->CallMethod(0x1234, 0x0001, 1, dummy_data);
+    auto method_result = binding_->CallMethod< ByteBuffer >(0x1234, 0x0001, 1, dummy_data);
     EXPECT_FALSE(method_result.HasValue());
 
-    // RegisterMethod
-    auto register_result = binding_->RegisterMethod(
+    // RegisterMethod — should succeed (method manager is functional)
+    auto register_result = binding_->RegisterMethod< ByteBuffer, ByteBuffer >(
         0x1234, 0x0001, 1,
         [](uint64_t, uint64_t, uint32_t, const ByteBuffer&) { return ByteBuffer(); }
     );
-    EXPECT_FALSE(register_result.HasValue());
+    EXPECT_TRUE(register_result.HasValue());
 
     // GetField
-    auto get_result = binding_->GetField(0x1234, 0x0001, 1);
+    auto get_result = binding_->GetField< ByteBuffer >(0x1234, 0x0001, 1);
     EXPECT_FALSE(get_result.HasValue());
 
     // SetField

@@ -18,7 +18,7 @@
 using namespace lap::com::binding;
 using namespace std::chrono_literals;
 
-std::atomic<bool> running{true};
+std::atomic< bool > running{true};
 
 void signalHandler(int signum) {
     std::cout << "\n[Publisher] Interrupt signal (" << signum << ") received. Shutting down..." << std::endl;
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
 
     // Create DDS binding
-    auto binding = std::make_unique<DdsBinding>();
+    auto binding = std::make_unique< DdsBinding > ();
 
     // Initialize
     auto init_result = binding->Initialize();
@@ -89,10 +89,10 @@ int main(int argc, char** argv) {
         ByteBuffer payload(payload_size);
         
         // Fill with test pattern: sequence number (8 bytes) + counter pattern
-        uint64_t* seq_ptr = reinterpret_cast<uint64_t*>(payload.data());
+        uint64_t* seq_ptr = reinterpret_cast< uint64_t* > (payload.data());
         *seq_ptr = sequence;
         for (size_t i = 8; i < payload_size; ++i) {
-            payload[i] = static_cast<uint8_t>(i + sequence);
+            payload[i] = static_cast< uint8_t > (i + sequence);
         }
 
         // Send event
@@ -122,12 +122,12 @@ int main(int argc, char** argv) {
     // Print statistics
     auto metrics = binding->GetMetrics();
     std::cout << "\n=== Publisher Statistics ===" << std::endl;
-    std::cout << "  Messages Sent:     " << metrics.messages_sent << std::endl;
-    std::cout << "  Bytes Sent:        " << metrics.bytes_sent << std::endl;
-    std::cout << "  Messages Dropped:  " << metrics.messages_dropped << std::endl;
-    std::cout << "  Avg Latency:       " << metrics.avg_latency_ns / 1000.0 << " µs" << std::endl;
-    std::cout << "  Min Latency:       " << metrics.min_latency_ns / 1000.0 << " µs" << std::endl;
-    std::cout << "  Max Latency:       " << metrics.max_latency_ns / 1000.0 << " µs" << std::endl;
+    std::cout << "  Messages Sent:     " << metrics.messagesSent << std::endl;
+    std::cout << "  Bytes Sent:        " << metrics.bytesSent << std::endl;
+    std::cout << "  Messages Dropped:  " << metrics.messagesDropped << std::endl;
+    std::cout << "  Avg Latency:       " << metrics.avgLatencyNs / 1000.0 << " µs" << std::endl;
+    std::cout << "  Min Latency:       " << metrics.minLatencyNs / 1000.0 << " µs" << std::endl;
+    std::cout << "  Max Latency:       " << metrics.maxLatencyNs / 1000.0 << " µs" << std::endl;
 
     std::cout << "\n[Publisher] Shutdown complete" << std::endl;
     return 0;

@@ -5,7 +5,7 @@
  * @date        2025-11-21
  * @details     Defines shared data structures and enumerations for all binding implementations
  * @copyright   Copyright (c) 2025
- * @note        AUTOSAR R24-11 Compliance:
+ * @note        AUTOSAR R25-11 Compliance:
  *              - SWS_CM_00400: Transport Binding Types
  * @reference   ARCHITECTURE_SUMMARY.md §7 Binding Manager
  * sdk:
@@ -20,8 +20,8 @@
 #ifndef LAP_COM_BINDING_TYPES_HPP
 #define LAP_COM_BINDING_TYPES_HPP
 
-#include <cstdint>
-#include <string>
+#include <lap/core/CTypedef.hpp>
+#include <lap/core/CString.hpp>
 
 namespace lap
 {
@@ -29,30 +29,35 @@ namespace com
 {
 namespace binding
 {
+    using lap::core::Bool;
+    using lap::core::UInt32;
+    using lap::core::UInt64;
+    using lap::core::Double;
+    using lap::core::String;
     /**
      * @brief Binding health status
      * @note Used by BindingManager for fault detection and automatic failover
      */
     struct BindingHealth
     {
-        bool is_healthy;                ///< Overall health status
-        uint32_t error_count;           ///< Total errors since initialization
-        uint32_t consecutive_errors;    ///< Consecutive errors (triggers failover)
-        double availability_percent;    ///< Uptime percentage (0.0-100.0)
-        uint64_t last_error_timestamp;  ///< Last error time (nanoseconds since epoch)
-        std::string last_error_message; ///< Human-readable error description
-        
-        // Health thresholds
-        static constexpr uint32_t MAX_CONSECUTIVE_ERRORS = 10;
-        static constexpr double MIN_AVAILABILITY_PERCENT = 95.0;
-        
+        Bool isHealthy;                 ///< Overall health status
+        UInt32 errorCount;              ///< Total errors since initialization
+        UInt32 consecutiveErrors;       ///< Consecutive errors (triggers failover)
+        Double availabilityPercent;     ///< Uptime percentage (0.0-100.0)
+        UInt64 lastErrorTimestamp;      ///< Last error time (nanoseconds since epoch)
+        String lastErrorMessage;        ///< Human-readable error description
+
+        /// Health thresholds
+        static constexpr UInt32 kMaxConsecutiveErrors = 10;
+        static constexpr Double kMinAvailabilityPercent = 95.0;
+
         BindingHealth()
-            : is_healthy(true),
-              error_count(0),
-              consecutive_errors(0),
-              availability_percent(100.0),
-              last_error_timestamp(0),
-              last_error_message("OK") {}
+            : isHealthy( true ),
+              errorCount( 0 ),
+              consecutiveErrors( 0 ),
+              availabilityPercent( 100.0 ),
+              lastErrorTimestamp( 0 ),
+              lastErrorMessage( "OK" ) {}
     };
 
     /**
@@ -61,56 +66,56 @@ namespace binding
      */
     struct TransportMetrics
     {
-        // Message statistics
-        uint64_t messages_sent;         ///< Total messages sent
-        uint64_t messages_received;     ///< Total messages received
-        uint64_t messages_dropped;      ///< Messages dropped due to errors
-        
-        // Performance metrics
-        uint64_t avg_latency_ns;        ///< Average message latency (nanoseconds)
-        uint64_t max_latency_ns;        ///< Maximum observed latency
-        uint64_t min_latency_ns;        ///< Minimum observed latency
-        
-        // Throughput
-        uint64_t bytes_sent;            ///< Total bytes transmitted
-        uint64_t bytes_received;        ///< Total bytes received
-        uint64_t current_bandwidth_bps; ///< Current bandwidth (bytes/sec)
-        
-        // Connection state
-        uint32_t active_connections;    ///< Number of active connections
-        uint32_t failed_connections;    ///< Number of failed connection attempts
-        
-        // Error counters
-        uint32_t serialization_errors;  ///< Serialization/deserialization errors
-        uint32_t timeout_errors;        ///< Operation timeout errors
-        
+        /// Message statistics
+        UInt64 messagesSent;            ///< Total messages sent
+        UInt64 messagesReceived;        ///< Total messages received
+        UInt64 messagesDropped;         ///< Messages dropped due to errors
+
+        /// Performance metrics
+        UInt64 avgLatencyNs;            ///< Average message latency (nanoseconds)
+        UInt64 maxLatencyNs;            ///< Maximum observed latency
+        UInt64 minLatencyNs;            ///< Minimum observed latency
+
+        /// Throughput
+        UInt64 bytesSent;              ///< Total bytes transmitted
+        UInt64 bytesReceived;          ///< Total bytes received
+        UInt64 currentBandwidthBps;    ///< Current bandwidth (bytes/sec)
+
+        /// Connection state
+        UInt32 activeConnections;       ///< Number of active connections
+        UInt32 failedConnections;       ///< Number of failed connection attempts
+
+        /// Error counters
+        UInt32 serializationErrors;     ///< Serialization/deserialization errors
+        UInt32 timeoutErrors;           ///< Operation timeout errors
+
         TransportMetrics()
-            : messages_sent(0),
-              messages_received(0),
-              messages_dropped(0),
-              avg_latency_ns(0),
-              max_latency_ns(0),
-              min_latency_ns(UINT64_MAX),
-              bytes_sent(0),
-              bytes_received(0),
-              current_bandwidth_bps(0),
-              active_connections(0),
-              failed_connections(0),
-              serialization_errors(0),
-              timeout_errors(0) {}
+            : messagesSent( 0 ),
+              messagesReceived( 0 ),
+              messagesDropped( 0 ),
+              avgLatencyNs( 0 ),
+              maxLatencyNs( 0 ),
+              minLatencyNs( UINT64_MAX ),
+              bytesSent( 0 ),
+              bytesReceived( 0 ),
+              currentBandwidthBps( 0 ),
+              activeConnections( 0 ),
+              failedConnections( 0 ),
+              serializationErrors( 0 ),
+              timeoutErrors( 0 ) {}
     };
 
     /**
      * @brief Binding capability flags
      */
-    enum class BindingCapability : uint32_t
+    enum class BindingCapability : UInt32
     {
-        ZERO_COPY      = 0x01,  ///< Supports zero-copy communication
-        MULTICAST      = 0x02,  ///< Supports multicast/broadcast
-        NETWORK        = 0x04,  ///< Supports cross-ECU communication
-        LOCAL_ONLY     = 0x08,  ///< Local IPC only
-        QOS_AWARE      = 0x10,  ///< Supports QoS policies
-        SECURITY       = 0x20   ///< Supports encryption/authentication
+        kZeroCopy      = 0x01,  ///< Supports zero-copy communication
+        kMulticast     = 0x02,  ///< Supports multicast/broadcast
+        kNetwork       = 0x04,  ///< Supports cross-ECU communication
+        kLocalOnly     = 0x08,  ///< Local IPC only
+        kQosAware      = 0x10,  ///< Supports QoS policies
+        kSecurity      = 0x20   ///< Supports encryption/authentication
     };
 
 } // namespace binding

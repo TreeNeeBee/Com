@@ -1,0 +1,87 @@
+// ============================================================
+// Auto-generated DDS IDL v4.2 from /workspace/LightAP/modules/Com/examples/helloworld/HelloWorld.fidl
+// Franca Schema Hash: 5a1b660e3ef06eb8
+// Version: 2.0.0
+// Generator: lap-sidl-gen v1.0
+// DO NOT EDIT — This file is auto-generated
+// ============================================================
+
+module org {
+module lap {
+module examples {
+
+        const string SCHEMA_HASH = "5a1b660e3ef06eb8";
+        @version("2.0.0")
+
+        // ==================== Type Collection: HelloWorldTypes ====================
+
+        enum ErrorCode {
+            OK = 0,
+            UNKNOWN = 1,
+            INVALID_ARG = 2,
+            OVERFLOW = 3
+        };
+
+        enum ServerStatus {
+            STARTING = 0,
+            RUNNING = 1,
+            BUSY = 2,
+            STOPPING = 3
+        };
+
+        struct GreetingMessage {
+            string text;
+            unsigned long long timestamp;
+        };
+
+        struct DataChunk {
+            unsigned long sequenceNo;
+            unsigned long totalSize;
+            sequence<octet> payload;
+        };
+
+        struct GreetingEvent {
+            HelloWorldTypes.GreetingMessage message;
+        };
+
+        struct StatusChangedEvent {
+            HelloWorldTypes.ServerStatus status;
+        };
+
+        struct DataStreamEvent {
+            HelloWorldTypes.DataChunk chunk;
+        };
+
+        struct SayHelloRequest {
+            string name;
+        };
+
+        struct SayHelloResponse {
+            string greeting;
+        };
+
+        struct AddRequest {
+            unsigned long a;
+            unsigned long b;
+        };
+
+        struct AddResponse {
+            unsigned long sum;
+        };
+
+        struct NotifyLogRequest {
+            string message;
+        };
+
+        struct ComputeHashRequest {
+            sequence<octet> data;
+        };
+
+        struct ComputeHashResponse {
+            unsigned long long hashValue;
+        };
+
+}; // examples
+}; // lap
+}; // org
+

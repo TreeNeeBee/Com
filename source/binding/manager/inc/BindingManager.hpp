@@ -7,7 +7,7 @@
  *              with dynamic loading and priority-based selection.
  *              Supports YAML configuration for binding priority and static mapping.
  * @copyright   Copyright (c) 2025
- * @note        AUTOSAR R24-11 Compliance:
+ * @note        AUTOSAR R25-11 Compliance:
  *              - SWS_CM_00401: Transport Binding Selection
  *              - SWS_CM_00402: Dynamic Binding Management
  *              - SWS_CM_00403: Binding Configuration
@@ -21,6 +21,7 @@
  * <table>
  * <tr><th>Date        <th>Version  <th>Author          <th>Description
  * <tr><td>2025/11/21  <td>1.0      <td>LightAP Team    <td>Initial binding manager implementation
+ * <tr><td>2026/02/09  <td>2.0      <td>Aii             <td>code_rules compliance: m_ prefix, camelCase, spaced formatting
  * </table>
  */
 #ifndef LAP_COM_BINDING_MANAGER_HPP
@@ -28,17 +29,15 @@
 
 #include "../common/ITransportBinding.hpp"
 #include "../common/BindingTypes.hpp"
+#include "ComTypes.hpp"
 
+#include <lap/core/CTypedef.hpp>
+#include <lap/core/CSync.hpp>
 #include <lap/core/CResult.hpp>
 #include <lap/core/COptional.hpp>
 #include <lap/core/CString.hpp>
 
-#include <map>
 #include <unordered_map>
-#include <string>
-#include <memory>
-#include <vector>
-#include <mutex>
 #include <dlfcn.h>
 
 namespace lap
@@ -50,6 +49,15 @@ namespace binding
     using lap::core::Result;
     using lap::core::Optional;
     using lap::core::String;
+    using lap::core::Bool;
+    using lap::core::UInt32;
+    using lap::core::UInt64;
+    using lap::core::Double;
+    using lap::core::Vector;
+    using lap::core::Map;
+    using lap::core::SharedHandle;
+    using lap::core::Mutex;
+    using lap::core::LockGuard;
 
     /**
      * @brief Binding priority enumeration (higher value = higher priority)
@@ -60,14 +68,14 @@ namespace binding
      *       4. Socket (priority 40) - fallback for testing
      *       5. D-Bus (priority 20) - legacy integration
      */
-    enum class BindingPriority : uint32_t
+    enum class BindingPriority : UInt32
     {
-        ICEORYX2 = 100,  ///< iceoryx2 zero-copy IPC (< 1µs latency)
-        DDS      = 80,   ///< DDS over AF_XDP (< 15µs latency)
-        SOMEIP   = 60,   ///< SOME/IP automotive binding
-        SOCKET   = 40,   ///< Socket-based fallback
-        DBUS     = 20,   ///< D-Bus legacy binding
-        CUSTOM   = 10    ///< Custom protocol binding
+        kIceoryx2 = 100,  ///< iceoryx2 zero-copy IPC (< 1µs latency)
+        kDds      = 80,   ///< DDS over AF_XDP (< 15µs latency)
+        kSomeip   = 60,   ///< SOME/IP automotive binding
+        kSocket   = 40,   ///< Socket-based fallback
+        kDbus     = 20,   ///< D-Bus legacy binding
+        kCustom   = 10    ///< Custom protocol binding
     };
 
     /**
@@ -76,17 +84,17 @@ namespace binding
      */
     struct BindingConfig
     {
-        std::string name;           ///< Binding name ("iceoryx2", "dds", "someip", etc.)
+        String name;                ///< Binding name ("iceoryx2", "dds", "someip", etc.)
         BindingPriority priority;   ///< Selection priority
-        std::string library_path;   ///< Shared library path (e.g., "liblap_binding_iceoryx2.so")
-        bool enabled;               ///< Enable/disable flag
-        std::map<std::string, std::string> parameters;  ///< Binding-specific parameters
+        String libraryPath;         ///< Shared library path (e.g., "liblap_binding_iceoryx2.so")
+        Bool enabled;               ///< Enable/disable flag
+        Map< String, String > parameters;  ///< Binding-specific parameters
 
         BindingConfig()
-            : name(""),
-              priority(BindingPriority::CUSTOM),
-              library_path(""),
-              enabled(false) {}
+            : name( "" ),
+              priority( BindingPriority::kCustom ),
+              libraryPath( "" ),
+              enabled( false ) {}
     };
 
     /**
@@ -95,12 +103,12 @@ namespace binding
      */
     struct StaticBindingMapping
     {
-        uint64_t service_id;        ///< Service ID (AUTOSAR service identifier)
-        uint64_t instance_id;       ///< Instance ID (default 0 = all instances)
-        std::string binding_name;   ///< Forced binding name
+        UInt64 serviceId;          ///< Service ID (AUTOSAR service identifier)
+        UInt64 instanceId;         ///< Instance ID (default 0 = all instances)
+        String bindingName;        ///< Forced binding name
 
         StaticBindingMapping()
-            : service_id(0), instance_id(0), binding_name("") {}
+            : serviceId( 0 ), instanceId( 0 ), bindingName( "" ) {}
     };
 
     /**
@@ -109,21 +117,7 @@ namespace binding
     using CreateBindingFunc = ITransportBinding* (*)();
     using DestroyBindingFunc = void (*)(ITransportBinding*);
     using GetBindingNameFunc = const char* (*)();
-    using GetBindingVersionFunc = uint32_t (*)();
-
-    /**
-     * @brief Binding manager errors
-     */
-    enum class BindingManagerError : uint32_t
-    {
-        SUCCESS               = 0,
-        CONFIG_LOAD_FAILED    = 1,  ///< Failed to load YAML configuration
-        LIBRARY_LOAD_FAILED   = 2,  ///< dlopen() failed
-        SYMBOL_NOT_FOUND      = 3,  ///< Required symbol not exported
-        BINDING_INIT_FAILED   = 4,  ///< Binding Initialize() returned error
-        NO_BINDING_AVAILABLE  = 5,  ///< No suitable binding found
-        BINDING_NOT_FOUND     = 6   ///< Requested binding doesn't exist
-    };
+    using GetBindingVersionFunc = UInt32 (*)();
 
     /**
      * @brief Dynamic transport binding manager
@@ -142,7 +136,7 @@ namespace binding
      *          auto* binding = manager.SelectBinding(0x1234, 0x0001);
      *          binding->SendEvent(...);
      */
-    class BindingManager final
+    class LAP_COM_API BindingManager final
     {
     public:
         /**
@@ -159,8 +153,8 @@ namespace binding
 
         /**
          * @brief Load binding configuration from YAML file
-         * @param config_path Path to YAML configuration (e.g., "/etc/lap/com/bindings.yaml")
-         * @return Result<void> Success or error code
+         * @param configPath Path to YAML configuration (e.g., "/etc/lap/com/bindings.yaml")
+         * @return Result< void > Success or error code
          * 
          * @note YAML format example:
          *       bindings:
@@ -173,10 +167,10 @@ namespace binding
          *           library: /usr/lib/lap/com/liblap_binding_dds.so
          *           enabled: true
          *       static_mappings:
-         *         - service_id: 0xF001
+         *         - serviceId: 0xF001
          *           binding: iceoryx2  # Force ASIL-D to use iceoryx2
          */
-        Result<void> LoadConfiguration(const std::string& config_path) noexcept;
+        Result< void > LoadConfiguration( const String& configPath ) noexcept;
 
         /**
          * @brief Manually register a binding (without dynamic loading)
@@ -186,49 +180,49 @@ namespace binding
          * 
          * @note For unit testing or statically linked bindings
          */
-        Result<void> RegisterBinding(
+        Result< void > RegisterBinding(
             const BindingConfig& config,
-            std::shared_ptr<ITransportBinding> binding
+            SharedHandle< ITransportBinding > binding
         ) noexcept;
 
         /**
          * @brief Load a binding from shared library
-         * @param config Binding configuration (must include library_path)
-         * @return Result<void> Success or error code
+         * @param config Binding configuration (must include libraryPath)
+         * @return Result< void > Success or error code
          * 
          * @details Steps:
-         *          1. dlopen(config.library_path, RTLD_LAZY | RTLD_LOCAL)
+         *          1. dlopen(config.libraryPath, RTLD_LAZY | RTLD_LOCAL)
          *          2. dlsym("CreateBindingInstance")
          *          3. Call factory function to create instance
          *          4. binding->Initialize(config.parameters)
          *          5. Store in registry with priority key
          */
-        Result<void> LoadBinding(const BindingConfig& config) noexcept;
+        Result< void > LoadBinding( const BindingConfig& config ) noexcept;
 
         /**
          * @brief Unload a binding and close library handle
          * @param name Binding name
          * @return Result<void> Success or error code
          */
-        Result<void> UnloadBinding(const std::string& name) noexcept;
+        Result< void > UnloadBinding( const String& name ) noexcept;
 
         /**
          * @brief Select binding for a service (priority-based or static mapping)
-         * @param service_id AUTOSAR service ID
-         * @param instance_id AUTOSAR instance ID (default 0 = any instance)
+         * @param serviceId AUTOSAR service ID
+         * @param instanceId AUTOSAR instance ID (default 0 = any instance)
          * @return ITransportBinding* Pointer to selected binding or nullptr
          * 
          * @details Selection algorithm:
-         *          1. Check static_mappings_ for explicit service_id match
-         *          2. If no match, iterate bindings_ by priority (descending)
+         *          1. Check m_staticMappings for explicit serviceId match
+         *          2. If no match, iterate m_bindings by priority (descending)
          *          3. Return first enabled binding
          *          4. Return nullptr if no binding available
          * 
-         * @note Thread-safe (read lock on mutex_)
+         * @note Thread-safe (read lock on m_mutex)
          */
         ITransportBinding* SelectBinding(
-            uint64_t service_id,
-            uint64_t instance_id = 0
+            UInt64 serviceId,
+            UInt64 instanceId = 0
         ) noexcept;
 
         /**
@@ -236,13 +230,13 @@ namespace binding
          * @param name Binding name
          * @return Optional<ITransportBinding*> Binding pointer or nullopt
          */
-        Optional<ITransportBinding*> GetBinding(const std::string& name) const noexcept;
+        Optional< ITransportBinding* > GetBinding( const String& name ) const noexcept;
 
         /**
          * @brief Get all loaded bindings (for diagnostics)
          * @return std::vector<std::string> List of binding names
          */
-        std::vector<std::string> GetLoadedBindings() const noexcept;
+        Vector< String > GetLoadedBindings() const noexcept;
 
         /**
          * @brief Check health status of a specific binding
@@ -252,7 +246,7 @@ namespace binding
          * @note Used for fault detection and automatic failover
          * @note Returns metrics like error_rate, latency, availability
          */
-        Optional<BindingHealth> GetBindingHealth(const std::string& name) const noexcept;
+        Optional< BindingHealth > GetBindingHealth( const String& name ) const noexcept;
 
         /**
          * @brief Get performance metrics for a specific binding
@@ -262,7 +256,7 @@ namespace binding
          * @note ARCHITECTURE_SUMMARY.md §7.2: Performance monitoring
          * @note Includes message counts, latency statistics, bandwidth
          */
-        Optional<TransportMetrics> GetBindingMetrics(const std::string& name) const noexcept;
+        Optional< TransportMetrics > GetBindingMetrics( const String& name ) const noexcept;
 
         /**
          * @brief Get aggregated metrics for all loaded bindings
@@ -270,38 +264,38 @@ namespace binding
          * 
          * @note Used by diagnostic tools and monitoring systems
          */
-        std::map<std::string, TransportMetrics> GetAllMetrics() const noexcept;
+        Map< String, TransportMetrics > GetAllMetrics() const noexcept;
 
         /**
          * @brief Reload configuration file and update bindings
-         * @param config_path Path to YAML configuration file
-         * @return Result<void> Success or error code
+         * @param configPath Path to YAML configuration file
+         * @return Result< void > Success or error code
          * 
          * @note Hot reload: unload disabled bindings, load new enabled bindings
          * @note Existing connections are preserved if binding remains enabled
          * @warning Thread-safe but may cause brief service disruption
          */
-        Result<void> ReloadConfiguration(const std::string& config_path) noexcept;
+        Result< void > ReloadConfiguration( const String& configPath ) noexcept;
 
         /**
          * @brief Check if a binding supports zero-copy communication
          * @param name Binding name
          * @return bool True if supports zero-copy (e.g., iceoryx2)
          */
-        bool SupportsZeroCopy(const std::string& name) const noexcept;
+        Bool SupportsZeroCopy( const String& name ) const noexcept;
 
         /**
          * @brief Get priority of a specific binding
          * @param name Binding name
          * @return Optional<uint32_t> Priority value (100=highest, 20=lowest)
          */
-        Optional<uint32_t> GetBindingPriority(const std::string& name) const noexcept;
+        Optional< UInt32 > GetBindingPriority( const String& name ) const noexcept;
 
         /**
          * @brief Shutdown all bindings and unload libraries
          * @return Result<void> Success or error code
          */
-        Result<void> Shutdown() noexcept;
+        Result< void > Shutdown() noexcept;
 
     private:
         /**
@@ -316,22 +310,23 @@ namespace binding
 
         /**
          * @brief Parse YAML configuration file
-         * @param config_path YAML file path
-         * @return Result<std::vector<BindingConfig>> Parsed configurations
+         * @param configPath YAML file path
+         * @return Result< Vector< BindingConfig > > Parsed configurations
          */
-        Result<std::vector<BindingConfig>> parseYamlConfig(
-            const std::string& config_path
-        ) const noexcept;
+        Result< Vector< BindingConfig > > parseYamlConfig(
+            const String& configPath,
+            Vector< StaticBindingMapping >& outMappings
+        ) noexcept;
 
         /**
          * @brief Find static binding mapping for service
-         * @param service_id Service ID
-         * @param instance_id Instance ID
-         * @return Optional<std::string> Binding name or nullopt
+         * @param serviceId Service ID
+         * @param instanceId Instance ID
+         * @return Optional< String > Binding name or nullopt
          */
-        Optional<std::string> findStaticMapping(
-            uint64_t service_id,
-            uint64_t instance_id
+        Optional< String > findStaticMapping(
+            UInt64 serviceId,
+            UInt64 instanceId
         ) const noexcept;
 
         // ========================================================================
@@ -339,21 +334,21 @@ namespace binding
         // ========================================================================
 
         /// Mutex for thread-safe access
-        mutable std::mutex mutex_;
+        mutable Mutex m_mutex;
 
         /// Binding registry (sorted by priority, descending)
-        /// Key: priority (uint32_t), Value: binding pointer
+        /// Key: priority (UInt32), Value: binding pointer
         /// Note: std::multimap allows multiple bindings with same priority
-        std::multimap<uint32_t, std::shared_ptr<ITransportBinding>, std::greater<uint32_t>> bindings_;
+        std::multimap< UInt32, SharedHandle< ITransportBinding >, std::greater< UInt32 > > m_bindings;
 
         /// Binding lookup by name
-        std::unordered_map<std::string, std::shared_ptr<ITransportBinding>> bindings_by_name_;
+        std::unordered_map< String, SharedHandle< ITransportBinding > > m_bindingsByName;
 
         /// Library handles (for dlclose on shutdown)
-        std::unordered_map<std::string, void*> library_handles_;
+        std::unordered_map< String, void* > m_libraryHandles;
 
         /// Static service-to-binding mappings
-        std::vector<StaticBindingMapping> static_mappings_;
+        Vector< StaticBindingMapping > m_staticMappings;
     };
 
 } // namespace binding

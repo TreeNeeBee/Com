@@ -1,0 +1,48 @@
+# ==============================================================================
+# LightAP Registry - ASIL Initializer Service
+# ==============================================================================
+# Creates ASIL registry (memfd) and distributes FD to authorized clients.
+# Triggered by lap-registry-asil.socket. Stricter security hardening.
+# ==============================================================================
+
+[Unit]
+Description=LightAP Service Registry ASIL Initializer
+Documentation=https://github.com/AdrianCAG/LightAP
+Requires=lap-registry-asil.socket
+After=lap-registry-asil.socket
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/lap-registry-init --type=asil --socket=/run/lap/registry_asil.sock
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lap-registry-asil
+
+RuntimeDirectory=lap
+RuntimeDirectoryMode=0755
+
+# Resource limits (stricter for ASIL)
+MemoryMax=50M
+CPUQuota=20%
+TasksMax=20
+
+# Security hardening (ASIL-D level)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+ReadWritePaths=/run/lap
+
+# Restart policy
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+
+[Install]
+WantedBy=multi-user.target

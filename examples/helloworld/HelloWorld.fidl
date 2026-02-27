@@ -1,0 +1,128 @@
+/**
+ * HelloWorld service definition — comprehensive AUTOSAR AP Com IPC example.
+ *
+ * Demonstrates ALL communication patterns:
+ *
+ *   Methods:
+ *     - SayHello       : sync request/response (String → String)
+ *     - Add            : sync request/response (UInt32 + UInt32 → UInt32)
+ *     - NotifyLog      : fire-and-forget (String → void, no response)
+ *     - ComputeHash    : designed for async call (ByteBuffer → UInt64)
+ *
+ *   Events (broadcasts):
+ *     - Greeting        : periodic text broadcast
+ *     - StatusChanged   : enum-based status notification
+ *     - DataStream      : binary data stream push
+ *
+ *   Fields (attributes):
+ *     - VisitorCount    : readonly UInt32 (getter only)
+ *     - ServerName      : read-write String (getter + setter)
+ *     - Temperature     : read-write Double with notification (get/set/notify)
+ */
+
+package org.lap.examples
+
+typeCollection HelloWorldTypes
+{
+    version { major 2 minor 0 }
+
+    enumeration ErrorCode
+    {
+        OK          = 0
+        UNKNOWN     = 1
+        INVALID_ARG = 2
+        OVERFLOW    = 3
+    }
+
+    enumeration ServerStatus
+    {
+        STARTING    = 0
+        RUNNING     = 1
+        BUSY        = 2
+        STOPPING    = 3
+    }
+
+    struct GreetingMessage
+    {
+        String  text
+        UInt64  timestamp
+    }
+
+    struct DataChunk
+    {
+        UInt32  sequenceNo
+        UInt32  totalSize
+        ByteBuffer payload
+    }
+}
+
+interface HelloWorld
+{
+    version { major 2 minor 0 }
+
+    // =================================================================
+    // Methods
+    // =================================================================
+
+    /** Sync request/response: greet a visitor by name */
+    method SayHello
+    {
+        in  { String name }
+        out { String greeting }
+    }
+
+    /** Sync request/response: add two numbers */
+    method Add
+    {
+        in  { UInt32 a, UInt32 b }
+        out { UInt32 sum }
+    }
+
+    /** Fire-and-forget: send a log message (no response expected) */
+    method NotifyLog fireAndForget
+    {
+        in  { String message }
+    }
+
+    /** Async-friendly: compute hash of payload (may be slow) */
+    method ComputeHash
+    {
+        in  { ByteBuffer data }
+        out { UInt64 hashValue }
+    }
+
+    // =================================================================
+    // Events (broadcasts)
+    // =================================================================
+
+    /** Periodic greeting broadcast */
+    broadcast Greeting
+    {
+        out { HelloWorldTypes.GreetingMessage message }
+    }
+
+    /** Server status change notification */
+    broadcast StatusChanged
+    {
+        out { HelloWorldTypes.ServerStatus status }
+    }
+
+    /** Binary data stream push */
+    broadcast DataStream
+    {
+        out { HelloWorldTypes.DataChunk chunk }
+    }
+
+    // =================================================================
+    // Fields (attributes)
+    // =================================================================
+
+    /** Read-only counter: number of visitors */
+    attribute UInt32 VisitorCount readonly
+
+    /** Read-write: server display name */
+    attribute String ServerName
+
+    /** Read-write with notification: current temperature reading */
+    attribute Double Temperature notify
+}

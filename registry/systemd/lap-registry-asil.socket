@@ -1,0 +1,24 @@
+# ==============================================================================
+# LightAP Registry - ASIL Socket Unit
+# ==============================================================================
+# Socket activation for ASIL (Automotive Safety Integrity Level C/D) registry.
+# Restricted access: only root and lap-control group members.
+# ==============================================================================
+
+[Unit]
+Description=LightAP Service Registry ASIL Socket
+Documentation=https://github.com/AdrianCAG/LightAP
+Before=multi-user.target
+
+[Socket]
+ListenStream=/run/lap/registry_asil.sock
+SocketMode=0660
+SocketUser=root
+SocketGroup=root
+Backlog=128
+Accept=false
+MaxConnections=512
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

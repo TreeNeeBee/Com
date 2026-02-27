@@ -1,0 +1,44 @@
+# ==============================================================================
+# LightAP Registry - QM Initializer Service
+# ==============================================================================
+# Creates QM registry (memfd) and distributes FD to connecting clients.
+# Triggered by lap-registry-qm.socket on first client connection.
+# ==============================================================================
+
+[Unit]
+Description=LightAP Service Registry QM Initializer
+Documentation=https://github.com/AdrianCAG/LightAP
+Requires=lap-registry-qm.socket
+After=lap-registry-qm.socket
+
+[Service]
+Type=exec
+ExecStart=/usr/local/bin/lap-registry-init --type=qm --socket=/run/lap/registry_qm.sock
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lap-registry-qm
+
+RuntimeDirectory=lap
+RuntimeDirectoryMode=0755
+
+# Resource limits
+MemoryMax=50M
+CPUQuota=20%
+TasksMax=20
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/lap
+
+# Restart policy
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=10s
+TimeoutStopSec=5s
+
+[Install]
+WantedBy=multi-user.target

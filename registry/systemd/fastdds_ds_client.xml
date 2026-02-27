@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  LightAP - FastDDS Discovery Server Configuration (Client-Side)
+  ================================================================
+  Reference: SERVICE_DISCOVERY_ARCHITECTURE §5.2.3
+  
+  This profile is used by SD Proxy (and any DDS participant on this ECU)
+  to connect to the centralized Discovery Server instead of using
+  multicast PDP/EDP.
+  
+  The SD Proxy reads FASTDDS_DEFAULT_PROFILES_FILE env var to load this.
+  
+  Fallback logic (§2.0.6):
+    1. Try CLIENT mode → connect to Discovery Server at configured address
+    2. If Discovery Server unreachable → health-check detects failure
+    3. Switch to SIMPLE mode (standard PDP/EDP multicast) as fallback
+  
+  Environment variables (set by lap-discovery-monitor.sh):
+    FASTDDS_DEFAULT_PROFILES_FILE  - path to this XML or fallback XML
+-->
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+
+    <!-- ============================================================ -->
+    <!-- Transport: match server configuration                        -->
+    <!-- ============================================================ -->
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>udp_transport</transport_id>
+            <type>UDPv4</type>
+            <sendBufferSize>1048576</sendBufferSize>
+            <receiveBufferSize>1048576</receiveBufferSize>
+            <non_blocking_send>true</non_blocking_send>
+        </transport_descriptor>
+    </transport_descriptors>
+
+    <!-- ============================================================ -->
+    <!-- Client Participant Profile                                   -->
+    <!-- ============================================================ -->
+    <profiles>
+        <participant profile_name="lap_ds_client" is_default_profile="true">
+            <rtps>
+                <builtin>
+                    <discovery_config>
+                        <discoveryProtocol>CLIENT</discoveryProtocol>
+
+                        <!-- Discovery Server endpoint(s) -->
+                        <discoveryServersList>
+                            <RemoteServer prefix="44.53.00.5f.45.50.52.4f.53.49.4d.41">
+                                <metatrafficUnicastLocatorList>
+                                    <locator>
+                                        <udpv4>
+                                            <!-- 
+                                              Default: 192.168.1.10:11811
+                                              For local/container testing: 127.0.0.1:11811
+                                              Override via fastdds_ds_env.conf 
+                                            -->
+                                            <address>127.0.0.1</address>
+                                            <port>11811</port>
+                                        </udpv4>
+                                    </locator>
+                                </metatrafficUnicastLocatorList>
+                            </RemoteServer>
+                        </discoveryServersList>
+                    </discovery_config>
+                </builtin>
+
+                <!-- Use only our configured transport -->
+                <useBuiltinTransports>false</useBuiltinTransports>
+                <userTransports>
+                    <transport_id>udp_transport</transport_id>
+                </userTransports>
+            </rtps>
+        </participant>
+    </profiles>
+
+</dds>

@@ -1,0 +1,32 @@
+{
+    "__metadata__": {
+        "crc": "7402e060",
+        "description": "",
+        "encrypted": false,
+        "hmac": "ffef9e5ddc8c074c62e1733ae145abc7491f9926645ed4a60ea1c65a5c695bf2",
+        "timestamp": "2026-02-26 13:57:40",
+        "version": 1
+    },
+    "__update_policy__": {
+        "default": "on_change",
+        "log": "on_change"
+    },
+    "log": {
+        "applicationDescription": "Default App",
+        "applicationId": "DEFT",
+        "contextDescription": "Default Context",
+        "contextId": "DEFT",
+        "logFileMaxBackups": 5,
+        "logFileMaxSize": 10485760,
+        "logMarker": false,
+        "logTraceDefaultLogLevel": "WARN",
+        "logTraceFilePath": "",
+        "logTraceLogMode": [
+            "console"
+        ],
+        "verboseMode": true,
+        "withEcuId": 1,
+        "withSessionId": 1,
+        "withTimeStamp": 1
+    }
+}

@@ -1,61 +1,62 @@
 /**
  * @file        DdsBinding.hpp
  * @author      LightAP Development Team
- * @brief       DDS transport binding with AF_XDP acceleration
- * @date        2025-11-23
- * @details     Implements ITransportBinding using CycloneDDS for cross-ECU communication.
- *              Supports AF_XDP zero-copy for large payloads (>64KB).
- * @copyright   Copyright (c) 2025
- * @note        AUTOSAR R24-11 Compliance:
+ * @brief       DDS transport binding — Facade class
+ * @date        2026/02/07
+ * @details     Facade implementing ITransportBinding by aggregating:
+ *              - CDdsServiceManager — service lifecycle
+ *              - CDdsEventManager   — event pub/sub
+ *              - CDdsMethodManager  — method/field RPC
+ *
+ *              Owns all shared DDS resources (participant, publisher,
+ *              subscriber, discovery listener, maps) and delegates each
+ *              ITransportBinding operation to the appropriate manager.
+ *
+ * @copyright   Copyright (c) 2026
+ *
+ * @note        AUTOSAR R25-11 Compliance:
  *              - TR_DDSS_00001-00007: DDS Security Integration
  *              - SWS_CM_00400: Transport Binding Interface
- * @reference   IMPLEMENTATION_PLAN_UPDATED.md Phase 4
- *              ARCHITECTURE_SUMMARY.md §8 DDS Transport Binding
- *              AUTOSAR_AP_TR_DDSSecurity.pdf
- * sdk:         CycloneDDS 0.10+
- * platform:    Linux 5.10+ (AF_XDP requires kernel 5.10+)
- * project:     LightAP
- * @version
+ *
  * <table>
  * <tr><th>Date        <th>Version  <th>Author          <th>Description
  * <tr><td>2025/11/23  <td>1.0      <td>LightAP Team    <td>Initial DDS Binding implementation
+ * <tr><td>2026/02/06  <td>2.0      <td>Aii             <td>Code style refactor per code_rules.md
+ * <tr><td>2026/02/07  <td>3.0      <td>Aii             <td>Composition refactor — facade + managers
  * </table>
  */
-#ifndef LAP_COM_BINDING_DDS_BINDING_HPP
-#define LAP_COM_BINDING_DDS_BINDING_HPP
 
+#ifndef LAP_COM_DDS_BINDING_HPP
+#define LAP_COM_DDS_BINDING_HPP
+
+// ==================== Project-Internal Headers ====================
+#include "DdsTypes.hpp"
+#include "DdsReaderListener.hpp"
+#include "DdsDiscoveryListener.hpp"
+#include "CDdsServiceManager.hpp"
+#include "CDdsEventManager.hpp"
+#include "CDdsMethodManager.hpp"
 #include "ITransportBinding.hpp"
-#include "BindingTypes.hpp"
 
+// ==================== Cross-Module Headers ====================
 #include <lap/core/CResult.hpp>
-#include <lap/log/CLogger.hpp>
 
-// FastDDS C++ API
+// ==================== Third-Party Headers ====================
 #include <fastdds/dds/domain/DomainParticipant.hpp>
-#include <fastdds/dds/domain/DomainParticipantFactory.hpp>
-#include <fastdds/dds/domain/DomainParticipantListener.hpp>
 #include <fastdds/dds/publisher/Publisher.hpp>
 #include <fastdds/dds/publisher/DataWriter.hpp>
-#include <fastdds/dds/publisher/DataWriterListener.hpp>
 #include <fastdds/dds/subscriber/Subscriber.hpp>
 #include <fastdds/dds/subscriber/DataReader.hpp>
-#include <fastdds/dds/subscriber/DataReaderListener.hpp>
 #include <fastdds/dds/topic/Topic.hpp>
 #include <fastdds/dds/topic/TypeSupport.hpp>
-#include <fastdds/rtps/builtin/data/PublicationBuiltinTopicData.hpp>
-#include <fastdds/rtps/writer/WriterDiscoveryStatus.hpp>
 
-// Generated IDL type
-#include "LapComMessage.hpp"
-#include "LapComMessagePubSubTypes.hpp"
+// Code-defined DDS wire type (replaces static LapComMessage.idl)
+#include "CDdsPayload.hpp"
 
+// ==================== Standard Library Headers ====================
 #include <atomic>
-#include <memory>
 #include <mutex>
 #include <unordered_map>
-#include <unordered_set>
-#include <string>
-#include <vector>
 
 namespace lap
 {
@@ -63,96 +64,29 @@ namespace com
 {
 namespace binding
 {
-    // Forward declaration
-    class DdsBinding;
+
+    // ====================================================================
+    // DdsBinding — Facade
+    // ====================================================================
 
     /**
-     * @brief DDS Binding configuration
-     */
-    struct DdsConfig
-    {
-        uint32_t domain_id = 0;                         ///< DDS domain ID (default: 0)
-        std::string discovery_server;                   ///< Discovery server address (optional)
-        bool use_shared_memory = true;                  ///< Enable DDS shared memory transport
-        bool af_xdp_enabled = false;                    ///< Enable AF_XDP zero-copy for network
-        std::string af_xdp_interface = "eth0";          ///< Network interface for AF_XDP
-        std::vector<uint32_t> af_xdp_queues = {0, 1};   ///< AF_XDP queue IDs
-        uint32_t large_payload_threshold = 65536;      ///< >64KB uses AF_XDP (bytes)
-        uint32_t max_payload_size = 10485760;          ///< Max payload: 10MB
-
-        // QoS defaults
-        bool reliable = true;                           ///< RELIABLE vs BEST_EFFORT
-        bool transient_local = false;                   ///< TRANSIENT_LOCAL durability
-        uint32_t history_depth = 10;                    ///< KEEP_LAST depth
-    };
-
-    /**
-     * @brief DataReader Listener for async event reception
-     */
-    class DdsReaderListener : public eprosima::fastdds::dds::DataReaderListener
-    {
-    public:
-        DdsReaderListener(
-            EventCallback callback,
-            TransportMetrics& metrics
-        ) : callback_(callback), metrics_(metrics) {}
-
-        void on_data_available(eprosima::fastdds::dds::DataReader* reader) override;
-        void on_subscription_matched(
-            eprosima::fastdds::dds::DataReader* reader,
-            const eprosima::fastdds::dds::SubscriptionMatchedStatus& info
-        ) override;
-
-    private:
-        EventCallback callback_;
-        TransportMetrics& metrics_;
-    };
-
-    /**
-     * @brief Discovery Listener for tracking remote service instances
-     * @details Listens to on_publisher_discovery to maintain a list of available
-     *          service instances discovered on the network.
-     *          Note: Also uses direct querying of builtin topics for robustness.
-     */
-    class DdsDiscoveryListener : public eprosima::fastdds::dds::DomainParticipantListener
-    {
-    public:
-        DdsDiscoveryListener(DdsBinding* binding) : binding_(binding) {}
-
-        void on_data_writer_discovery(
-            eprosima::fastdds::dds::DomainParticipant* participant,
-            eprosima::fastdds::rtps::WriterDiscoveryStatus reason,
-            const eprosima::fastdds::rtps::PublicationBuiltinTopicData& info,
-            bool& should_be_ignored
-        ) override;
-
-        /**
-         * @brief Get discovered instance IDs for a service
-         * @param service_id Service identifier
-         * @param participant DomainParticipant to query builtin topics
-         * @return Vector of instance IDs
-         */
-        std::vector<uint64_t> GetDiscoveredInstances(
-            uint64_t service_id,
-            eprosima::fastdds::dds::DomainParticipant* participant
-        ) const;
-
-    private:
-        DdsBinding* binding_;
-        mutable std::mutex discovery_mutex_;
-        // Map: service_id -> set of instance_ids
-        std::unordered_map<uint64_t, std::unordered_set<uint64_t>> discovered_services_;
-    };
-
-    /**
-     * @brief DDS Transport Binding
-     * 
-     * @details Implements cross-ECU communication using FastDDS.
-     *          - Small payloads (<64KB): DDS shared memory
-     *          - Large payloads (>64KB): AF_XDP zero-copy (optional)
-     *          - QoS policies: Reliable, Transient Local
-     * 
-     * @note Priority: 80 (lower than iceoryx2 100, higher than legacy 10)
+     * @brief   DDS Transport Binding (Facade)
+     *
+     * @details Implements ITransportBinding by aggregating three manager
+     *          classes.  Owns the single mutex that serialises most
+     *          operations, plus all shared DDS resources the managers
+     *          reference.
+     *
+     *          Composition / aggregation pattern:
+     *          - CDdsServiceManager  m_serviceManager
+     *          - CDdsEventManager    m_eventManager
+     *          - CDdsMethodManager   m_methodManager
+     *
+     * @note    Priority: 80 (lower than coreipc 100, higher than legacy 10)
+     *          Thread-safe for all public methods
+     *
+     * @compliance  SWS_CM_00400 - Transport Binding Interface
+     *              SWS_CM_00401 - Binding Lifecycle Management
      */
     class DdsBinding : public ITransportBinding
     {
@@ -160,140 +94,211 @@ namespace binding
         DdsBinding();
         ~DdsBinding() override;
 
-        // Disable copy/move
-        DdsBinding(const DdsBinding&) = delete;
-        DdsBinding& operator=(const DdsBinding&) = delete;
-        DdsBinding(DdsBinding&&) = delete;
-        DdsBinding& operator=(DdsBinding&&) = delete;
+        // Rule of Five — non-copyable, non-movable
+        DdsBinding( const DdsBinding& )             = delete;
+        DdsBinding& operator=( const DdsBinding& )  = delete;
+        DdsBinding( DdsBinding&& )                  = delete;
+        DdsBinding& operator=( DdsBinding&& )       = delete;
 
-        // ====================================================================
-        // ITransportBinding Interface Implementation
-        // ====================================================================
+    public:
+        // ================================================================
+        // Lifecycle
+        // ================================================================
 
-        Result<void> Initialize() noexcept override;
-        Result<void> Shutdown() noexcept override;
+        Result< void > Initialize() noexcept override;
+        Result< void > Shutdown() noexcept override;
+        void Configure( const Map< String, String >& params ) noexcept override;
 
-        Result<void> OfferService(uint64_t service_id, uint64_t instance_id) noexcept override;
-        Result<void> StopOfferService(uint64_t service_id, uint64_t instance_id) noexcept override;
-        Result<std::vector<uint64_t>> FindService(uint64_t service_id) noexcept override;
+        /// @brief DDS binding supports typed adapters (CDR via fastddsgen PubSubType)
+        Bool SupportsTypedAdapters() const noexcept override { return true; }
 
-        Result<void> SendEvent(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t event_id,
-            const ByteBuffer& data
-        ) noexcept override;
+        /// @brief Check CDdsTypeRegistry for a specific event adapter
+        Bool HasEventAdapter(
+            UInt64 serviceId, UInt32 eventId ) const noexcept override;
 
-        Result<void> SubscribeEvent(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t event_id,
-            EventCallback callback
-        ) noexcept override;
+    public:
+        // ================================================================
+        // Service Management (delegates to CDdsServiceManager)
+        // ================================================================
 
-        Result<void> UnsubscribeEvent(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t event_id
-        ) noexcept override;
+        Result< void > OfferService(
+            UInt64 serviceId, UInt64 instanceId ) noexcept override;
 
-        Result<ByteBuffer> CallMethod(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t method_id,
-            const ByteBuffer& request
-        ) noexcept override;
+        Result< void > StopOfferService(
+            UInt64 serviceId, UInt64 instanceId ) noexcept override;
 
-        Result<void> RegisterMethod(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t method_id,
-            MethodCallback handler
-        ) noexcept override;
+        Result< Vector< UInt64 > > FindService(
+            UInt64 serviceId ) noexcept override;
 
-        Result<ByteBuffer> GetField(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t field_id
-        ) noexcept override;
+        Result< UInt64 > StartFindService(
+            UInt64 serviceId,
+            ServiceDiscoveryCallback callback ) noexcept override;
 
-        Result<void> SetField(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t field_id,
-            const ByteBuffer& value
-        ) noexcept override;
+        Result< void > StopFindService(
+            UInt64 handle ) noexcept override;
 
-        // Diagnostics and Capabilities
+    public:
+        // ================================================================
+        // Event Communication (public virtual — UnsubscribeEvent only)
+        // ================================================================
+
+        Result< void > UnsubscribeEvent(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 eventId ) noexcept override;
+
+    public:
+        // ================================================================
+        // Field Communication (public virtual — unsubscribe only)
+        // ================================================================
+
+        Result< void > UnsubscribeFieldNotification(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 fieldId ) noexcept override;
+
+    public:
+        // ================================================================
+        // Capability Queries
+        // ================================================================
+
         const char* GetName() const noexcept override { return "DDS"; }
-        uint32_t GetVersion() const noexcept override { return 0x00010000; }
-        uint32_t GetPriority() const noexcept override { return 80; }
-        bool SupportsZeroCopy() const noexcept override { return config_.af_xdp_enabled; }
-        bool SupportsService(uint64_t service_id) const noexcept override;
+        UInt32 GetVersion() const noexcept override { return 0x00010000U; }
+        UInt32 GetPriority() const noexcept override { return 80U; }
+        Bool SupportsZeroCopy() const noexcept override { return m_config.m_bAfXdpEnabled; }
+        Bool SupportsService( UInt64 serviceId ) const noexcept override;
         TransportMetrics GetMetrics() const noexcept override;
 
+    public:
+        // ================================================================
         // Configuration
-        void SetDiscoveryServer(const std::string& address) noexcept;
+        // ================================================================
+
+        /**
+         * @brief   Set discovery server address before Initialize()
+         * @param   address  Server address (e.g., "tcp://192.168.1.1:42100")
+         */
+        void SetDiscoveryServer( const String& address ) noexcept;
+
+    protected:
+        // ================================================================
+        // NVI Do* Overrides (type-erased virtual implementations)
+        // ================================================================
+
+        Result< void > DoPrepareEventChannel(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 eventId ) noexcept override;
+
+        Result< void > DoSendEvent(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 eventId, const void* pData,
+            Size dataSize = 0 ) noexcept override;
+
+        Result< void > DoSubscribeEvent(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 eventId, EventCallback callback,
+            Size dataSize = 0 ) noexcept override;
+
+        Result< void > DoCallMethod(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 methodId, const void* pRequest,
+            void* pResponse,
+            Size requestSize  = 0,
+            Size responseSize = 0 ) noexcept override;
+
+        Result< void > DoRegisterMethod(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 methodId, MethodHandler handler,
+            Size requestSize  = 0,
+            Size responseSize = 0 ) noexcept override;
+
+        Result< void > DoGetField(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 fieldId, void* pOutValue,
+            Size valueSize = 0 ) noexcept override;
+
+        Result< void > DoSetField(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 fieldId, const void* pValue,
+            Size valueSize = 0 ) noexcept override;
+
+        Result< void > DoSubscribeFieldNotification(
+            UInt64 serviceId, UInt64 instanceId,
+            UInt32 fieldId,
+            FieldNotificationCallback callback,
+            Size valueSize = 0 ) noexcept override;
 
     private:
-        // Helper methods
-        eprosima::fastdds::dds::Topic* GetOrCreateTopic(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t event_id
-        ) noexcept;
-        
-        eprosima::fastdds::dds::Topic* CreateTopic(
-            uint64_t service_id,
-            uint64_t instance_id,
-            uint32_t event_id
-        ) noexcept;
-        
-        eprosima::fastdds::dds::DataWriter* CreateWriter(
-            eprosima::fastdds::dds::Topic* topic
-        ) noexcept;
-        
-        eprosima::fastdds::dds::DataReader* CreateReader(
-            eprosima::fastdds::dds::Topic* topic,
-            const std::string& key,
-            EventCallback callback
-        ) noexcept;
-        
-        Result<void> InitializeAfXdp() noexcept;
-        Result<void> SendViaAfXdp(const ByteBuffer& data) noexcept;
-        std::string MakeKey(uint64_t service_id, uint64_t instance_id, uint32_t event_id) const noexcept;
-        std::string MakeMethodKey(uint64_t service_id, uint64_t instance_id, uint32_t method_id) const noexcept;
-        std::string MakeMethodTopicName(uint64_t service_id, uint64_t instance_id,
-                        uint32_t method_id, bool is_request) const noexcept;
+        // ================================================================
+        // Shared Resources (declared BEFORE managers for init order)
+        // ================================================================
 
-        // Member variables
-        DdsConfig config_;
+        DdsConfig           m_config;               ///< Binding configuration
+        mutable Mutex       m_mutex;                ///< Main serialisation lock
 
-        eprosima::fastdds::dds::DomainParticipant* participant_ = nullptr;
-        eprosima::fastdds::dds::Publisher* publisher_ = nullptr;
-        eprosima::fastdds::dds::Subscriber* subscriber_ = nullptr;
-        eprosima::fastdds::dds::TypeSupport type_support_;
+        /// DDS core entities
+        eprosima::fastdds::dds::DomainParticipant*  m_pParticipant  = nullptr;
+        eprosima::fastdds::dds::Publisher*           m_pPublisher    = nullptr;
+        eprosima::fastdds::dds::Subscriber*          m_pSubscriber   = nullptr;
+        eprosima::fastdds::dds::TypeSupport          m_typeSupport;
 
-        std::mutex mutex_;
-        std::unordered_map<std::string, eprosima::fastdds::dds::Topic*> topics_;
-        std::unordered_map<std::string, eprosima::fastdds::dds::DataWriter*> writers_;
-        std::unordered_map<std::string, eprosima::fastdds::dds::DataReader*> readers_;
-        std::unordered_map<std::string, std::unique_ptr<DdsReaderListener>> listeners_;
-        std::unique_ptr<DdsDiscoveryListener> discovery_listener_;
+        /// Discovery listener (raw pointer passed to managers, ownership below)
+        DdsDiscoveryListener*   m_pDiscoveryListener = nullptr;
+        UniqueHandle< DdsDiscoveryListener > m_pOwnedDiscoveryListener;
 
-        // Method request/reply
-        std::unordered_map<std::string, eprosima::fastdds::dds::Topic*> method_topics_;
-        std::unordered_map<std::string, eprosima::fastdds::dds::DataWriter*> method_writers_;
-        std::unordered_map<std::string, eprosima::fastdds::dds::DataReader*> method_readers_;
-        std::unordered_map<std::string, std::unique_ptr<eprosima::fastdds::dds::DataReaderListener>> method_listeners_;
-        std::unordered_map<std::string, MethodCallback> method_handlers_;
-        std::unordered_map<std::string, std::unique_ptr<std::mutex>> method_mutexes_;
+        /// Transport metrics
+        mutable TransportMetrics    m_metrics;
 
-        mutable TransportMetrics metrics_;
+        // ================================================================
+        // Push Discovery (StartFindService / StopFindService)
+        // ================================================================
+
+        /**
+         * @brief   Active find-service subscription
+         * @details Tracks a push-based discovery request registered via
+         *          StartFindService().  The callback is invoked whenever
+         *          the DdsDiscoveryListener detects a change for the
+         *          matching serviceId.
+         */
+        struct FindSubscription
+        {
+            UInt64                      serviceId;  ///< Monitored service
+            ServiceDiscoveryCallback    callback;   ///< User callback
+        };
+
+        /// Monotonic handle generator for find subscriptions
+        Atomic< UInt64 >     m_iNextFindHandle { 1 };
+
+        /// Map: handle -> FindSubscription (protected by m_mutex)
+        ::std::unordered_map< UInt64, FindSubscription >  m_mapFindSubscriptions;
+
+        // ================================================================
+        // Aggregated Manager Objects
+        // ================================================================
+
+        CDdsServiceManager  m_serviceManager;       ///< Service lifecycle
+        CDdsEventManager    m_eventManager;         ///< Event communication
+        CDdsMethodManager   m_methodManager;        ///< Method/Field RPC
+
+        // ================================================================
+        // Internal Helpers
+        // ================================================================
+
+        /**
+         * @brief   Called from DdsDiscoveryListener when service availability changes
+         * @param   serviceId   The service whose availability changed
+         * @param   instances   Current set of available instance IDs
+         */
+        void OnDiscoveryChange(
+            UInt64 serviceId, Vector< UInt64 > instances ) noexcept;
     };
 
 } // namespace binding
 } // namespace com
 } // namespace lap
 
-#endif // LAP_COM_BINDING_DDS_BINDING_HPP
+// ==================== C Export Functions ====================
+extern "C" {
+    lap::com::binding::ITransportBinding* CreateBindingInstance();
+    void DestroyBindingInstance( lap::com::binding::ITransportBinding* instance );
+}
+
+#endif // LAP_COM_DDS_BINDING_HPP

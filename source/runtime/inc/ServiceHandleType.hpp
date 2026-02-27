@@ -5,11 +5,11 @@
  * @date        2025-10-30
  * @details     Service instance identification and handle management (SWS_CM Section 8.1)
  * @copyright   Copyright (c) 2025
- * @note        AUTOSAR R22-11 SWS_CM compliant
- * @version     1.0
+ * @note        AUTOSAR R25-11 SWS_CM compliant
+ * @version     2.0
  */
 #ifndef LAP_COM_SERVICE_HANDLE_TYPE_HPP
-#define LAP_COM_SERVICEHANDLETYPE_HPP
+#define LAP_COM_SERVICE_HANDLE_TYPE_HPP
 
 #include "ComTypes.hpp"
 
@@ -22,7 +22,7 @@ namespace com
      * @tparam ServiceInterface Type of the service interface
      * @note SWS_CM_00301 - Handle for service identification
      */
-    template<typename ServiceInterface>
+    template< typename ServiceInterface >
     class ServiceHandleType
     {
     public:
@@ -100,7 +100,7 @@ namespace com
          * @return true if equal, false otherwise
          * @note SWS_CM_00312
          */
-        bool operator==(const ServiceHandleType& other) const noexcept
+        Bool operator==( const ServiceHandleType& other ) const noexcept
         {
             return m_instanceId == other.m_instanceId && m_version == other.m_version;
         }
@@ -111,9 +111,9 @@ namespace com
          * @return true if not equal, false otherwise
          * @note SWS_CM_00313
          */
-        bool operator!=(const ServiceHandleType& other) const noexcept
+        Bool operator!=( const ServiceHandleType& other ) const noexcept
         {
-            return !(*this == other);
+            return !( *this == other );
         }
         
         /**
@@ -122,9 +122,9 @@ namespace com
          * @return true if this < other, false otherwise
          * @note SWS_CM_00314
          */
-        bool operator<(const ServiceHandleType& other) const noexcept
+        Bool operator< ( const ServiceHandleType& other ) const noexcept
         {
-            if (m_instanceId != other.m_instanceId)
+            if ( m_instanceId != other.m_instanceId )
                 return m_instanceId < other.m_instanceId;
             return m_version < other.m_version;
         }
@@ -134,7 +134,7 @@ namespace com
          * @return true if handle is valid, false otherwise
          * @note SWS_CM_00315
          */
-        bool IsValid() const noexcept
+        Bool IsValid() const noexcept
         {
             return m_instanceId != 0;
         }

@@ -46,8 +46,8 @@ execute_process(
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${COM_ROOT}/source/binding/common
-    ${COM_ROOT}/source/inc
-    ${COM_ROOT}/source/registry/inc
+    ${COM_ROOT}/source/runtime/inc
+    ${COM_ROOT}/registry/inc
     ${CMAKE_CURRENT_BINARY_DIR}/include
     ${CORE_ROOT}/source/inc
     ${LOG_ROOT}/source/inc
@@ -63,8 +63,14 @@ link_directories(
 # Build Core IPC binding as shared library
 add_library( lap_com_binding_coreipc SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CoreIPCBinding.cpp
-    ${COM_ROOT}/source/registry/src/ServiceRegistry.cpp
-    ${COM_ROOT}/source/registry/src/RegistryInitializer.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CCoreIPCCodec.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CCoreIPCServiceManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CCoreIPCEventManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CCoreIPCMethodManager.cpp
+    ${COM_ROOT}/registry/src/CServiceRegistry.cpp
+    ${COM_ROOT}/registry/src/CRegistryServer.cpp
+    ${COM_ROOT}/registry/src/CRegistryProxy.cpp
+    ${COM_ROOT}/registry/src/CRegistryDispatcher.cpp
 )
 
 target_link_libraries( lap_com_binding_coreipc
@@ -102,11 +108,83 @@ target_link_libraries( coreipc_binding_full_test
 target_include_directories( coreipc_binding_full_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/inc
     ${COM_ROOT}/source/binding/common
-    ${COM_ROOT}/source/inc
-    ${COM_ROOT}/source/registry/inc
+    ${COM_ROOT}/source/runtime/inc
+    ${COM_ROOT}/registry/inc
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CORE_ROOT}/source/inc
+    ${LOG_ROOT}/source/inc
+)
+
+# Integration test (with CRegistryDispatcher in-process)
+add_executable( coreipc_integration_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_coreipc_integration.cpp
+)
+
+target_link_libraries( coreipc_integration_test
+    lap_com_binding_coreipc
+    lap_core
+    lap_log
+    pthread
+    rt
+    dl
+)
+
+target_include_directories( coreipc_integration_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${COM_ROOT}/source/binding/common
+    ${COM_ROOT}/source/runtime/inc
+    ${COM_ROOT}/registry/inc
     ${CMAKE_CURRENT_BINARY_DIR}/include
     ${CORE_ROOT}/source/inc
     ${LOG_ROOT}/source/inc
 )
 
 message( STATUS "Core IPC binding configured successfully" )
+
+# Comprehensive unit test (Codec + Config + Capability + Lifecycle)
+add_executable( coreipc_unit_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_coreipc_unit.cpp
+)
+
+target_link_libraries( coreipc_unit_test
+    lap_com_binding_coreipc
+    lap_core
+    lap_log
+    pthread
+    rt
+    dl
+)
+
+target_include_directories( coreipc_unit_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${COM_ROOT}/source/binding/common
+    ${COM_ROOT}/source/runtime/inc
+    ${COM_ROOT}/registry/inc
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CORE_ROOT}/source/inc
+    ${LOG_ROOT}/source/inc
+)
+
+# Minimal registry IPC test
+add_executable( registry_ipc_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_registry_ipc.cpp
+)
+
+target_link_libraries( registry_ipc_test
+    lap_com_binding_coreipc
+    lap_core
+    lap_log
+    pthread
+    rt
+    dl
+)
+
+target_include_directories( registry_ipc_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${COM_ROOT}/source/binding/common
+    ${COM_ROOT}/source/runtime/inc
+    ${COM_ROOT}/registry/inc
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CORE_ROOT}/source/inc
+    ${LOG_ROOT}/source/inc
+)

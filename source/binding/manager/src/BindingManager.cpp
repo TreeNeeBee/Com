@@ -4,6 +4,19 @@
  * @brief       Dynamic binding manager implementation
  * @date        2025-11-21
  * @copyright   Copyright (c) 2025
+ * @note        AUTOSAR R25-11 Compliance:
+ *              - SWS_CM_00401: Transport Binding Selection
+ *              - SWS_CM_00402: Dynamic Binding Management
+ *              - SWS_CM_00403: Binding Configuration
+ * sdk:
+ * platform:    Linux 5.10+
+ * project:     LightAP
+ * @version
+ * <table>
+ * <tr><th>Date        <th>Version  <th>Author          <th>Description
+ * <tr><td>2025/11/21  <td>1.0      <td>LightAP Team    <td>Initial binding manager implementation
+ * <tr><td>2026/02/09  <td>2.0      <td>Aii             <td>code_rules compliance: m_ prefix, camelCase, spaced formatting
+ * </table>
  */
 
 #include "BindingManager.hpp"
@@ -11,10 +24,8 @@
 
 #include <yaml-cpp/yaml.h>
 
-#include <fstream>
 #include <algorithm>
 #include <set>
-#include <map>
 #include <sstream>
 
 namespace lap
@@ -46,141 +57,148 @@ namespace binding
     // Configuration Loading
     // ========================================================================
 
-    Result<void> BindingManager::LoadConfiguration(const std::string& config_path) noexcept
+    Result< void > BindingManager::LoadConfiguration( const String& configPath ) noexcept
     {
-        LAP_COM_LOG_INFO << "BindingManager: Loading binding configuration from: " << config_path;
+        LAP_COM_LOG_INFO << "BindingManager: Loading binding configuration from: " << configPath;
 
         // Parse YAML configuration
-        auto parse_result = parseYamlConfig(config_path);
-        if (!parse_result.HasValue())
+        Vector< StaticBindingMapping > newMappings;
+        auto parseResult = parseYamlConfig( configPath, newMappings );
+        if ( !parseResult.HasValue() )
         {
-            LAP_COM_LOG_ERROR << "BindingManager: Failed to parse binding configuration: " << config_path;
-            return Result<void>::FromError(parse_result.Error());
+            LAP_COM_LOG_ERROR << "BindingManager: Failed to parse binding configuration: " << configPath;
+            return Result< void >::FromError( parseResult.Error() );
         }
 
-        auto configs = parse_result.Value();
+        auto configs = parseResult.Value();
+
+        // Apply static mappings under lock
+        {
+            LockGuard lock( m_mutex );
+            m_staticMappings = std::move( newMappings );
+        }
+
         LAP_COM_LOG_INFO << "BindingManager: Found " << configs.size() << " binding configurations in YAML";
 
-        // Load each binding
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (const auto& config : configs)
+        // Load each binding (no lock here — LoadBinding acquires its own lock)
+        for ( const auto& config : configs )
         {
-            if (!config.enabled)
+            if ( !config.enabled )
             {
                 LAP_COM_LOG_INFO << "Skipping disabled binding: " << config.name;
                 continue;
             }
 
-            auto load_result = LoadBinding(config);
-            if (!load_result.HasValue())
+            auto loadResult = LoadBinding( config );
+            if ( !loadResult.HasValue() )
             {
-                LAP_COM_LOG_WARN << "Failed to load binding '" << config.name 
-                                 << "': error code " << static_cast<uint32_t>(load_result.Error().Value());
+                LAP_COM_LOG_WARN << "Failed to load binding '" << config.name
+                                 << "': error code " << static_cast< UInt32 > ( loadResult.Error().Value() );
                 // Continue loading other bindings (non-fatal)
             }
         }
 
-        LAP_COM_LOG_INFO << "Binding manager initialization complete. Loaded " 
-                         << bindings_by_name_.size() << " bindings";
+        LAP_COM_LOG_INFO << "Binding manager initialization complete. Loaded "
+                         << m_bindingsByName.size() << " bindings";
 
-        return Result<void>::FromValue();
+        return Result< void >::FromValue();
     }
 
-    Result<std::vector<BindingConfig>> BindingManager::parseYamlConfig(
-        const std::string& config_path) const noexcept
+    Result< Vector< BindingConfig > > BindingManager::parseYamlConfig(
+        const String& configPath,
+        Vector< StaticBindingMapping >& outMappings ) noexcept
     {
         try
         {
             // Load YAML file
-            YAML::Node root = YAML::LoadFile(config_path);
+            YAML::Node root = YAML::LoadFile( configPath );
 
-            std::vector<BindingConfig> configs;
+            Vector< BindingConfig > configs;
 
             // Parse "bindings" array
-            if (root["bindings"] && root["bindings"].IsSequence())
+            if ( root["bindings"] && root["bindings"].IsSequence() )
             {
-                for (const auto& node : root["bindings"])
+                for ( const auto& node : root["bindings"] )
                 {
                     BindingConfig config;
 
-                    config.name = node["name"].as<std::string>("");
-                    config.library_path = node["library"].as<std::string>("");
-                    config.enabled = node["enabled"].as<bool>(false);
+                    config.name = node["name"].as< std::string > ( "" );
+                    config.libraryPath = node["library"].as< std::string > ( "" );
+                    config.enabled = node["enabled"].as< bool > ( false );
 
                     // Parse priority
-                    uint32_t priority_val = node["priority"].as<uint32_t>(0);
-                    config.priority = static_cast<BindingPriority>(priority_val);
+                    UInt32 priorityVal = node["priority"].as< UInt32 > ( 0 );
+                    config.priority = static_cast< BindingPriority > ( priorityVal );
 
                     // Parse parameters (optional)
-                    if (node["parameters"] && node["parameters"].IsMap())
+                    if ( node["parameters"] && node["parameters"].IsMap() )
                     {
-                        for (const auto& param : node["parameters"])
+                        for ( const auto& param : node["parameters"] )
                         {
-                            config.parameters[param.first.as<std::string>()] =
-                                param.second.as<std::string>();
+                            config.parameters[param.first.as< std::string > ()] =
+                                param.second.as< std::string > ();
                         }
                     }
 
-                    configs.push_back(config);
+                    configs.push_back( config );
                 }
             }
 
             // Parse "static_mappings" array (optional)
-            if (root["static_mappings"] && root["static_mappings"].IsSequence())
+            if ( root["static_mappings"] && root["static_mappings"].IsSequence() )
             {
-                for (const auto& node : root["static_mappings"])
+                for ( const auto& node : root["static_mappings"] )
                 {
                     StaticBindingMapping mapping;
 
-                    // Parse service_id (hex or decimal)
-                    std::string sid_str = node["service_id"].as<std::string>("");
-                    if (sid_str.rfind("0x", 0) == 0 || sid_str.rfind("0X", 0) == 0)
+                    // Parse serviceId (hex or decimal)
+                    String sidStr = node["serviceId"].as< std::string > ( "" );
+                    if ( sidStr.rfind( "0x", 0 ) == 0 || sidStr.rfind( "0X", 0 ) == 0 )
                     {
-                        mapping.service_id = std::stoull(sid_str, nullptr, 16);
+                        mapping.serviceId = std::stoull( sidStr, nullptr, 16 );
                     }
                     else
                     {
-                        mapping.service_id = std::stoull(sid_str);
+                        mapping.serviceId = std::stoull( sidStr );
                     }
 
-                    // Parse instance_id (optional, default 0 = all instances)
-                    if (node["instance_id"])
+                    // Parse instanceId (optional, default 0 = all instances)
+                    if ( node["instanceId"] )
                     {
-                        std::string iid_str = node["instance_id"].as<std::string>("0");
-                        if (iid_str.rfind("0x", 0) == 0 || iid_str.rfind("0X", 0) == 0)
+                        String iidStr = node["instanceId"].as< std::string > ( "0" );
+                        if ( iidStr.rfind( "0x", 0 ) == 0 || iidStr.rfind( "0X", 0 ) == 0 )
                         {
-                            mapping.instance_id = std::stoull(iid_str, nullptr, 16);
+                            mapping.instanceId = std::stoull( iidStr, nullptr, 16 );
                         }
                         else
                         {
-                            mapping.instance_id = std::stoull(iid_str);
+                            mapping.instanceId = std::stoull( iidStr );
                         }
                     }
                     else
                     {
-                        mapping.instance_id = 0;  // Match all instances
+                        mapping.instanceId = 0;  // Match all instances
                     }
 
-                    mapping.binding_name = node["binding"].as<std::string>("");
+                    mapping.bindingName = node["binding"].as< std::string > ( "" );
 
-                    // Store in member variable (const_cast safe here since we're in non-const context)
-                    const_cast<BindingManager*>(this)->static_mappings_.push_back(mapping);
+                    outMappings.push_back( mapping );
                 }
             }
 
-            return Result<std::vector<BindingConfig>>::FromValue(configs);
+            return Result< Vector< BindingConfig > >::FromValue( configs );
         }
-        catch (const YAML::Exception& e)
+        catch ( const YAML::Exception& e )
         {
             LAP_COM_LOG_ERROR << "YAML parsing error: " << e.what();
-            return Result<std::vector<BindingConfig>>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::CONFIG_LOAD_FAILED), 0));
+            return Result< Vector< BindingConfig > >::FromError(
+                MakeErrorCode( ComErrc::kConfigLoadFailed ) );
         }
-        catch (const std::exception& e)
+        catch ( const std::exception& e )
         {
             LAP_COM_LOG_ERROR << "Configuration parsing error: " << e.what();
-            return Result<std::vector<BindingConfig>>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::CONFIG_LOAD_FAILED), 0));
+            return Result< Vector< BindingConfig > >::FromError(
+                MakeErrorCode( ComErrc::kConfigLoadFailed ) );
         }
     }
 
@@ -188,90 +206,90 @@ namespace binding
     // Binding Registration
     // ========================================================================
 
-    Result<void> BindingManager::RegisterBinding(
+    Result< void > BindingManager::RegisterBinding(
         const BindingConfig& config,
-        std::shared_ptr<ITransportBinding> binding) noexcept
+        SharedHandle< ITransportBinding > binding ) noexcept
     {
-        if (!binding)
+        if ( !binding )
         {
             LAP_COM_LOG_ERROR << "Cannot register null binding: " << config.name;
-            return Result<void>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::BINDING_INIT_FAILED), 0));
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kBindingInitFailed ) );
         }
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
         // Store in priority-sorted multimap
-        bindings_.emplace(static_cast<uint32_t>(config.priority), binding);
+        m_bindings.emplace( static_cast< UInt32 > ( config.priority ), binding );
 
         // Store in name lookup map
-        bindings_by_name_[config.name] = binding;
+        m_bindingsByName[config.name] = binding;
 
-        LAP_COM_LOG_INFO << "Registered binding: name=" << config.name 
-                         << ", priority=" << static_cast<uint32_t>(config.priority);
+        LAP_COM_LOG_INFO << "Registered binding: name=" << config.name
+                         << ", priority=" << static_cast< UInt32 > ( config.priority );
 
-        return Result<void>::FromValue();
+        return Result< void >::FromValue();
     }
 
     // ========================================================================
     // Dynamic Binding Loading
     // ========================================================================
 
-    Result<void> BindingManager::LoadBinding(const BindingConfig& config) noexcept
+    Result< void > BindingManager::LoadBinding( const BindingConfig& config ) noexcept
     {
-        LAP_COM_LOG_INFO << "Loading binding: name=" << config.name 
-                         << ", library=" << config.library_path;
+        LAP_COM_LOG_INFO << "Loading binding: name=" << config.name
+                         << ", library=" << config.libraryPath;
 
         // 1. Open shared library
-        void* handle = dlopen(config.library_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
-        if (!handle)
+        void* handle = dlopen( config.libraryPath.c_str(), RTLD_LAZY | RTLD_LOCAL );
+        if ( !handle )
         {
             const char* error = dlerror();
-            LAP_COM_LOG_ERROR << "dlopen failed for '" << config.library_path << "': " << error;
-            return Result<void>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::LIBRARY_LOAD_FAILED), 0));
+            LAP_COM_LOG_ERROR << "dlopen failed for '" << config.libraryPath << "': " << error;
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kLibraryLoadFailed ) );
         }
 
         // Clear previous dlerror
         dlerror();
 
         // 2. Get factory function symbol
-        auto create_func = reinterpret_cast<CreateBindingFunc>(
-            dlsym(handle, "CreateBindingInstance"));
+        auto createFunc = reinterpret_cast< CreateBindingFunc > (
+            dlsym( handle, "CreateBindingInstance" ) );
 
-        const char* dlsym_error = dlerror();
-        if (dlsym_error || !create_func)
+        const char* dlsymError = dlerror();
+        if ( dlsymError || !createFunc )
         {
-            LAP_COM_LOG_ERROR << "Symbol 'CreateBindingInstance' not found in '" << config.library_path 
-                              << "': " << (dlsym_error ? dlsym_error : "unknown");
-            dlclose(handle);
-            return Result<void>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::SYMBOL_NOT_FOUND), 0));
+            LAP_COM_LOG_ERROR << "Symbol 'CreateBindingInstance' not found in '" << config.libraryPath
+                              << "': " << ( dlsymError ? dlsymError : "unknown" );
+            dlclose( handle );
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kSymbolNotFound ) );
         }
 
         // 3. Create binding instance
-        ITransportBinding* raw_binding = create_func();
-        if (!raw_binding)
+        ITransportBinding* rawBinding = createFunc();
+        if ( !rawBinding )
         {
             LAP_COM_LOG_ERROR << "CreateBindingInstance returned nullptr for '" << config.name << "'";
-            dlclose(handle);
-            return Result<void>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::BINDING_INIT_FAILED), 0));
+            dlclose( handle );
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kBindingInitFailed ) );
         }
 
-        // Wrap in shared_ptr with custom deleter
-        auto destroy_func = reinterpret_cast<DestroyBindingFunc>(
-            dlsym(handle, "DestroyBindingInstance"));
+        // Wrap in SharedHandle with custom deleter
+        auto destroyFunc = reinterpret_cast< DestroyBindingFunc > (
+            dlsym( handle, "DestroyBindingInstance" ) );
 
-        std::shared_ptr<ITransportBinding> binding;
-        if (destroy_func)
+        SharedHandle< ITransportBinding > binding;
+        if ( destroyFunc )
         {
-            binding = std::shared_ptr<ITransportBinding>(
-                raw_binding,
-                [destroy_func](ITransportBinding* ptr) {
-                    if (ptr)
+            binding = SharedHandle< ITransportBinding > (
+                rawBinding,
+                [destroyFunc]( ITransportBinding* ptr ) {
+                    if ( ptr )
                     {
-                        destroy_func(ptr);
+                        destroyFunc( ptr );
                     }
                 }
             );
@@ -279,87 +297,89 @@ namespace binding
         else
         {
             // Fallback to delete
-            binding = std::shared_ptr<ITransportBinding>(raw_binding);
+            binding = SharedHandle< ITransportBinding > ( rawBinding );
         }
 
-        // 4. Initialize binding with parameters
-        // TODO: Convert config.parameters to YAML::Node for Initialize()
-        // For now, pass empty config
-        auto init_result = binding->Initialize();
-        if (!init_result.HasValue())
+        // 4. Configure and initialize binding
+        if ( !config.parameters.empty() )
         {
-            LAP_COM_LOG_ERROR << "Binding '" << config.name << "' initialization failed: error code " 
-                              << init_result.Error().Value();
-            dlclose(handle);
-            return Result<void>::FromError(init_result.Error());
+            binding->Configure( config.parameters );
+        }
+        auto initResult = binding->Initialize();
+        if ( !initResult.HasValue() )
+        {
+            LAP_COM_LOG_ERROR << "Binding '" << config.name << "' initialization failed: error code "
+                              << initResult.Error().Value();
+            dlclose( handle );
+            return Result< void >::FromError( initResult.Error() );
         }
 
         // 5. Store in registry
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        bindings_.emplace(static_cast<uint32_t>(config.priority), binding);
-        bindings_by_name_[config.name] = binding;
-        library_handles_[config.name] = handle;
+        m_bindings.emplace( static_cast< UInt32 > ( config.priority ), binding );
+        m_bindingsByName[config.name] = binding;
+        m_libraryHandles[config.name] = handle;
 
-        LAP_COM_LOG_INFO << "Successfully loaded binding '" << config.name 
-                         << "' with priority " << static_cast<uint32_t>(config.priority);
+        LAP_COM_LOG_INFO << "Successfully loaded binding '" << config.name
+                         << "' with priority " << static_cast< UInt32 > ( config.priority );
 
-        return Result<void>::FromValue();
+        return Result< void >::FromValue();
     }
 
     // ========================================================================
     // Binding Unloading
     // ========================================================================
 
-    Result<void> BindingManager::UnloadBinding(const std::string& name) noexcept
+    Result< void > BindingManager::UnloadBinding( const String& name ) noexcept
     {
         LAP_COM_LOG_INFO << "Unloading binding: " << name;
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
         // Find binding in name map
-        auto it = bindings_by_name_.find(name);
-        if (it == bindings_by_name_.end())
+        auto it = m_bindingsByName.find( name );
+        if ( it == m_bindingsByName.end() )
         {
             LAP_COM_LOG_WARN << "Binding '" << name << "' not found";
-            return Result<void>::FromError(
-                lap::core::ErrorCode(static_cast<int>(BindingManagerError::BINDING_NOT_FOUND), 0));
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kNoBindingAvailable ) );
         }
 
         // Shutdown binding
-        auto shutdown_result = it->second->Shutdown();
-        if (!shutdown_result.HasValue())
+        auto shutdownResult = it->second->Shutdown();
+        if ( !shutdownResult.HasValue() )
         {
-            LAP_COM_LOG_WARN << "Binding '" << name << "' shutdown returned error: " 
-                             << shutdown_result.Error().Value();
+            LAP_COM_LOG_WARN << "Binding '" << name << "' shutdown returned error: "
+                             << shutdownResult.Error().Value();
         }
 
         // Remove from priority map
-        for (auto map_it = bindings_.begin(); map_it != bindings_.end(); )
+        for ( auto mapIt = m_bindings.begin(); mapIt != m_bindings.end(); )
         {
-            if (map_it->second == it->second)
+            if ( mapIt->second == it->second )
             {
-                map_it = bindings_.erase(map_it);
+                mapIt = m_bindings.erase( mapIt );
             }
             else
             {
-                ++map_it;
+                ++mapIt;
             }
         }
 
         // Remove from name map
-        bindings_by_name_.erase(it);
+        m_bindingsByName.erase( it );
 
         // Close library handle
-        auto handle_it = library_handles_.find(name);
-        if (handle_it != library_handles_.end())
+        auto handleIt = m_libraryHandles.find( name );
+        if ( handleIt != m_libraryHandles.end() )
         {
-            dlclose(handle_it->second);
-            library_handles_.erase(handle_it);
+            dlclose( handleIt->second );
+            m_libraryHandles.erase( handleIt );
         }
 
         LAP_COM_LOG_INFO << "Binding '" << name << "' unloaded successfully";
-        return Result<void>::FromValue();
+        return Result< void >::FromValue();
     }
 
     // ========================================================================
@@ -367,96 +387,96 @@ namespace binding
     // ========================================================================
 
     ITransportBinding* BindingManager::SelectBinding(
-        uint64_t service_id,
-        uint64_t instance_id) noexcept
+        UInt64 serviceId,
+        UInt64 instanceId ) noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
         // 1. Check static mappings first
-        auto static_binding_name = findStaticMapping(service_id, instance_id);
-        if (static_binding_name.has_value())
+        auto staticBindingName = findStaticMapping( serviceId, instanceId );
+        if ( staticBindingName.has_value() )
         {
-            auto it = bindings_by_name_.find(static_binding_name.value());
-            if (it != bindings_by_name_.end())
+            auto it = m_bindingsByName.find( staticBindingName.value() );
+            if ( it != m_bindingsByName.end() )
             {
-                LAP_COM_LOG_DEBUG << "Selected binding '" << static_binding_name.value() 
-                                  << "' via static mapping for service 0x" << std::hex << service_id << std::dec;
+                LAP_COM_LOG_DEBUG << "Selected binding '" << staticBindingName.value()
+                                  << "' via static mapping for service " << serviceId;
                 return it->second.get();
             }
             else
             {
-                LAP_COM_LOG_WARN << "Static mapping refers to non-existent binding '" 
-                                 << static_binding_name.value() << "'";
+                LAP_COM_LOG_WARN << "Static mapping refers to non-existent binding '"
+                                 << staticBindingName.value() << "'";
             }
         }
 
-        // 2. Select by priority (bindings_ is sorted descending)
+        // 2. Select by priority (m_bindings is sorted descending)
         // Check if binding supports this service (ARCHITECTURE_SUMMARY.md §7.3)
-        for (const auto& [priority, binding] : bindings_)
+        for ( const auto& [priority, binding] : m_bindings )
         {
-            if (binding->SupportsService(service_id))
+            if ( binding->SupportsService( serviceId ) )
             {
-                LAP_COM_LOG_DEBUG << "Selected binding '" << binding->GetName() 
-                                  << "' (priority=" << priority << ") for service 0x" 
-                                  << std::hex << service_id << std::dec;
+                LAP_COM_LOG_DEBUG << "Selected binding '" << binding->GetName()
+                                  << "' (priority=" << priority << ") for service "
+                                  << serviceId;
                 return binding.get();
             }
         }
 
-        LAP_COM_LOG_WARN << "No binding available for service 0x" << std::hex << service_id << std::dec;
+        LAP_COM_LOG_WARN << "No binding available for service " << serviceId;
         return nullptr;
     }
 
-    Optional<std::string> BindingManager::findStaticMapping(
-        uint64_t service_id,
-        uint64_t instance_id) const noexcept
+    Optional< String > BindingManager::findStaticMapping(
+        UInt64 serviceId,
+        UInt64 instanceId ) const noexcept
     {
-        for (const auto& mapping : static_mappings_)
+        for ( const auto& mapping : m_staticMappings )
         {
-            // Match service_id
-            if (mapping.service_id != service_id)
+            // Match serviceId
+            if ( mapping.serviceId != serviceId )
             {
                 continue;
             }
 
-            // Match instance_id (0 = wildcard for all instances)
-            if (mapping.instance_id == 0 || mapping.instance_id == instance_id)
+            // Match instanceId (0 = wildcard for all instances)
+            if ( mapping.instanceId == 0 || mapping.instanceId == instanceId )
             {
-                return Optional<std::string>(mapping.binding_name);
+                return Optional< String > ( mapping.bindingName );
             }
         }
 
-        return Optional<std::string>();  // Not found
+        return Optional< String > ();  // Not found
     }
 
     // ========================================================================
     // Binding Queries
     // ========================================================================
 
-    Optional<ITransportBinding*> BindingManager::GetBinding(
-        const std::string& name) const noexcept
+    Optional< ITransportBinding* > BindingManager::GetBinding(
+        const String& name ) const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        auto it = bindings_by_name_.find(name);
-        if (it != bindings_by_name_.end())
+        auto it = m_bindingsByName.find( name );
+        if ( it != m_bindingsByName.end() )
         {
-            return Optional<ITransportBinding*>(it->second.get());
+            return Optional< ITransportBinding* > ( it->second.get() );
         }
 
-        return Optional<ITransportBinding*>();
+        return Optional< ITransportBinding* > ();
     }
 
-    std::vector<std::string> BindingManager::GetLoadedBindings() const noexcept
+    Vector< String > BindingManager::GetLoadedBindings() const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        std::vector<std::string> names;
-        names.reserve(bindings_by_name_.size());
+        Vector< String > names;
+        names.reserve( m_bindingsByName.size() );
 
-        for (const auto& pair : bindings_by_name_)
+        for ( const auto& pair : m_bindingsByName )
         {
-            names.push_back(pair.first);
+            names.push_back( pair.first );
         }
 
         return names;
@@ -466,54 +486,54 @@ namespace binding
     // Shutdown
     // ========================================================================
 
-    Result<void> BindingManager::Shutdown() noexcept
+    Result< void > BindingManager::Shutdown() noexcept
     {
         LAP_COM_LOG_INFO << "Shutting down BindingManager";
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
         // Shutdown all bindings
-        for (auto& pair : bindings_by_name_)
+        for ( auto& pair : m_bindingsByName )
         {
             LAP_COM_LOG_INFO << "Shutting down binding: " << pair.first;
             auto result = pair.second->Shutdown();
-            if (!result.HasValue())
+            if ( !result.HasValue() )
             {
-                LAP_COM_LOG_WARN << "Binding '" << pair.first << "' shutdown error: " 
+                LAP_COM_LOG_WARN << "Binding '" << pair.first << "' shutdown error: "
                                  << result.Error().Value();
             }
         }
 
         // Close all library handles
-        for (auto& pair : library_handles_)
+        for ( auto& pair : m_libraryHandles )
         {
             LAP_COM_LOG_DEBUG << "Closing library: " << pair.first;
-            dlclose(pair.second);
+            dlclose( pair.second );
         }
 
         // Clear all containers
-        bindings_.clear();
-        bindings_by_name_.clear();
-        library_handles_.clear();
-        static_mappings_.clear();
+        m_bindings.clear();
+        m_bindingsByName.clear();
+        m_libraryHandles.clear();
+        m_staticMappings.clear();
 
         LAP_COM_LOG_INFO << "BindingManager shutdown complete";
-        return Result<void>::FromValue();
+        return Result< void >::FromValue();
     }
 
     // ========================================================================
     // Health Monitoring
     // ========================================================================
 
-    Optional<BindingHealth> BindingManager::GetBindingHealth(
-        const std::string& name) const noexcept
+    Optional< BindingHealth > BindingManager::GetBindingHealth(
+        const String& name ) const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        auto it = bindings_by_name_.find(name);
-        if (it == bindings_by_name_.end())
+        auto it = m_bindingsByName.find( name );
+        if ( it == m_bindingsByName.end() )
         {
-            return Optional<BindingHealth>();
+            return Optional< BindingHealth > ();
         }
 
         // Query binding for current metrics
@@ -521,238 +541,246 @@ namespace binding
 
         // Calculate health status
         BindingHealth health;
-        health.error_count = metrics.serialization_errors + metrics.timeout_errors;
-        
+        health.errorCount = metrics.serializationErrors + metrics.timeoutErrors;
+
         // Estimate consecutive errors from recent error rate
-        health.consecutive_errors = (metrics.timeout_errors > 0) ? 
-            std::min(health.error_count, static_cast<uint32_t>(10)) : 0;
-        
-        // Calculate availability (messages_sent > 0 means active)
-        uint64_t total_messages = metrics.messages_sent + metrics.messages_received;
-        if (total_messages > 0)
+        health.consecutiveErrors = ( metrics.timeoutErrors > 0 ) ?
+            std::min( health.errorCount, static_cast< UInt32 > ( 10 ) ) : 0;
+
+        // Calculate availability (messagesSent > 0 means active)
+        UInt64 totalMessages = metrics.messagesSent + metrics.messagesReceived;
+        if ( totalMessages > 0 )
         {
-            uint64_t successful_messages = total_messages - metrics.messages_dropped;
-            health.availability_percent = 
-                (static_cast<double>(successful_messages) / total_messages) * 100.0;
+            UInt64 successfulMessages = totalMessages - metrics.messagesDropped;
+            health.availabilityPercent =
+                ( static_cast< Double > ( successfulMessages ) / totalMessages ) * 100.0;
         }
         else
         {
-            health.availability_percent = 100.0;  // No traffic yet
+            health.availabilityPercent = 100.0;  // No traffic yet
         }
 
         // Overall health check
-        health.is_healthy = 
-            (health.consecutive_errors < BindingHealth::MAX_CONSECUTIVE_ERRORS) &&
-            (health.availability_percent >= BindingHealth::MIN_AVAILABILITY_PERCENT);
+        health.isHealthy =
+            ( health.consecutiveErrors < BindingHealth::kMaxConsecutiveErrors ) &&
+            ( health.availabilityPercent >= BindingHealth::kMinAvailabilityPercent );
 
-        health.last_error_timestamp = 0;
-        health.last_error_message = health.is_healthy ? "OK" : "Degraded performance";
+        health.lastErrorTimestamp = 0;
+        health.lastErrorMessage = health.isHealthy ? "OK" : "Degraded performance";
 
-        return Optional<BindingHealth>(health);
+        return Optional< BindingHealth > ( health );
     }
 
     // ========================================================================
     // Performance Monitoring
     // ========================================================================
 
-    Optional<TransportMetrics> BindingManager::GetBindingMetrics(
-        const std::string& name) const noexcept
+    Optional< TransportMetrics > BindingManager::GetBindingMetrics(
+        const String& name ) const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        auto it = bindings_by_name_.find(name);
-        if (it == bindings_by_name_.end())
+        auto it = m_bindingsByName.find( name );
+        if ( it == m_bindingsByName.end() )
         {
-            return Optional<TransportMetrics>();
+            return Optional< TransportMetrics > ();
         }
 
-        return Optional<TransportMetrics>(it->second->GetMetrics());
+        return Optional< TransportMetrics > ( it->second->GetMetrics() );
     }
 
-    std::map<std::string, TransportMetrics> BindingManager::GetAllMetrics() const noexcept
+    Map< String, TransportMetrics > BindingManager::GetAllMetrics() const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        std::map<std::string, TransportMetrics> all_metrics;
+        Map< String, TransportMetrics > allMetrics;
 
-        for (const auto& [name, binding] : bindings_by_name_)
+        for ( const auto& [name, binding] : m_bindingsByName )
         {
-            all_metrics[name] = binding->GetMetrics();
+            allMetrics[name] = binding->GetMetrics();
         }
 
-        return all_metrics;
+        return allMetrics;
     }
 
     // ========================================================================
     // Configuration Hot Reload
     // ========================================================================
 
-    Result<void> BindingManager::ReloadConfiguration(const std::string& config_path) noexcept
+    Result< void > BindingManager::ReloadConfiguration( const String& configPath ) noexcept
     {
-        LAP_COM_LOG_INFO << "BindingManager: Reloading configuration from: " << config_path;
+        LAP_COM_LOG_INFO << "BindingManager: Reloading configuration from: " << configPath;
 
         // Parse new configuration
-        auto parse_result = parseYamlConfig(config_path);
-        if (!parse_result.HasValue())
+        Vector< StaticBindingMapping > newMappings;
+        auto parseResult = parseYamlConfig( configPath, newMappings );
+        if ( !parseResult.HasValue() )
         {
             LAP_COM_LOG_ERROR << "BindingManager: Failed to parse new configuration during reload";
-            return Result<void>::FromError(parse_result.Error());
+            return Result< void >::FromError( parseResult.Error() );
         }
 
-        auto new_configs = parse_result.Value();
+        auto newConfigs = parseResult.Value();
 
         // Build set of new binding names
-        std::set<std::string> new_binding_names;
-        for (const auto& config : new_configs)
+        std::set< String > newBindingNames;
+        for ( const auto& config : newConfigs )
         {
-            if (config.enabled)
+            if ( config.enabled )
             {
-                new_binding_names.insert(config.name);
+                newBindingNames.insert( config.name );
             }
         }
 
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
+
+        // Replace static mappings atomically
+        m_staticMappings = std::move( newMappings );
 
         // Step 1: Identify bindings to unload
-        std::vector<std::string> to_unload;
-        for (const auto& [name, binding] : bindings_by_name_)
+        Vector< String > toUnload;
+        for ( const auto& [name, binding] : m_bindingsByName )
         {
-            if (new_binding_names.find(name) == new_binding_names.end())
+            if ( newBindingNames.find( name ) == newBindingNames.end() )
             {
-                to_unload.push_back(name);
+                toUnload.push_back( name );
             }
         }
 
         // Step 2: Unload removed bindings
-        for (const auto& name : to_unload)
+        for ( const auto& name : toUnload )
         {
             LAP_COM_LOG_INFO << "ReloadConfiguration: Unloading binding '" << name << "'";
-            
-            // Shutdown binding
-            auto it = bindings_by_name_.find(name);
-            if (it != bindings_by_name_.end())
+
+            auto it = m_bindingsByName.find( name );
+            if ( it != m_bindingsByName.end() )
             {
                 it->second->Shutdown();
-                
+
                 // Remove from priority map
-                for (auto map_it = bindings_.begin(); map_it != bindings_.end(); )
+                for ( auto mapIt = m_bindings.begin(); mapIt != m_bindings.end(); )
                 {
-                    if (map_it->second == it->second)
+                    if ( mapIt->second == it->second )
                     {
-                        map_it = bindings_.erase(map_it);
+                        mapIt = m_bindings.erase( mapIt );
                     }
                     else
                     {
-                        ++map_it;
+                        ++mapIt;
                     }
                 }
-                
+
                 // Close library handle
-                auto handle_it = library_handles_.find(name);
-                if (handle_it != library_handles_.end())
+                auto handleIt = m_libraryHandles.find( name );
+                if ( handleIt != m_libraryHandles.end() )
                 {
-                    dlclose(handle_it->second);
-                    library_handles_.erase(handle_it);
+                    dlclose( handleIt->second );
+                    m_libraryHandles.erase( handleIt );
                 }
-                
-                bindings_by_name_.erase(it);
+
+                m_bindingsByName.erase( it );
             }
         }
 
-        // Step 3: Load new bindings
-        for (const auto& config : new_configs)
+        // Step 3: Load new bindings (inline to avoid recursive lock)
+        for ( const auto& config : newConfigs )
         {
-            if (!config.enabled)
+            if ( !config.enabled )
             {
                 continue;
             }
 
             // Skip if already loaded
-            if (bindings_by_name_.find(config.name) != bindings_by_name_.end())
+            if ( m_bindingsByName.find( config.name ) != m_bindingsByName.end() )
             {
-                LAP_COM_LOG_DEBUG << "ReloadConfiguration: Binding '" << config.name << "' already loaded, skipping";
+                LAP_COM_LOG_DEBUG << "ReloadConfiguration: Binding '" << config.name
+                                  << "' already loaded, skipping";
                 continue;
             }
 
             LAP_COM_LOG_INFO << "ReloadConfiguration: Loading new binding '" << config.name << "'";
-            
-            // Inline loading logic (avoid recursive lock)
-            void* handle = dlopen(config.library_path.c_str(), RTLD_LAZY | RTLD_LOCAL);
-            if (!handle)
+
+            void* handle = dlopen( config.libraryPath.c_str(), RTLD_LAZY | RTLD_LOCAL );
+            if ( !handle )
             {
-                LAP_COM_LOG_ERROR << "dlopen failed for '" << config.library_path << "': " << dlerror();
+                LAP_COM_LOG_ERROR << "dlopen failed for '" << config.libraryPath << "': " << dlerror();
                 continue;
             }
 
             dlerror();
-            auto create_func = reinterpret_cast<CreateBindingFunc>(
-                dlsym(handle, "CreateBindingInstance"));
+            auto createFunc = reinterpret_cast< CreateBindingFunc > (
+                dlsym( handle, "CreateBindingInstance" ) );
 
-            const char* dlsym_error = dlerror();
-            if (dlsym_error || !create_func)
+            const char* dlsymError = dlerror();
+            if ( dlsymError || !createFunc )
             {
-                LAP_COM_LOG_ERROR << "Symbol 'CreateBindingInstance' not found in '" << config.library_path << "'";
-                dlclose(handle);
+                LAP_COM_LOG_ERROR << "Symbol 'CreateBindingInstance' not found in '"
+                                  << config.libraryPath << "'";
+                dlclose( handle );
                 continue;
             }
 
-            ITransportBinding* raw_binding = create_func();
-            if (!raw_binding)
+            ITransportBinding* rawBinding = createFunc();
+            if ( !rawBinding )
             {
-                LAP_COM_LOG_ERROR << "CreateBindingInstance returned nullptr for '" << config.name << "'";
-                dlclose(handle);
+                LAP_COM_LOG_ERROR << "CreateBindingInstance returned nullptr for '"
+                                  << config.name << "'";
+                dlclose( handle );
                 continue;
             }
 
-            auto destroy_func = reinterpret_cast<DestroyBindingFunc>(
-                dlsym(handle, "DestroyBindingInstance"));
+            auto destroyFunc = reinterpret_cast< DestroyBindingFunc > (
+                dlsym( handle, "DestroyBindingInstance" ) );
 
-            std::shared_ptr<ITransportBinding> binding;
-            if (destroy_func)
+            SharedHandle< ITransportBinding > binding;
+            if ( destroyFunc )
             {
-                binding = std::shared_ptr<ITransportBinding>(
-                    raw_binding,
-                    [destroy_func](ITransportBinding* ptr) {
-                        if (ptr) destroy_func(ptr);
+                binding = SharedHandle< ITransportBinding > (
+                    rawBinding,
+                    [destroyFunc]( ITransportBinding* ptr ) {
+                        if ( ptr )
+                        {
+                            destroyFunc( ptr );
+                        }
                     }
                 );
             }
             else
             {
-                binding = std::shared_ptr<ITransportBinding>(raw_binding);
+                binding = SharedHandle< ITransportBinding > ( rawBinding );
             }
 
-            auto init_result = binding->Initialize();
-            if (!init_result.HasValue())
+            auto initResult = binding->Initialize();
+            if ( !initResult.HasValue() )
             {
                 LAP_COM_LOG_ERROR << "Binding '" << config.name << "' initialization failed";
-                dlclose(handle);
+                dlclose( handle );
                 continue;
             }
 
-            bindings_.emplace(static_cast<uint32_t>(config.priority), binding);
-            bindings_by_name_[config.name] = binding;
-            library_handles_[config.name] = handle;
-            
+            m_bindings.emplace( static_cast< UInt32 > ( config.priority ), binding );
+            m_bindingsByName[config.name] = binding;
+            m_libraryHandles[config.name] = handle;
+
             LAP_COM_LOG_INFO << "Successfully loaded binding '" << config.name << "' during reload";
         }
 
-        LAP_COM_LOG_INFO << "BindingManager: Configuration reload complete. Active bindings: " 
-                         << bindings_by_name_.size();
+        LAP_COM_LOG_INFO << "BindingManager: Configuration reload complete. Active bindings: "
+                         << m_bindingsByName.size();
 
-        return Result<void>::FromValue();
+        return Result< void >::FromValue();
     }
 
     // ========================================================================
     // Capability Queries
     // ========================================================================
 
-    bool BindingManager::SupportsZeroCopy(const std::string& name) const noexcept
+    Bool BindingManager::SupportsZeroCopy( const String& name ) const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        auto it = bindings_by_name_.find(name);
-        if (it == bindings_by_name_.end())
+        auto it = m_bindingsByName.find( name );
+        if ( it == m_bindingsByName.end() )
         {
             return false;
         }
@@ -760,18 +788,18 @@ namespace binding
         return it->second->SupportsZeroCopy();
     }
 
-    Optional<uint32_t> BindingManager::GetBindingPriority(
-        const std::string& name) const noexcept
+    Optional< UInt32 > BindingManager::GetBindingPriority(
+        const String& name ) const noexcept
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        LockGuard lock( m_mutex );
 
-        auto it = bindings_by_name_.find(name);
-        if (it == bindings_by_name_.end())
+        auto it = m_bindingsByName.find( name );
+        if ( it == m_bindingsByName.end() )
         {
-            return Optional<uint32_t>();
+            return Optional< UInt32 > ();
         }
 
-        return Optional<uint32_t>(it->second->GetPriority());
+        return Optional< UInt32 > ( it->second->GetPriority() );
     }
 
 } // namespace binding

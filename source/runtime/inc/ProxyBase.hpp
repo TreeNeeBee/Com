@@ -1,19 +1,38 @@
 /**
  * @file        ProxyBase.hpp
- * @author      ddkv587 ( ddkv587@gmail.com )
+ * @author      Aii
  * @brief       AUTOSAR Adaptive Platform Service Proxy Base Class
- * @date        2025-10-30
- * @details     Base class for all service proxies (SWS_CM Section 8.4, 9.1)
- * @copyright   Copyright (c) 2025
- * @note        AUTOSAR R22-11 SWS_CM compliant
- * @version     1.0
+ * @date        2026/02/07
+ * @details     Base class for all service proxies per [SWS_CM_00004].
+ *              Provides service state tracking and proxy lifecycle management.
+ * @copyright   Copyright (c) 2026
+ * @note        AUTOSAR R25-11 SWS_CM compliant
+ * @reference   AUTOSAR_AP_SWS_CommunicationManagement.pdf §8.3.8
+ *
+ * <table>
+ * <tr><th>Date        <th>Version  <th>Author          <th>Description
+ * <tr><td>2025/10/30  <td>1.0      <td>ddkv587         <td>Initial implementation
+ * <tr><td>2026/02/07  <td>2.0      <td>Aii             <td>R25-11, code style cleanup
+ * <tr><td>2026/02/07  <td>3.0      <td>Aii             <td>R25-11 SWS_CM spec compliance
+ * <tr><td>2026/02/07  <td>4.0      <td>Aii             <td>CBindingContext propagation to sub-components
+ * </table>
  */
 #ifndef LAP_COM_PROXY_BASE_HPP
-#define LAP_COM_PROXYBASE_HPP
+#define LAP_COM_PROXY_BASE_HPP
 
+// ==================== Project-Internal Headers ====================
 #include "ComTypes.hpp"
+#include "CBindingContext.hpp"
 #include "ServiceHandleType.hpp"
+#include "Runtime.hpp"
+#include "BindingManager.hpp"
+
+// ==================== Cross-Module Headers ====================
 #include <core/CResult.hpp>
+#include <core/CSync.hpp>
+
+// ==================== Standard Library Headers ====================
+#include <mutex>
 
 namespace lap
 {
@@ -21,244 +40,237 @@ namespace com
 {
     /**
      * @brief Base class for all service proxies
-     * @note SWS_CM_00500 - Abstract base for proxy implementations
+     * @note [SWS_CM_00004] — Proxy class is final, non-copyable, move-only
      */
     class ProxyBase
     {
     public:
         /**
          * @brief Destructor
-         * @note SWS_CM_00501
          */
         virtual ~ProxyBase() noexcept = default;
-        
+
         /**
-         * @brief Check if proxy is valid and connected
-         * @return true if proxy is connected to a service, false otherwise
-         * @note SWS_CM_00502
+         * @brief Get the current service state
+         * @return Result containing ServiceState or error
+         * @note [SWS_CM_01073]
          */
-        bool IsValid() const noexcept
+        Result< ServiceState > GetServiceState() noexcept
         {
-            return m_isValid;
+            ScopedLock< Mutex > lock( *m_pMutex );
+            return Result< ServiceState >::FromValue( m_serviceState );
         }
-        
+
         /**
-         * @brief Get the service availability state
-         * @return Service availability state
-         * @note SWS_CM_00503
+         * @brief Register a service state change handler
+         * @param handler Callback for service state changes
+         * @note [SWS_CM_01074]
          */
-        ServiceAvailabilityState GetServiceAvailability() const noexcept
+        void SetServiceStateChangeHandler( ServiceStateHandler handler ) noexcept
         {
-            return m_availabilityState;
+            ScopedLock< Mutex > lock( *m_pMutex );
+            m_serviceStateHandler = std::move( handler );
         }
-        
+
         /**
-         * @brief Register handler for service availability changes
-         * @param handler Callback for availability state changes
-         * @param maxSampleCount Maximum number of queued state changes (0 = unlimited)
-         * @return Result indicating success or error
-         * @note SWS_CM_00504
+         * @brief Unregister service state change handler
+         * @note [SWS_CM_01078]
          */
-        Result<void> SetServiceAvailabilityHandler(
-            ServiceAvailabilityHandler handler,
-            lap::core::UInt32 maxSampleCount = 0) noexcept
+        void UnsetServiceStateChangeHandler() noexcept
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_availabilityHandler = std::move(handler);
-            m_maxSampleCount = maxSampleCount;
-            return Result<void>::FromValue();
+            ScopedLock< Mutex > lock( *m_pMutex );
+            m_serviceStateHandler = nullptr;
         }
-        
-        /**
-         * @brief Unregister service availability handler
-         * @note SWS_CM_00505
-         */
-        void UnsetServiceAvailabilityHandler() noexcept
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_availabilityHandler = nullptr;
-        }
-        
+
     protected:
         /**
          * @brief Protected constructor
-         * @note SWS_CM_00506
          */
         ProxyBase() noexcept = default;
-        
+
+        // Non-copyable [SWS_CM_11553, SWS_CM_11551]
+        ProxyBase( const ProxyBase& ) = delete;
+        ProxyBase& operator=( const ProxyBase& ) = delete;
+
         /**
-         * @brief Copy constructor (deleted)
-         * @note Proxies are not copyable
+         * @brief Move constructor [SWS_CM_11554]
          */
-        ProxyBase(const ProxyBase&) = delete;
-        
-        /**
-         * @brief Move constructor
-         * @note SWS_CM_00507
-         */
-        ProxyBase(ProxyBase&& other) noexcept
-            : m_isValid(other.m_isValid)
-            , m_availabilityState(other.m_availabilityState)
-            , m_availabilityHandler(std::move(other.m_availabilityHandler))
-            , m_maxSampleCount(other.m_maxSampleCount)
+        ProxyBase( ProxyBase&& other ) noexcept
+            : m_serviceState( other.m_serviceState )
+            , m_serviceStateHandler( std::move( other.m_serviceStateHandler ) )
+            , m_bindingContext( other.m_bindingContext )
         {
-            other.m_isValid = false;
+            other.m_serviceState = ServiceState::kNotAvailable;
+            other.m_bindingContext = CBindingContext{};
         }
-        
+
         /**
-         * @brief Copy assignment (deleted)
-         * @note Proxies are not copyable
+         * @brief Move assignment [SWS_CM_11552]
          */
-        ProxyBase& operator=(const ProxyBase&) = delete;
-        
-        /**
-         * @brief Move assignment
-         * @note SWS_CM_00508
-         */
-        ProxyBase& operator=(ProxyBase&& other) noexcept
+        ProxyBase& operator=( ProxyBase&& other ) noexcept
         {
-            if (this != &other)
+            if ( this != &other )
             {
-                m_isValid = other.m_isValid;
-                m_availabilityState = other.m_availabilityState;
-                m_availabilityHandler = std::move(other.m_availabilityHandler);
-                m_maxSampleCount = other.m_maxSampleCount;
-                
-                other.m_isValid = false;
+                m_serviceState = other.m_serviceState;
+                m_serviceStateHandler = std::move( other.m_serviceStateHandler );
+                m_bindingContext = other.m_bindingContext;
+                other.m_serviceState = ServiceState::kNotAvailable;
+                other.m_bindingContext = CBindingContext{};
             }
             return *this;
         }
-        
+
         /**
-         * @brief Notify availability state change
-         * @param state New availability state
+         * @brief Notify service state change
+         * @param state New service state
          */
-        void NotifyAvailabilityChange(ServiceAvailabilityState state) noexcept
+        void NotifyServiceStateChange( ServiceState state ) noexcept
         {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_availabilityState = state;
-            
-            if (m_availabilityHandler)
+            ScopedLock< Mutex > lock( *m_pMutex );
+            m_serviceState = state;
+
+            if ( m_serviceStateHandler )
             {
-                m_availabilityHandler(state);
+                m_serviceStateHandler( state );
             }
         }
-        
+
         /**
-         * @brief Set proxy validity
-         * @param valid Validity flag
+         * @brief Get the binding context acquired after proxy creation
+         * @return Reference to binding context (may be invalid if binding unavailable)
          */
-        void SetValid(bool valid) noexcept
+        const CBindingContext& GetBindingContext() const noexcept
         {
-            m_isValid = valid;
+            return m_bindingContext;
         }
-        
+
+        /**
+         * @brief Hook called after binding context is acquired
+         * @param context The binding context with transport binding + service/instance IDs
+         * @details Override in generated service proxy to call setBindingContext()
+         *          on each sub-component (events, methods, fields, triggers).
+         *          Default implementation is empty (no sub-components at base level).
+         * @note Called from ServiceProxy::Create() after binding selection.
+         */
+        virtual void onBindingContextReady( const CBindingContext& context ) noexcept
+        {
+            static_cast< void > ( context );
+        }
+
+        /**
+         * @brief Propagate binding context to a sub-component
+         * @tparam SubComponent Any proxy sub-component with setBindingContext()
+         * @note ProxyBase is a friend of all proxy sub-components, so this
+         *       static method has access to their private setBindingContext().
+         *       Generated derived classes call this from onBindingContextReady().
+         */
+        template< typename SubComponent >
+        static void PropagateBindingContext(
+            SubComponent& component,
+            const CBindingContext& context ) noexcept
+        {
+            component.setBindingContext( context );
+        }
+
+        /**
+         * @brief Store binding context and notify derived class
+         * @param context Binding context to store
+         */
+        void setBindingContext( const CBindingContext& context ) noexcept
+        {
+            m_bindingContext = context;
+            onBindingContextReady( m_bindingContext );
+        }
+
     private:
-        bool m_isValid{false};
-        ServiceAvailabilityState m_availabilityState{ServiceAvailabilityState::kNotOffered};
-        ServiceAvailabilityHandler m_availabilityHandler{nullptr};
-        lap::core::UInt32 m_maxSampleCount{0};
-        mutable std::mutex m_mutex;
+        ServiceState        m_serviceState{ ServiceState::kNotAvailable };
+        ServiceStateHandler m_serviceStateHandler{ nullptr };
+        CBindingContext     m_bindingContext;
+        mutable UniqueHandle< Mutex > m_pMutex{ MakeUnique< Mutex >() };
     };
-    
+
+    // ========================================================================
+    // Service Proxy template [SWS_CM_00004]
+    // ========================================================================
+
     /**
      * @brief Service Proxy template
      * @tparam ServiceInterface Type of service interface
-     * @note SWS_CM_00509 - Concrete proxy for specific service
+     * @note [SWS_CM_00004] — Proxy is final, non-copyable, move-only.
+     *       Constructed via named constructor Create(HandleType).
      */
-    template<typename ServiceInterface>
-    class ServiceProxy : public ProxyBase
+    template< typename ServiceInterface  >
+    class ServiceProxy final : public ProxyBase
     {
     public:
-        using HandleType = ServiceHandleType<ServiceInterface>;
-        
+        using HandleType = ServiceHandleType< ServiceInterface >;
+
         /**
-         * @brief Create proxy from service handle
+         * @brief Named constructor — create proxy from service handle
          * @param handle Service handle obtained from FindService
-         * @param mode Method call processing mode
          * @return Result containing proxy instance or error
-         * @note SWS_CM_00510
+         * @note [SWS_CM_10438] — Exception-less construction from HandleType
          */
-        static Result<ServiceProxy> CreateProxy(
-            HandleType handle,
-            MethodCallProcessingMode mode = MethodCallProcessingMode::kEvent) noexcept
+        static Result< ServiceProxy > Create( const HandleType& handle ) noexcept
         {
-            if (!handle.IsValid())
+            if ( !handle.IsValid() )
             {
-                return Result<ServiceProxy>::FromError(
-                    MakeErrorCode(ComErrc::kInvalidArgument, 0));
+                return Result< ServiceProxy >::FromError(
+                    MakeErrorCode( ComErrc::kServiceNotAvailable, 0 ) );
             }
-            
-            ServiceProxy proxy(handle, mode);
-            
-            // Initialize communication binding
-            // Implementation will set up D-Bus/SOME-IP connection
-            
-            proxy.SetValid(true);
-            
-            return Result<ServiceProxy>::FromValue(std::move(proxy));
+
+            ServiceProxy proxy( handle );
+            proxy.NotifyServiceStateChange( ServiceState::kAvailable );
+
+            // Acquire binding and build context for sub-components
+            auto serviceId = static_cast< lap::core::UInt64 > (
+                ServiceInterface::kServiceId );
+            auto instanceId = static_cast< lap::core::UInt64 > (
+                handle.GetInstanceId() );
+
+            auto& bindingMgr = Runtime::GetBindingManager();
+            auto* pBinding = bindingMgr.SelectBinding( serviceId, instanceId );
+
+            CBindingContext context;
+            context.pBinding   = pBinding;
+            context.serviceId  = serviceId;
+            context.instanceId = instanceId;
+            context.elementId  = 0;
+
+            proxy.setBindingContext( context );
+
+            return Result< ServiceProxy >::FromValue( std::move( proxy ) );
         }
-        
-        /**
-         * @brief Destructor
-         * @note SWS_CM_00511
-         */
+
         ~ServiceProxy() noexcept override = default;
-        
+
+        ServiceProxy( ServiceProxy&& ) noexcept = default;
+        ServiceProxy& operator=( ServiceProxy&& ) noexcept = default;
+
+        // Non-copyable [SWS_CM_11553, SWS_CM_11551]
+        ServiceProxy( const ServiceProxy& ) = delete;
+        ServiceProxy& operator=( const ServiceProxy& ) = delete;
+
         /**
-         * @brief Move constructor
-         * @note SWS_CM_00512
-         */
-        ServiceProxy(ServiceProxy&&) noexcept = default;
-        
-        /**
-         * @brief Move assignment
-         * @note SWS_CM_00513
-         */
-        ServiceProxy& operator=(ServiceProxy&&) noexcept = default;
-        
-        /**
-         * @brief Get service handle
+         * @brief Get the handle used to create this proxy
          * @return Service handle
-         * @note SWS_CM_00514
+         * @note [SWS_CM_10383]
          */
-        const HandleType& GetHandle() const noexcept
+        HandleType GetHandle() const noexcept
         {
             return m_handle;
         }
-        
-        /**
-         * @brief Get method call processing mode
-         * @return Method call processing mode
-         * @note SWS_CM_00515
-         */
-        MethodCallProcessingMode GetMethodCallProcessingMode() const noexcept
-        {
-            return m_processingMode;
-        }
-        
+
     protected:
-        /**
-         * @brief Protected constructor
-         * @param handle Service handle
-         * @param mode Method call processing mode
-         */
-        explicit ServiceProxy(HandleType handle, 
-                            MethodCallProcessingMode mode) noexcept
+        explicit ServiceProxy( const HandleType& handle ) noexcept
             : ProxyBase()
-            , m_handle(handle)
-            , m_processingMode(mode)
+            , m_handle( handle )
         {}
-        
-        // Delete copy operations
-        ServiceProxy(const ServiceProxy&) = delete;
-        ServiceProxy& operator=(const ServiceProxy&) = delete;
-        
+
     private:
         HandleType m_handle;
-        MethodCallProcessingMode m_processingMode;
     };
-    
+
 } // namespace com
 } // namespace lap
 

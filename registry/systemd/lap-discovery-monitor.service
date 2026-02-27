@@ -1,0 +1,31 @@
+[Unit]
+Description=LightAP Discovery Server Health Monitor & PDP/EDP Fallback
+Documentation=file:///workspace/LightAP/modules/Com/doc/architecture/SERVICE_DISCOVERY_ARCHITECTURE.md
+After=lap-discovery-server.service
+Wants=lap-discovery-server.service
+
+# Reference: SERVICE_DISCOVERY_ARCHITECTURE §2.0.6 (Fault Recovery)
+# Monitors Discovery Server health and switches DDS clients between
+# CLIENT mode (centralized) and SIMPLE mode (PDP/EDP multicast fallback).
+
+[Service]
+Type=simple
+
+Environment=DS_CONFIG_DIR=/etc/lap/discovery
+EnvironmentFile=-/etc/lap/discovery/fastdds_ds_env.conf
+
+ExecStart=/etc/lap/discovery/lap-discovery-monitor.sh
+
+Restart=always
+RestartSec=5s
+
+# Minimal resource requirements
+MemoryMax=30M
+CPUQuota=5%
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lap-discovery-monitor
+
+[Install]
+WantedBy=multi-user.target

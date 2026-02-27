@@ -20,11 +20,11 @@
 using namespace lap::com::binding;
 using namespace std::chrono_literals;
 
-std::atomic<bool> running{true};
-std::atomic<uint64_t> received_count{0};
-std::atomic<uint64_t> last_sequence{0};
-std::atomic<uint64_t> missing_count{0};
-std::atomic<uint64_t> total_bytes{0};
+std::atomic< bool > running{true};
+std::atomic< uint64_t > received_count{0};
+std::atomic< uint64_t > last_sequence{0};
+std::atomic< uint64_t > missing_count{0};
+std::atomic< uint64_t > total_bytes{0};
 
 std::mutex print_mutex;
 auto start_time = std::chrono::steady_clock::now();
@@ -41,12 +41,12 @@ void eventCallback(
     const ByteBuffer& data
 ) {
     auto now = std::chrono::steady_clock::now();
-    auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+    auto elapsed_ms = std::chrono::duration_cast< std::chrono::milliseconds > (now - start_time).count();
 
     // Extract sequence number
     uint64_t sequence = 0;
     if (data.size() >= 8) {
-        const uint64_t* seq_ptr = reinterpret_cast<const uint64_t*>(data.data());
+        const uint64_t* seq_ptr = reinterpret_cast< const uint64_t* > (data.data());
         sequence = *seq_ptr;
     }
 
@@ -56,7 +56,7 @@ void eventCallback(
         uint64_t missed = sequence - expected_seq;
         missing_count += missed;
         
-        std::lock_guard<std::mutex> lock(print_mutex);
+        std::scoped_lock< std::mutex > lock(print_mutex);
         std::cout << "[Subscriber] WARNING: Missed " << missed << " messages! "
                   << "(expected=" << expected_seq << ", got=" << sequence << ")" << std::endl;
     }
@@ -68,7 +68,7 @@ void eventCallback(
     // Verify payload pattern
     bool valid = true;
     for (size_t i = 8; i < data.size() && i < 64; ++i) {
-        uint8_t expected = static_cast<uint8_t>(i + sequence);
+        uint8_t expected = static_cast< uint8_t > (i + sequence);
         if (data[i] != expected) {
             valid = false;
             break;
@@ -77,7 +77,7 @@ void eventCallback(
 
     // Print every 10th message
     if (sequence % 10 == 0) {
-        std::lock_guard<std::mutex> lock(print_mutex);
+        std::scoped_lock< std::mutex > lock(print_mutex);
         std::cout << "[Subscriber] Received event #" << sequence 
                   << " (service=0x" << std::hex << service_id 
                   << ", instance=0x" << instance_id << std::dec
@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
     std::cout << std::endl;
 
     // Create DDS binding
-    auto binding = std::make_unique<DdsBinding>();
+    auto binding = std::make_unique< DdsBinding > ();
 
     // Initialize
     auto init_result = binding->Initialize();
@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     std::cout << "[Subscriber] DDS binding initialized" << std::endl;
 
     // Subscribe to event
-    auto subscribe_result = binding->SubscribeEvent(
+    auto subscribe_result = binding->SubscribeEvent< ByteBuffer >(
         service_id,
         instance_id,
         event_id,
@@ -155,14 +155,14 @@ int main(int argc, char** argv) {
             auto now = std::chrono::steady_clock::now();
             uint64_t current_count = received_count.load();
             uint64_t delta_count = current_count - last_count;
-            auto delta_time = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count();
+            auto delta_time = std::chrono::duration_cast< std::chrono::milliseconds > (now - last_time).count();
 
             if (delta_time > 0) {
                 double rate = (delta_count * 1000.0) / delta_time;
                 double total_rate = (current_count * 1000.0) / 
-                    std::chrono::duration_cast<std::chrono::milliseconds>(now - start_time).count();
+                    std::chrono::duration_cast< std::chrono::milliseconds > (now - start_time).count();
 
-                std::lock_guard<std::mutex> lock(print_mutex);
+                std::scoped_lock< std::mutex > lock(print_mutex);
                 std::cout << "\n[Statistics] Messages: " << current_count 
                           << ", Rate: " << std::fixed << std::setprecision(1) << rate << " msg/s"
                           << ", Avg Rate: " << total_rate << " msg/s"
@@ -193,7 +193,7 @@ int main(int argc, char** argv) {
 
     // Print final statistics
     auto end_time = std::chrono::steady_clock::now();
-    auto total_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+    auto total_time_ms = std::chrono::duration_cast< std::chrono::milliseconds > (end_time - start_time).count();
     
     auto metrics = binding->GetMetrics();
     
@@ -212,8 +212,8 @@ int main(int argc, char** argv) {
     }
     
     std::cout << "\n  DDS Metrics:" << std::endl;
-    std::cout << "    Messages Received:  " << metrics.messages_received << std::endl;
-    std::cout << "    Bytes Received:     " << metrics.bytes_received << std::endl;
+    std::cout << "    Messages Received:  " << metrics.messagesReceived << std::endl;
+    std::cout << "    Bytes Received:     " << metrics.bytesReceived << std::endl;
 
     std::cout << "\n[Subscriber] Shutdown complete" << std::endl;
     return 0;

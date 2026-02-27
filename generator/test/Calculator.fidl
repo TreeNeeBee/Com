@@ -1,0 +1,94 @@
+/**
+ * Example: Calculator service definition
+ * Used for testing lap-sidl-gen
+ */
+
+package org.lap.examples
+
+typeCollection CalculatorTypes
+{
+    version { major 1 minor 0 }
+
+    enumeration ErrorCode
+    {
+        OK = 0
+        DIVIDE_BY_ZERO = 1
+        OVERFLOW = 2
+        INVALID_INPUT = 3
+    }
+
+    struct Operand
+    {
+        Float64 value
+        String  label
+    }
+
+    struct OperationResult
+    {
+        Float64 result
+        ErrorCode status
+    }
+
+    typedef OperandList is array of Operand
+}
+
+interface Calculator
+{
+    version { major 1 minor 0 }
+
+    method add
+    {
+        in
+        {
+            Float64 a
+            Float64 b
+        }
+        out
+        {
+            Float64 sum
+        }
+    }
+
+    method subtract
+    {
+        in
+        {
+            Float64 a
+            Float64 b
+        }
+        out
+        {
+            Float64 difference
+        }
+    }
+
+    method divide
+    {
+        in
+        {
+            Float64 dividend
+            Float64 divisor
+        }
+        out
+        {
+            Float64 quotient
+            CalculatorTypes.ErrorCode status
+        }
+        error CalculatorTypes.ErrorCode
+    }
+
+    method reset fireAndForget
+    {
+    }
+
+    broadcast resultReady
+    {
+        out
+        {
+            CalculatorTypes.OperationResult result
+            UInt64 timestamp
+        }
+    }
+
+    attribute Float64 lastResult readonly
+}

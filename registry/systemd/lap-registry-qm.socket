@@ -1,0 +1,26 @@
+# ==============================================================================
+# LightAP Registry - QM Socket Unit
+# ==============================================================================
+# Socket activation for QM (Quality Management) service registry.
+# Clients connect here to receive the memfd FD via SCM_RIGHTS.
+#
+# Access: All processes (QM + ASIL-A/B services)
+# ==============================================================================
+
+[Unit]
+Description=LightAP Service Registry QM Socket
+Documentation=https://github.com/AdrianCAG/LightAP
+Before=multi-user.target
+
+[Socket]
+ListenStream=/run/lap/registry_qm.sock
+SocketMode=0666
+SocketUser=root
+SocketGroup=root
+Backlog=128
+Accept=false
+MaxConnections=1024
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

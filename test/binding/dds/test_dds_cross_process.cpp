@@ -59,7 +59,7 @@ int main(int argc, char** argv)
         std::cout << "[SUBSCRIBER] Event ID: " << event_id << std::endl;
         
         int received_count = 0;
-        auto sub_result = binding.SubscribeEvent(service_id, instance_id, event_id,
+        auto sub_result = binding.SubscribeEvent< ByteBuffer >(service_id, instance_id, event_id,
             [&received_count](uint64_t sid, uint64_t iid, uint32_t eid, const ByteBuffer& data) {
                 std::cout << "[SUBSCRIBER] Received event: service=0x" << std::hex << sid
                           << ", instance=0x" << iid << std::dec

@@ -1,0 +1,83 @@
+/**
+ * @file    HelloWorld2.fidl
+ * @brief   HelloWorld2 service interface definition (DDS transport)
+ * @version 1.1
+ * @date    2026-02-25
+ *
+ * Same communication patterns as HelloWorld (CoreIPC) but transported via DDS,
+ * demonstrating cross-process communication over a shared network domain.
+ *
+ * Field notifications are fully supported through the DDS binding.
+ * The server calls SkeletonField::Update() to push value changes to subscribers.
+ */
+package lap.examples.helloworld2
+
+typeCollection HelloWorld2Types {
+    enumeration ErrorCode {
+        OK         = 0
+        UNKNOWN    = 1
+        INVALID_ARG = 2
+        OVERFLOW   = 3
+    }
+
+    enumeration ServerStatus {
+        STARTING = 0
+        RUNNING  = 1
+        BUSY     = 2
+        STOPPING = 3
+    }
+
+    struct GreetingMessage {
+        String text
+        UInt64 timestamp
+    }
+
+    struct DataChunk {
+        UInt32    sequenceNo
+        UInt32    totalSize
+        ByteArray payload
+    }
+}
+
+interface HelloWorld2Service {
+    version { major 1 minor 0 }
+
+    /* ---- Methods ---- */
+    method SayHello {                // sync: name → greeting
+        in  { String visitorName }
+        out { String greeting }
+    }
+
+    method Add {                     // sync: numeric computation
+        in  { UInt32 a
+              UInt32 b }
+        out { UInt32 sum }
+    }
+
+    method NotifyLog fireAndForget {  // fire-and-forget: client ignores response
+        in  { String message }
+    }
+
+    method ComputeHash {             // async: client polls Future
+        in  { ByteArray data }
+        out { UInt64 hash }
+    }
+
+    /* ---- Events (broadcasts) ---- */
+    broadcast Greeting {             // text event
+        out { String text }
+    }
+
+    broadcast StatusChanged {        // enum status event
+        out { HelloWorld2Types.ServerStatus status }
+    }
+
+    broadcast DataStream {           // binary data stream
+        out { HelloWorld2Types.DataChunk chunk }
+    }
+
+    /* ---- Fields (attributes) ---- */
+    attribute UInt32 VisitorCount readonly notify   // server pushes on each new visit
+    attribute String ServerName notify              // getter + setter + change notification
+    attribute Double Temperature notify             // getter + setter + change notification
+}

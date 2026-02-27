@@ -43,25 +43,22 @@ endif()
 if( DDS_FOUND )
     message( STATUS "Using DDS implementation: ${DDS_IMPL}" )
     
-    # IDL generated source files
-    set( IDL_GENERATED_DIR ${MODULE_ROOT_DIR}/source/binding/dds/idl )
-    set( IDL_SOURCES
-        ${IDL_GENERATED_DIR}/LapComMessage.cxx
-        ${IDL_GENERATED_DIR}/LapComMessagePubSubTypes.cxx
-        ${IDL_GENERATED_DIR}/LapComMessageTypeObjectSupport.cxx
-    )
-    
     # Build DDS binding as shared library
     add_library( lap_com_binding_dds SHARED
         ${MODULE_ROOT_DIR}/source/binding/dds/src/DdsBinding.cpp
-        ${IDL_SOURCES}
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/CCdrChannel.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/CDdsCodec.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/CDdsEventManager.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/CDdsMethodManager.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/CDdsServiceManager.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/DdsDiscoveryListener.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/DdsReaderListener.cpp
     )
     
     target_include_directories( lap_com_binding_dds PRIVATE
         ${MODULE_ROOT_DIR}/source/binding/dds/inc
-        ${MODULE_ROOT_DIR}/source/binding/dds/idl
         ${MODULE_ROOT_DIR}/source/binding/common
-        ${MODULE_ROOT_DIR}/source/inc
+        ${MODULE_ROOT_DIR}/source/runtime/inc
         ${CMAKE_CURRENT_BINARY_DIR}/include
     )
     
@@ -126,7 +123,7 @@ if( DDS_FOUND )
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/idl
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
             ${GTEST_INCLUDE_DIRS}
         )
         
@@ -140,6 +137,10 @@ if( DDS_FOUND )
         )
         
         add_test( NAME DdsBindingTest COMMAND test_dds_binding )
+        set_tests_properties( DdsBindingTest PROPERTIES
+            TIMEOUT 30
+            LABELS "infra"
+        )
         
         # Discovery test
         add_executable( test_discovery
@@ -150,7 +151,7 @@ if( DDS_FOUND )
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/idl
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
             ${GTEST_INCLUDE_DIRS}
         )
         
@@ -164,6 +165,10 @@ if( DDS_FOUND )
         )
         
         add_test( NAME DdsDiscoveryTest COMMAND test_discovery )
+        set_tests_properties( DdsDiscoveryTest PROPERTIES
+            TIMEOUT 10
+            LABELS "infra"
+        )
         
         # Cross-process functional test
         add_executable( test_dds_cross_process
@@ -174,7 +179,7 @@ if( DDS_FOUND )
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/idl
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
         )
         
         target_link_libraries( test_dds_cross_process PRIVATE
@@ -194,7 +199,7 @@ if( DDS_FOUND )
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/idl
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
         )
 
         target_link_libraries( test_dds_full PRIVATE
@@ -219,7 +224,7 @@ if( DDS_FOUND )
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/idl
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
         )
         
         target_link_libraries( dds_publisher PRIVATE
@@ -239,7 +244,7 @@ if( DDS_FOUND )
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/idl
             ${MODULE_ROOT_DIR}/source/binding/common
-            ${MODULE_ROOT_DIR}/source/inc
+            ${MODULE_ROOT_DIR}/source/runtime/inc
         )
         
         target_link_libraries( dds_subscriber PRIVATE
@@ -251,6 +256,129 @@ if( DDS_FOUND )
         )
         
         message( STATUS "DDS examples configured" )
+    endif()
+
+    # =============================================================================
+    # HelloWorld2 Example — Standard DDS workflow (ENABLE_BUILD_EXAMPLES)
+    #
+    #   Standard AUTOSAR AP development flow:
+    #   1. HelloWorld2.fidl              (service interface definition)
+    #   2. gen/                          (generated: Types, Proxy, Skeleton,
+    #                                    DdsAdapter, IDL, QoS XML)
+    #   3. helloworld2_server.cpp        (server using generated Skeleton + DDS)
+    #   4. helloworld2_client.cpp        (client using generated Proxy + DDS)
+    #   5. helloworld2_test.cpp          (single-process integration test)
+    #
+    # Regenerate from FIDL:
+    #   generator/build/lap_sidl_gen \
+    #       --input  examples/helloworld2/HelloWorld2.fidl \
+    #       --output examples/helloworld2/gen \
+    #       --author Aii --all
+    # Or via CMake:
+    #   cmake --build . --target helloworld2_generate
+    # =============================================================================
+    if( ENABLE_BUILD_EXAMPLES )
+
+        set( HELLOWORLD2_FIDL_FILE
+            ${MODULE_ROOT_DIR}/examples/helloworld2/HelloWorld2.fidl )
+        set( HELLOWORLD2_GEN_DIR
+            ${MODULE_ROOT_DIR}/examples/helloworld2/gen )
+        set( HELLOWORLD2_GENERATOR
+            ${MODULE_ROOT_DIR}/generator/build/lap_sidl_gen )
+
+        # Locate fastddsgen for IDL → typed C++ PubSubType generation
+        find_program( FASTDDSGEN_EXECUTABLE fastddsgen )
+        if( NOT FASTDDSGEN_EXECUTABLE )
+            message( WARNING "fastddsgen not found — typed DDS adapters disabled" )
+        else()
+            message( STATUS "fastddsgen found: ${FASTDDSGEN_EXECUTABLE}" )
+        endif()
+
+        # Custom target: regenerate gen/ from HelloWorld2.fidl
+        #   Step 1: lap_sidl_gen  → Types, Proxy, Skeleton, DdsAdapter, IDL, QoS
+        #   Step 2: fastddsgen   → PubSubType, CdrAux, TypeObjectSupport from IDL
+        add_custom_target( helloworld2_generate
+            COMMAND ${HELLOWORLD2_GENERATOR}
+                --input  ${HELLOWORLD2_FIDL_FILE}
+                --output ${HELLOWORLD2_GEN_DIR}
+                --author Aii --all
+            COMMAND ${FASTDDSGEN_EXECUTABLE}
+                ${HELLOWORLD2_GEN_DIR}/HelloWorld2Service.idl
+                -d ${HELLOWORLD2_GEN_DIR}
+                -replace
+            COMMENT "Regenerating HelloWorld2: FIDL → gen/ → fastddsgen PubSubTypes"
+            WORKING_DIRECTORY ${MODULE_ROOT_DIR}
+        )
+
+        # fastddsgen-generated sources (compiled into each helloworld2 target)
+        set( HELLOWORLD2_FASTDDS_SOURCES
+            ${HELLOWORLD2_GEN_DIR}/HelloWorld2ServicePubSubTypes.cxx
+            ${HELLOWORLD2_GEN_DIR}/HelloWorld2ServiceTypeObjectSupport.cxx
+        )
+
+        set( HELLOWORLD2_INCLUDE_DIRS
+            ${MODULE_ROOT_DIR}/examples/helloworld2/gen
+            ${MODULE_ROOT_DIR}/examples/helloworld2
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${MODULE_ROOT_DIR}/source/binding/dds/inc
+            ${MODULE_ROOT_DIR}/source/binding/manager/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+        )
+
+        set( HELLOWORLD2_LINK_LIBS
+            lap_com_binding_dds
+            lap_com
+            lap_core
+            lap_log
+            ${DDS_LIBRARIES}
+            pthread
+        )
+
+        # HelloWorld2 Server
+        add_executable( helloworld2_server
+            ${MODULE_ROOT_DIR}/examples/helloworld2/helloworld2_server.cpp
+            ${HELLOWORLD2_FASTDDS_SOURCES}
+        )
+        target_include_directories( helloworld2_server PRIVATE ${HELLOWORLD2_INCLUDE_DIRS} )
+        target_link_libraries( helloworld2_server PRIVATE ${HELLOWORLD2_LINK_LIBS} )
+
+        # HelloWorld2 Client
+        add_executable( helloworld2_client
+            ${MODULE_ROOT_DIR}/examples/helloworld2/helloworld2_client.cpp
+            ${HELLOWORLD2_FASTDDS_SOURCES}
+        )
+        target_include_directories( helloworld2_client PRIVATE ${HELLOWORLD2_INCLUDE_DIRS} )
+        target_link_libraries( helloworld2_client PRIVATE ${HELLOWORLD2_LINK_LIBS} )
+
+        # HelloWorld2 Test Client (requires orchestration by shell script)
+        add_executable( helloworld2_test
+            ${MODULE_ROOT_DIR}/examples/helloworld2/helloworld2_test.cpp
+            ${HELLOWORLD2_FASTDDS_SOURCES}
+        )
+        target_include_directories( helloworld2_test PRIVATE ${HELLOWORLD2_INCLUDE_DIRS} )
+        target_link_libraries( helloworld2_test PRIVATE ${HELLOWORLD2_LINK_LIBS} )
+
+        # Copy test orchestration script to build dir
+        configure_file(
+            ${MODULE_ROOT_DIR}/examples/helloworld2/run_helloworld2_test.sh
+            ${CMAKE_CURRENT_BINARY_DIR}/run_helloworld2_test.sh
+            COPYONLY
+        )
+
+        if( ENABLE_BUILD_TESTS )
+            add_test( NAME HelloWorld2Test
+                COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run_helloworld2_test.sh
+                        ${CMAKE_CURRENT_BINARY_DIR}
+            )
+            set_tests_properties( HelloWorld2Test PROPERTIES
+                TIMEOUT 60
+                LABELS "example;generated"
+            )
+        endif()
+
+        message( STATUS "HelloWorld2 DDS example configured: server, client, test" )
     endif()
     
 else()
