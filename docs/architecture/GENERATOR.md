@@ -23,7 +23,7 @@
 | [§10 生成器详细设计](#10-生成器详细设计) | 4 个生成器、类型映射、OMG IDL 示例 | ~120 |
 | [§11 双层 IDL 设计](#11-双层-idl-设计) | 架构对比、YAML 配置体系、默认配置、QoS 附加生成 | ~385 |
 | [§12 Franca IDL 示例](#12-franca-idl-示例) | Calculator.fidl 完整示例 | ~60 |
-| [§13 测试覆盖](#13-测试覆盖) | 4 + 16 个测试用例 | ~50 |
+| [§13 测试覆盖](#13-测试覆盖) | 4 + 20 个测试用例 | ~60 |
 | [§14 AUTOSAR 标准追溯](#14-autosar-标准追溯) | SWS_CM 需求映射表 (含 R25-11 合规状态) | ~35 |
 | [§15 R25-11 差距分析](#15-r25-11-合规差距分析与重构规划) | 7 项新特性差距、命名合规、重构路线图 | ~150 |
 | [§16 相关文档](#16-相关文档) | 交叉引用链接 | ~10 |
@@ -76,7 +76,8 @@ modules/Com/generator/
 │   ├── CTypesGenerator.hpp     # Types 头文件生成器
 │   ├── CProxyGenerator.hpp     # Proxy 头文件生成器
 │   ├── CSkeletonGenerator.hpp  # Skeleton 头文件生成器
-│   └── CDdsIdlGenerator.hpp    # OMG IDL 生成器 + QoS XML 输出
+│   ├── CDdsIdlGenerator.hpp    # OMG IDL 生成器 + QoS XML 输出
+│   └── CQosLoader.hpp          # YAML QoS 配置加载器
 ├── src/
 │   ├── main.cpp                # CLI 入口
 │   ├── CFidlLexer.cpp          # 词法分析实现
@@ -85,11 +86,12 @@ modules/Com/generator/
 │   ├── CTypesGenerator.cpp     # Types 生成实现
 │   ├── CProxyGenerator.cpp     # Proxy 生成实现
 │   ├── CSkeletonGenerator.cpp  # Skeleton 生成实现
-│   └── CDdsIdlGenerator.cpp    # OMG IDL 生成实现 + QoS XML 输出
+│   ├── CDdsIdlGenerator.cpp    # OMG IDL 生成实现 + QoS XML 输出
+│   └── CQosLoader.cpp          # YAML QoS 配置加载实现
 ├── test/
 │   ├── Calculator.fidl         # 测试用 Franca IDL 定义
 │   ├── test_fidl_parser.cpp    # 库级单元测试 (4 测试)
-│   └── test_cli_modes.cpp      # CLI 集成测试 (16 测试)
+│   └── test_cli_modes.cpp      # CLI 集成测试 (20 测试)
 └── build/                      # 构建输出目录
 ```
 
@@ -259,6 +261,9 @@ fastddsgen -replace -typeobject -d "$OUT/dds" \                  # 方案 A: Fas
        └─→ CDdsIdlGenerator   → <Interface>.idl
                                → <Interface>_qos.xml  (始终生成; QoS 来自 YAML 或内置默认值)
 ```
+
+> **注意**: `CQosLoader` 在 `CDdsIdlGenerator` 运行前解析 YAML QoS 参数（`com_config.yaml` / `service_deploy.yaml`）。
+> 未指定配置文件路径时，使用内置默认值。
 
 ---
 
@@ -1326,7 +1331,20 @@ lap-sidl-gen -i Calculator.fidl -o gen/ --all
 | **TestSchemaHash** | Hash 非空、16 字符、确定性；ServiceID 在 [1, 1022] 范围内 |
 | **TestGenerators** | 运行全部 4 个生成器，验证输出文件存在，检查内容：`enum class ErrorCode`、`struct Operand`、k-前缀枚举值、`CalculatorProxy final`、`ProxyBase`、`kSchemaHash`、命名空间合规 (proxy/skeleton/events/methods/fields/common)、IDL 中的 `SCHEMA_HASH` |
 
-### 13.2 CLI 集成测试 (`test_cli_modes.cpp`) — 16 个测试
+### 13.2 CLI 集成测试 (`test_cli_modes.cpp`) — 20 个测试
+
+**6 大分组概览**:
+
+| 分组 | 数量 |
+|------|------|
+| 基本模式 (`--help`/`--version`/`--validate`/`--hash-only`) | 4 |
+| 单生成器 (`--types`/`--proxy`/`--skeleton`/`--dds-idl`) | 4 |
+| 组合模式 (`--all`, 组合) | 3 |
+| QoS 配置 (`--com-config`, `--service-deploy`, 组合) | 3 |
+| 错误处理 (缺少参数, 不存在文件, 未知选项) | 3 |
+| 元数据 (`--author`, `--schema-hash`, `--version-string`) | 3 |
+
+**详细测试列表**:
 
 | 测试 | 验证内容 |
 |------|---------|
