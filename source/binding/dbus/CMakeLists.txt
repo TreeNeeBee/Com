@@ -65,6 +65,7 @@ add_library( lap_com_binding_dbus SHARED
 target_link_libraries( lap_com_binding_dbus
     lap_core
     lap_log
+    systemd
     pthread
 )
 

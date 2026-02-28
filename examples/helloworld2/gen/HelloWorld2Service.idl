@@ -51,6 +51,20 @@ module lap {
                 DataChunk chunk;
             };
 
+            // ==================== Field Notifier Wrappers ====================
+
+            struct VisitorCountNotify {
+                unsigned long value;
+            };
+
+            struct ServerNameNotify {
+                string value;
+            };
+
+            struct TemperatureNotify {
+                double value;
+            };
+
             struct SayHelloRequest {
                 @key unsigned long  serviceId;
                 @key unsigned long  instanceId;

@@ -57,6 +57,7 @@ namespace binding
     using lap::core::Mutex;
     using lap::core::LockGuard;
     using lap::core::UniqueLock;
+    using lap::core::ConditionVariable;
 
     // ====================================================================
     // Configuration
@@ -64,7 +65,7 @@ namespace binding
 
     /**
      * @brief   D-Bus Binding configuration
-     * @note    Reserved — D-Bus binding is not yet implemented
+     * @details Uses sd-bus (libsystemd) for D-Bus communication
      */
     struct DbusConfig
     {
@@ -72,6 +73,8 @@ namespace binding
         Bool    m_bUseSystemBus     = false;    ///< Use system bus instead of session bus
         UInt32  m_iTimeoutMs        = 5000;     ///< Default method call timeout (ms)
         String  m_strServicePrefix  = "com.lap.service";  ///< D-Bus service name prefix
+        String  m_strObjectPath     = "/com/lap/service";  ///< D-Bus object path
+        String  m_strInterfaceName  = "com.lap.service.IPC";  ///< D-Bus interface name
     };
 
 } // namespace binding

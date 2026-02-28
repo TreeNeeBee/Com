@@ -109,11 +109,19 @@ namespace binding
         if ( const auto* val = tryGet( "shared_memory" ) ) {
             m_config.m_bUseSharedMemory = ( *val == "true" || *val == "1" );
         }
-        if ( const auto* val = tryGet( "af_xdp_enabled" ) ) {
-            m_config.m_bAfXdpEnabled = ( *val == "true" || *val == "1" );
+        if ( const auto* val = tryGet( "data_sharing" ) ) {
+            m_config.m_bDataSharingEnabled = ( *val == "true" || *val == "1" );
         }
-        if ( const auto* val = tryGet( "af_xdp_interface" ) ) {
-            m_config.m_strAfXdpInterface = *val;
+        if ( const auto* val = tryGet( "tcp_transport" ) ) {
+            m_config.m_bUseTcpTransport = ( *val == "true" || *val == "1" );
+        }
+        if ( const auto* val = tryGet( "max_payload_size" ) ) {
+            try {
+                m_config.m_iMaxPayloadSize = static_cast< UInt32 > (
+                    ::std::stoul( *val ) );
+            } catch ( const ::std::exception& ) {
+                LAP_COM_LOG_WARN << "Invalid max_payload_size: " << *val;
+            }
         }
 
         LAP_COM_LOG_INFO << "DdsBinding configured with "
@@ -218,17 +226,32 @@ namespace binding
         }
 
         // Configure transports
-        if ( bUseTcpTransport ) {
+        if ( bUseTcpTransport || m_config.m_bUseTcpTransport ) {
             pqos.transport().use_builtin_transports = false;
             auto pTcpTransport = ::std::make_shared<
                 eprosima::fastdds::rtps::TCPv4TransportDescriptor >();
             pTcpTransport->add_listener_port( 0 );
-            pTcpTransport->interfaceWhiteList.emplace_back( "127.0.0.1" );
+            pTcpTransport->sendBufferSize   = m_config.m_iUdpSendBufferSize;
+            pTcpTransport->receiveBufferSize = m_config.m_iUdpRecvBufferSize;
             pqos.transport().user_transports.push_back( pTcpTransport );
+
+            LAP_COM_LOG_DEBUG << "DDS: TCPv4 transport configured"
+                              << " (send_buf=" << m_config.m_iUdpSendBufferSize
+                              << ", recv_buf=" << m_config.m_iUdpRecvBufferSize << ")";
         }
 
         if ( m_config.m_bUseSharedMemory ) {
+            // Enable builtin transports (includes UDPv4 + SHM)
             pqos.transport().use_builtin_transports = true;
+
+            // Also add explicit SHM descriptor for tuning
+            auto pShmTransport = ::std::make_shared<
+                eprosima::fastdds::rtps::SharedMemTransportDescriptor >();
+            pShmTransport->segment_size( m_config.m_iMaxPayloadSize * 2 );
+            pqos.transport().user_transports.push_back( pShmTransport );
+
+            LAP_COM_LOG_DEBUG << "DDS: Shared Memory transport configured"
+                              << " (segment_size=" << m_config.m_iMaxPayloadSize * 2 << ")";
         }
 
         // Create participant with discovery listener.
@@ -297,8 +320,8 @@ namespace binding
         LAP_COM_LOG_INFO << "  Type: " << m_typeSupport.get_type_name();
         LAP_COM_LOG_INFO << "  Shared Memory: "
                          << ( m_config.m_bUseSharedMemory ? "true" : "false" );
-        LAP_COM_LOG_INFO << "  AF_XDP Enabled: "
-                         << ( m_config.m_bAfXdpEnabled ? "true" : "false" );
+        LAP_COM_LOG_INFO << "  Data Sharing: "
+                         << ( m_config.m_bDataSharingEnabled ? "true" : "false" );
 
         return Result< void >::FromValue();
     }

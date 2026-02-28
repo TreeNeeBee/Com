@@ -57,6 +57,42 @@ namespace binding
     using lap::core::Mutex;
     using lap::core::LockGuard;
     using lap::core::UniqueLock;
+    using lap::core::ConditionVariable;
+
+    // ====================================================================
+    // Socket Message Header (simple TLV framing)
+    // ====================================================================
+
+    /**
+     * @brief   Operation codes for socket wire protocol
+     */
+    static constexpr UInt8 kSockOpEvent     = 0x01;
+    static constexpr UInt8 kSockOpRequest   = 0x02;
+    static constexpr UInt8 kSockOpResponse  = 0x03;
+    static constexpr UInt8 kSockOpNotify    = 0x04;
+    static constexpr UInt32 kSockHeaderSize = 20;  ///< Fixed header size
+
+    /**
+     * @brief   Socket message header (TLV framing)
+     * @details 20-byte fixed header:
+     *   [0]     opCode (event/request/response/notify)
+     *   [1..2]  serviceId
+     *   [3..4]  instanceId (low 16 bits)
+     *   [5..6]  methodOrEventId
+     *   [7..8]  sessionId
+     *   [9..12] payloadLength
+     *   [13..19] reserved (zero)
+     */
+    struct SocketMsgHeader
+    {
+        UInt8   m_iOpCode;
+        UInt16  m_iServiceId;
+        UInt16  m_iInstanceId;
+        UInt16  m_iMethodOrEventId;
+        UInt16  m_iSessionId;
+        UInt32  m_iPayloadLength;
+        UInt8   m_reserved[7];
+    } __attribute__(( packed ));
 
     // ====================================================================
     // Configuration
@@ -64,7 +100,7 @@ namespace binding
 
     /**
      * @brief   Socket Binding configuration
-     * @note    Reserved — Socket binding is not yet implemented
+     * @details Unix domain socket or TCP-based IPC transport
      */
     struct SocketConfig
     {

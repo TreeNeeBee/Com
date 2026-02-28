@@ -74,19 +74,24 @@ namespace binding
      */
     struct DdsConfig
     {
+        // ---- Domain & Discovery ----
         UInt32  m_iDomainId                 = 0;            ///< DDS domain ID (default: 0)
         String  m_strDiscoveryServer;                       ///< Discovery server address (optional)
-        Bool    m_bUseSharedMemory          = true;         ///< Enable DDS shared memory transport
-        Bool    m_bAfXdpEnabled             = false;        ///< Enable AF_XDP zero-copy for network
-        String  m_strAfXdpInterface         = "eth0";       ///< Network interface for AF_XDP
-        Vector< UInt32 > m_vecAfXdpQueues   = { 0, 1 };    ///< AF_XDP queue IDs
-        UInt32  m_iLargePayloadThreshold    = 65536;        ///< > 64KB uses AF_XDP (bytes)
-        UInt32  m_iMaxPayloadSize           = 10485760;     ///< Max payload: 10MB
 
-        // QoS defaults
+        // ---- FastDDS Transport Layer ----
+        Bool    m_bUseSharedMemory          = true;         ///< Enable SHM transport (intra-host, zero-copy)
+        Bool    m_bDataSharingEnabled       = true;         ///< Enable FastDDS Data-Sharing delivery
+        Bool    m_bUseTcpTransport          = false;        ///< Use TCPv4 instead of UDPv4
+        UInt32  m_iUdpSendBufferSize        = 1048576;      ///< UDP send buffer size (1 MB)
+        UInt32  m_iUdpRecvBufferSize        = 4194304;      ///< UDP receive buffer size (4 MB)
+        UInt32  m_iMaxPayloadSize           = 10485760;     ///< Max payload: 10 MB
+
+        // ---- QoS Defaults ----
         Bool    m_bReliable                 = true;         ///< RELIABLE vs BEST_EFFORT
         Bool    m_bTransientLocal           = false;        ///< TRANSIENT_LOCAL durability
         UInt32  m_iHistoryDepth             = 10;           ///< KEEP_LAST depth
+        UInt32  m_iDeadlinePeriodMs         = 0;            ///< Deadline QoS (0 = infinite)
+        UInt32  m_iLifespanPeriodMs         = 0;            ///< Lifespan QoS (0 = infinite)
     };
 
 } // namespace binding

@@ -888,8 +888,11 @@ TEST_F( ProxySkeletonTest, SkeletonMethod_HandleIncomingCallRoundTrip )
     ByteBuffer response = ProxySkeletonTestAccessor::CallHandleIncomingCall(
         method, request );
 
-    ASSERT_FALSE( response.empty() ) << "HandleIncomingCall should produce a response";
-    EXPECT_EQ( DeserializeUInt32( response ), 21u ) << "7 * 3 = 21";
+    // New envelope: [UInt32 status=0 (OK)][UInt32 output]
+    ASSERT_EQ( response.size(), 8u ) << "Response should be 8 bytes (4 status + 4 output)";
+    EXPECT_EQ( DeserializeUInt32( response ), 0u ) << "Status prefix should be 0 (OK)";
+    ByteBuffer outputSlice( response.begin() + 4, response.end() );
+    EXPECT_EQ( DeserializeUInt32( outputSlice ), 21u ) << "7 * 3 = 21";
 }
 
 /**
@@ -906,7 +909,12 @@ TEST_F( ProxySkeletonTest, SkeletonMethod_HandleIncomingCallNoHandler )
     ByteBuffer response = ProxySkeletonTestAccessor::CallHandleIncomingCall(
         method, request );
 
-    EXPECT_TRUE( response.empty() ) << "No handler should produce empty response";
+    // New envelope: no handler → error response [UInt32 kFieldSetHandlerNotSet=7]
+    ASSERT_FALSE( response.empty() ) << "No-handler error response should be non-empty";
+    ASSERT_EQ( response.size(), 4u ) << "Error response is 4 bytes (status only)";
+    EXPECT_EQ( DeserializeUInt32( response ),
+               static_cast< lap::core::UInt32 >( ComErrc::kFieldSetHandlerNotSet ) )
+        << "Status should be kFieldSetHandlerNotSet";
 }
 
 // ############################################################################

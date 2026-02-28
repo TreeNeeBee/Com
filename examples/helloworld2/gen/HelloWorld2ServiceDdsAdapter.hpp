@@ -168,6 +168,110 @@ public:
 };
 
 // ================================================================
+// Field Notifier Adapters (typed CDR via fastddsgen PubSubType)
+// ================================================================
+
+/// @brief DDS type adapter for field notifier 'VisitorCount' (elementId=0x0200)
+class HelloWorld2Service_VisitorCount_FieldAdapter final
+    : public ::lap::com::binding::IDdsTypeAdapter
+{
+public:
+    eprosima::fastdds::dds::TypeSupport GetTypeSupport() const noexcept override {
+        return eprosima::fastdds::dds::TypeSupport(
+            new DdsTypes::VisitorCountNotifyPubSubType() );
+    }
+
+    void* CreateSample( const void* pData,
+                        ::lap::core::Size dataSize ) const override {
+        auto* pDds = new DdsTypes::VisitorCountNotify();
+        if ( pData != nullptr && dataSize > 0u ) {
+            pDds->value( *static_cast< const ::lap::core::UInt32* >( pData ) );
+        }
+        return pDds;
+    }
+
+    const void* ExtractData( const void* pSample ) const noexcept override {
+        if ( pSample == nullptr ) { return nullptr; }
+        const auto& dds = *static_cast< const DdsTypes::VisitorCountNotify* >( pSample );
+        thread_local ::lap::core::UInt32 appBuf;
+        appBuf = static_cast< ::lap::core::UInt32 >( dds.value() );
+        return &appBuf;
+    }
+
+    void FreeSample( void* pSample ) const noexcept override {
+        delete static_cast< DdsTypes::VisitorCountNotify* >( pSample );
+    }
+};
+
+/// @brief DDS type adapter for field notifier 'ServerName' (elementId=0x0201)
+class HelloWorld2Service_ServerName_FieldAdapter final
+    : public ::lap::com::binding::IDdsTypeAdapter
+{
+public:
+    eprosima::fastdds::dds::TypeSupport GetTypeSupport() const noexcept override {
+        return eprosima::fastdds::dds::TypeSupport(
+            new DdsTypes::ServerNameNotifyPubSubType() );
+    }
+
+    void* CreateSample( const void* pData,
+                        ::lap::core::Size dataSize ) const override {
+        auto* pDds = new DdsTypes::ServerNameNotify();
+        if ( pData != nullptr && dataSize > 0u ) {
+            pDds->value( *static_cast< const ::lap::com::String* >( pData ) );
+        }
+        return pDds;
+    }
+
+    const void* ExtractData( const void* pSample ) const noexcept override {
+        if ( pSample == nullptr ) { return nullptr; }
+        const auto& dds = *static_cast< const DdsTypes::ServerNameNotify* >( pSample );
+        try {
+            thread_local ::lap::com::String appBuf;
+            appBuf = dds.value();
+            return &appBuf;
+        } catch ( ... ) {
+            return nullptr;
+        }
+    }
+
+    void FreeSample( void* pSample ) const noexcept override {
+        delete static_cast< DdsTypes::ServerNameNotify* >( pSample );
+    }
+};
+
+/// @brief DDS type adapter for field notifier 'Temperature' (elementId=0x0202)
+class HelloWorld2Service_Temperature_FieldAdapter final
+    : public ::lap::com::binding::IDdsTypeAdapter
+{
+public:
+    eprosima::fastdds::dds::TypeSupport GetTypeSupport() const noexcept override {
+        return eprosima::fastdds::dds::TypeSupport(
+            new DdsTypes::TemperatureNotifyPubSubType() );
+    }
+
+    void* CreateSample( const void* pData,
+                        ::lap::core::Size dataSize ) const override {
+        auto* pDds = new DdsTypes::TemperatureNotify();
+        if ( pData != nullptr && dataSize > 0u ) {
+            pDds->value( *static_cast< const ::lap::core::Double* >( pData ) );
+        }
+        return pDds;
+    }
+
+    const void* ExtractData( const void* pSample ) const noexcept override {
+        if ( pSample == nullptr ) { return nullptr; }
+        const auto& dds = *static_cast< const DdsTypes::TemperatureNotify* >( pSample );
+        thread_local ::lap::core::Double appBuf;
+        appBuf = dds.value();
+        return &appBuf;
+    }
+
+    void FreeSample( void* pSample ) const noexcept override {
+        delete static_cast< DdsTypes::TemperatureNotify* >( pSample );
+    }
+};
+
+// ================================================================
 // Registration Function
 // ================================================================
 
@@ -191,6 +295,18 @@ inline void RegisterHelloWorld2ServiceDdsAdapters(
     static HelloWorld2Service_DataStream_EventAdapter s_dataStreamEventAdapter;
     ::lap::com::binding::CDdsTypeRegistry::Instance()
         .RegisterAdapter( serviceId, 3u, &s_dataStreamEventAdapter );
+
+    static HelloWorld2Service_VisitorCount_FieldAdapter s_visitorCountFieldAdapter;
+    ::lap::com::binding::CDdsTypeRegistry::Instance()
+        .RegisterAdapter( serviceId, 0x0200u, &s_visitorCountFieldAdapter );
+
+    static HelloWorld2Service_ServerName_FieldAdapter s_serverNameFieldAdapter;
+    ::lap::com::binding::CDdsTypeRegistry::Instance()
+        .RegisterAdapter( serviceId, 0x0201u, &s_serverNameFieldAdapter );
+
+    static HelloWorld2Service_Temperature_FieldAdapter s_temperatureFieldAdapter;
+    ::lap::com::binding::CDdsTypeRegistry::Instance()
+        .RegisterAdapter( serviceId, 0x0202u, &s_temperatureFieldAdapter );
 
 }
 

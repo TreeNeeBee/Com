@@ -163,7 +163,7 @@ namespace binding
         const char* GetName() const noexcept override { return "DDS"; }
         UInt32 GetVersion() const noexcept override { return 0x00010000U; }
         UInt32 GetPriority() const noexcept override { return 80U; }
-        Bool SupportsZeroCopy() const noexcept override { return m_config.m_bAfXdpEnabled; }
+        Bool SupportsZeroCopy() const noexcept override { return m_config.m_bDataSharingEnabled; }
         Bool SupportsService( UInt64 serviceId ) const noexcept override;
         TransportMetrics GetMetrics() const noexcept override;
 

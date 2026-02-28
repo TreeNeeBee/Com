@@ -30,6 +30,7 @@
 // ==================== Cross-Module Headers ====================
 #include <core/CResult.hpp>
 #include <core/CFuture.hpp>
+#include <core/CPromise.hpp>
 #include <core/CSync.hpp>
 
 // ==================== Standard Library Headers ====================
@@ -171,17 +172,44 @@ namespace com
 
         /**
          * @brief Deserialize response buffer into Output type
-         * @param responseData Serialized response
-         * @return Result containing deserialized output or error
+         * @param responseData Serialized response (envelope: UInt32 status + payload)
+         * @return Result containing deserialized output, or error propagated from server
+         *
+         * @details Matches the envelope written by SkeletonMethod::HandleIncomingCall:
+         *   [UInt32 status=0 → OK | ComErrc value → application error] [Output if OK]
          */
         Result< Output > deserializeResponse(
             const binding::ByteBuffer& responseData ) noexcept
         {
+            if ( responseData.empty() )
+            {
+                return Result< Output >::FromError(
+                    MakeErrorCode( ComErrc::kDeserializationError, 0 ) );
+            }
+
             auto span = lap::core::MakeSpan(
                 reinterpret_cast< const lap::core::UInt8* > ( responseData.data() ),
                 responseData.size() );
             serialization::CBinaryDeserializer deserializer( span );
 
+            // Read 4-byte status prefix
+            lap::core::UInt32 status = 0u;
+            auto statusResult = serialization::DeserializeValue< lap::core::UInt32 >(
+                deserializer, status );
+            if ( !statusResult.HasValue() )
+            {
+                return Result< Output >::FromError(
+                    MakeErrorCode( ComErrc::kDeserializationError, 0 ) );
+            }
+
+            if ( status != 0u )
+            {
+                // Application error returned by the server handler
+                return Result< Output >::FromError(
+                    MakeErrorCode( static_cast< ComErrc >( status ), 0 ) );
+            }
+
+            // Success — deserialize the output payload
             Output output{};
             auto desResult = serialization::DeserializeValue< Output > (
                 deserializer, output );
@@ -282,15 +310,19 @@ namespace com
                     m_bindingContext.elementId,
                     req );
 
-                auto rawResult = asyncFuture.GetResult();
-                if ( rawResult.HasValue() )
-                {
-                    promise.SetValue( std::move( rawResult ).Value() );
-                }
-                else
-                {
-                    promise.SetError( MakeErrorCode( ComErrc::kCommunicationFailure, 0 ) );
-                }
+                // Chain via Future::Then() — non-blocking continuation
+                return asyncFuture.Then(
+                    []( lap::core::Future< Output > f ) -> lap::core::Result< Output >
+                    {
+                        auto rawResult = f.GetResult();
+                        if ( rawResult.HasValue() )
+                        {
+                            return lap::core::Result< Output >::FromValue(
+                                std::move( rawResult ).Value() );
+                        }
+                        return lap::core::Result< Output >::FromError(
+                            MakeErrorCode( ComErrc::kCommunicationFailure, 0 ) );
+                    } );
             }
             else
             {
@@ -309,27 +341,28 @@ namespace com
                     m_bindingContext.elementId,
                     serResult.Value() );
 
-                // For now, resolve synchronously via Get() then deserialize
-                // TODO: Chain via Future::Then() when core supports it
-                auto rawResult = asyncFuture.GetResult();
-                if ( !rawResult.HasValue() )
-                {
-                    promise.SetError( MakeErrorCode( ComErrc::kCommunicationFailure, 0 ) );
-                    return promise.GetFuture();
-                }
+                // Chain deserialization via Future::Then() — non-blocking continuation
+                return asyncFuture.Then(
+                    [this]( lap::core::Future< binding::ByteBuffer > f )
+                        -> lap::core::Result< Output >
+                    {
+                        auto rawResult = f.GetResult();
+                        if ( !rawResult.HasValue() )
+                        {
+                            return lap::core::Result< Output >::FromError(
+                                MakeErrorCode( ComErrc::kCommunicationFailure, 0 ) );
+                        }
 
-                auto desResult = deserializeResponse( rawResult.Value() );
-                if ( desResult.HasValue() )
-                {
-                    promise.SetValue( std::move( desResult ).Value() );
-                }
-                else
-                {
-                    promise.SetError( desResult.Error() );
-                }
+                        auto desResult = deserializeResponse( rawResult.Value() );
+                        if ( desResult.HasValue() )
+                        {
+                            return lap::core::Result< Output >::FromValue(
+                                std::move( desResult ).Value() );
+                        }
+                        return lap::core::Result< Output >::FromError(
+                            desResult.Error() );
+                    } );
             }
-
-            return promise.GetFuture();
         }
 
         /**

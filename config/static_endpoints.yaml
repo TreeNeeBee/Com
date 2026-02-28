@@ -1,0 +1,58 @@
+# LightAP Static Service Endpoints Configuration
+# Version: 1.0
+# Date: 2026-02-16
+#
+# AUTOSAR R25-11 Reference:
+#   - SWS_CM_02201: Static service connection via manifest
+#   - SWS_CM_02202: Bypass Service Discovery
+#   - SWS_CM_02203: No runtime version check for static connections
+#   - TPS_MANI_03312–03315: Static service connection manifest format
+#
+# Static endpoints are available immediately at startup (0ms latency).
+# They bypass the Service Discovery mechanism entirely.
+#
+# Required fields per entry:
+#   - service_name:  Service interface name (must match proxy/skeleton)
+#   - binding_type:  Transport binding ("coreipc", "dds", "someip")
+#
+# Optional fields:
+#   - instance_id:       Numeric instance identifier (default: 0)
+#   - endpoint:          Transport-specific endpoint URI
+#   - transport_config:  Key-value pairs for binding-specific configuration
+
+static_endpoints:
+  # ──────────────────────────────────────────────────────────────
+  # Example: IPC-based radar service (same ECU)
+  # ──────────────────────────────────────────────────────────────
+  - service_name: "RadarService"
+    instance_id: 0x0010
+    binding_type: "coreipc"
+    endpoint: "ipc:///var/run/lap/radar"
+    transport_config:
+      reliability: "reliable"
+      history_depth: "10"
+
+  # ──────────────────────────────────────────────────────────────
+  # Example: DDS-based camera service (network)
+  # ──────────────────────────────────────────────────────────────
+  - service_name: "CameraService"
+    instance_id: 0x0011
+    binding_type: "dds"
+    endpoint: "dds://camera_topic"
+    transport_config:
+      domain_id: "42"
+      qos_profile: "automotive"
+      reliability: "reliable"
+      history_depth: "5"
+
+  # ──────────────────────────────────────────────────────────────
+  # Example: SOME/IP diagnostic service (cross-ECU)
+  # ──────────────────────────────────────────────────────────────
+  - service_name: "DiagnosticService"
+    instance_id: 0x0020
+    binding_type: "someip"
+    endpoint: "tcp://192.168.1.10:30500"
+    transport_config:
+      protocol_version: "1"
+      service_id: "0x0100"
+      method_id_base: "0x0001"

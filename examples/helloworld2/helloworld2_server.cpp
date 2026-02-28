@@ -80,6 +80,16 @@ static lap::core::Future< void > MakeReadyVoidFuture()
     return lap::core::Future< void >( std::move( p.get_future() ) );
 }
 
+// Helper — wrap an error in a rejected Future (used by validation handlers)
+template< typename T >
+static lap::core::Future< T > MakeErrorFuture( ComErrc errc )
+{
+    std::promise< lap::core::Result< T > > p;
+    p.set_value( lap::core::Result< T >::FromError(
+        MakeErrorCode( errc, 0 ) ) );
+    return lap::core::Future< T >( std::move( p.get_future() ) );
+}
+
 // ========================================================================
 // FNV-1a 64-bit hash (mirrors CSchemaHash — used by ComputeHash method)
 // ========================================================================
@@ -168,6 +178,12 @@ int main()
         [&stateMutex, &visitorCount, &skeleton]( String visitorName )
             -> lap::core::Future< String >
         {
+            // ---- Input validation ----
+            if ( visitorName.empty() )
+            {
+                std::cout << "[Server] SayHello: rejected empty visitorName" << std::endl;
+                return MakeErrorFuture< String >( ComErrc::kInvalidArgument );
+            }
             UInt32 visitor;
             {
                 ScopedLock< Mutex > lk( stateMutex );
@@ -203,6 +219,12 @@ int main()
     skeleton.computeHash.RegisterMethodHandler(
         []( ByteArray data ) -> lap::core::Future< UInt64 >
         {
+            // ---- Input validation ----
+            if ( data.empty() )
+            {
+                std::cout << "[Server] ComputeHash: rejected empty payload" << std::endl;
+                return MakeErrorFuture< UInt64 >( ComErrc::kInvalidArgument );
+            }
             UInt64 hash = Fnv1aHash( data );
             std::cout << "[Server] ComputeHash(" << data.size()
                       << " bytes) = 0x" << std::hex << hash

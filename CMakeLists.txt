@@ -218,6 +218,27 @@ if(ENABLE_BUILD_TESTS)
 
     add_test( NAME ProxySkeletonTest COMMAND test_proxy_skeleton )
 
+    # Test: Future::Then() continuation (Core module feature, tested in Com)
+    add_executable( test_future_then
+        ${MODULE_ROOT_DIR}/test/unittest/test_future_then.cpp
+    )
+
+    target_include_directories( test_future_then PRIVATE
+        ${MODULE_SOURCE_DIR}/runtime/inc
+        ${MODULE_SOURCE_DIR}/binding/common
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+
+    target_link_libraries( test_future_then PRIVATE
+        lap_com
+        lap_core
+        pthread
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test( NAME FutureThenTest COMMAND test_future_then )
+
 endif()  # ENABLE_BUILD_TESTS Phase 1
 
 # Socket/Protobuf unit tests removed (obsolete binding, files archived).
@@ -409,4 +430,107 @@ endif()
 # =============================================================================
 
 include( ${CMAKE_CURRENT_SOURCE_DIR}/cmake/DdsBindingConfig.cmake )
+
+# =============================================================================
+# SOME/IP Binding (Lightweight UDP — no vsomeip dependency)
+# =============================================================================
+
+option( ENABLE_SOMEIP_BINDING "Enable SOME/IP binding (lightweight UDP)" ON )
+
+if( ENABLE_SOMEIP_BINDING )
+    message( STATUS "SOME/IP binding enabled (lightweight UDP, v2.0)" )
+
+    add_library( lap_com_binding_someip SHARED
+        ${MODULE_ROOT_DIR}/source/binding/someip/src/SomeIpBinding.cpp
+    )
+
+    target_include_directories( lap_com_binding_someip PRIVATE
+        ${MODULE_ROOT_DIR}/source/binding/someip/inc
+        ${MODULE_ROOT_DIR}/source/binding/common
+        ${MODULE_ROOT_DIR}/source/runtime/inc
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+
+    target_link_libraries( lap_com_binding_someip PRIVATE
+        lap_com
+        lap_core
+        lap_log
+        pthread
+    )
+
+    install( TARGETS lap_com_binding_someip LIBRARY DESTINATION lib )
+    message( STATUS "SOME/IP binding configured successfully" )
+endif()
+
+# =============================================================================
+# D-Bus Binding (sd-bus / libsystemd)
+# =============================================================================
+
+option( ENABLE_DBUS_BINDING "Enable D-Bus binding (sd-bus)" ON )
+
+if( ENABLE_DBUS_BINDING )
+    find_package( PkgConfig )
+    if( PkgConfig_FOUND )
+        pkg_check_modules( SYSTEMD QUIET libsystemd )
+    endif()
+
+    if( SYSTEMD_FOUND OR EXISTS "/usr/include/systemd/sd-bus.h" )
+        message( STATUS "D-Bus binding enabled (sd-bus, v2.0)" )
+
+        add_library( lap_com_binding_dbus SHARED
+            ${MODULE_ROOT_DIR}/source/binding/dbus/src/DbusBinding.cpp
+        )
+
+        target_include_directories( lap_com_binding_dbus PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/dbus/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+        )
+
+        target_link_libraries( lap_com_binding_dbus PRIVATE
+            lap_com
+            lap_core
+            lap_log
+            systemd
+            pthread
+        )
+
+        install( TARGETS lap_com_binding_dbus LIBRARY DESTINATION lib )
+        message( STATUS "D-Bus binding configured successfully" )
+    else()
+        message( STATUS "D-Bus binding SKIPPED (libsystemd not found)" )
+    endif()
+endif()
+
+# =============================================================================
+# Socket Binding (Unix domain / TCP)
+# =============================================================================
+
+option( ENABLE_SOCKET_BINDING "Enable Socket binding (Unix/TCP)" ON )
+
+if( ENABLE_SOCKET_BINDING )
+    message( STATUS "Socket binding enabled (Unix/TCP, v2.0)" )
+
+    add_library( lap_com_binding_socket SHARED
+        ${MODULE_ROOT_DIR}/source/binding/socket/src/SocketBinding.cpp
+    )
+
+    target_include_directories( lap_com_binding_socket PRIVATE
+        ${MODULE_ROOT_DIR}/source/binding/socket/inc
+        ${MODULE_ROOT_DIR}/source/binding/common
+        ${MODULE_ROOT_DIR}/source/runtime/inc
+        ${CMAKE_CURRENT_BINARY_DIR}/include
+    )
+
+    target_link_libraries( lap_com_binding_socket PRIVATE
+        lap_com
+        lap_core
+        lap_log
+        pthread
+    )
+
+    install( TARGETS lap_com_binding_socket LIBRARY DESTINATION lib )
+    message( STATUS "Socket binding configured successfully" )
+endif()
 

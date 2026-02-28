@@ -1,25 +1,25 @@
 /**
  * @file        DbusBinding.hpp
  * @author      LightAP Development Team
- * @brief       D-Bus transport binding — Stub facade (not yet implemented)
+ * @brief       D-Bus transport binding — sd-bus based implementation
  * @date        2026/02/07
  * @copyright   Copyright (c) 2026
  *
- * @details     Stub implementation of ITransportBinding for D-Bus.
- *              All communication methods return ComErrc::kCommunicationFailure.
- *              The composition pattern (managers + codec) will be added
- *              when the D-Bus binding is actually implemented.
+ * @details     D-Bus transport binding using sd-bus (libsystemd).
+ *              Uses Unix domain socket IPC via the D-Bus session/system bus.
  *
- *              Future architecture:
- *              - CDbusServiceManager — service lifecycle
- *              - CDbusEventManager   — event pub/sub via D-Bus signals
- *              - CDbusMethodManager  — method/field RPC via D-Bus methods
+ *              Implements:
+ *              - Service offer/find via D-Bus name ownership
+ *              - Event publish/subscribe via D-Bus signals
+ *              - Method request/response via D-Bus method calls
+ *              - Field get/set/notify mapped to D-Bus property interface
  *
- * @note        Priority: 20 (lowest — legacy / desktop debugging)
+ * @note        Priority: 20 (desktop / debug / inter-process)
  *
  * <table>
  * <tr><th>Date        <th>Version  <th>Author          <th>Description
- * <tr><td>2026/02/07  <td>1.0      <td>Aii             <td>Stub facade — all ops return kCommunicationFailure
+ * <tr><td>2026/02/07  <td>1.0      <td>Aii             <td>Stub facade
+ * <tr><td>2026/02/28  <td>2.0      <td>Aii             <td>sd-bus implementation
  * </table>
  */
 
@@ -33,6 +33,12 @@
 // ==================== Cross-Module Headers ====================
 #include <lap/core/CResult.hpp>
 
+// ==================== Standard Library Headers ====================
+#include <thread>
+#include <atomic>
+
+struct sd_bus;  // Forward declaration (from systemd/sd-bus.h)
+
 namespace lap
 {
 namespace com
@@ -41,18 +47,17 @@ namespace binding
 {
 
     // ====================================================================
-    // DbusBinding — Stub Facade
+    // DbusBinding — sd-bus Implementation
     // ====================================================================
 
     /**
-     * @brief   D-Bus Transport Binding (Stub)
+     * @brief   D-Bus Transport Binding (sd-bus)
      *
-     * @details All ITransportBinding operations return kCommunicationFailure.
-     *          This class reserves the plugin slot so that the binding
-     *          manager can enumerate it.  Actual D-Bus communication
-     *          will be implemented in a future release.
+     * @details Uses the systemd sd-bus API for IPC over the D-Bus protocol.
+     *          Services are mapped to D-Bus well-known names.
+     *          Events use D-Bus signals, methods use D-Bus method calls.
      *
-     * @note    Priority: 20 (legacy / desktop debugging)
+     * @note    Priority: 20 (desktop / debugging)
      */
     class DbusBinding : public ITransportBinding
     {
@@ -76,7 +81,7 @@ namespace binding
 
     public:
         // ================================================================
-        // Service Management (stub)
+        // Service Management
         // ================================================================
 
         Result< void > OfferService(
@@ -97,7 +102,7 @@ namespace binding
 
     public:
         // ================================================================
-        // Event Communication (stub)
+        // Event Communication
         // ================================================================
 
         Result< void > UnsubscribeEvent(
@@ -106,7 +111,7 @@ namespace binding
 
     public:
         // ================================================================
-        // Field Communication (stub)
+        // Field Communication
         // ================================================================
 
         Result< void > UnsubscribeFieldNotification(
@@ -171,6 +176,15 @@ namespace binding
 
     private:
         // ================================================================
+        // Internal Helpers
+        // ================================================================
+
+        String makeDbusName( UInt64 serviceId, UInt64 instanceId ) const noexcept;
+        String makeDbusPath( UInt64 serviceId, UInt64 instanceId ) const noexcept;
+        void   busProcessThread() noexcept;
+
+    private:
+        // ================================================================
         // Member Variables
         // ================================================================
 
@@ -178,6 +192,25 @@ namespace binding
         mutable Mutex       m_mutex;            ///< Main serialisation lock
         Bool                m_bInitialized;     ///< Initialisation state
         mutable TransportMetrics m_metrics;     ///< Transport metrics
+
+        // sd-bus connection
+        struct sd_bus*      m_pBus;             ///< sd-bus connection handle
+
+        // Bus event-processing thread
+        ::std::thread       m_busThread;        ///< Background bus-process thread
+        ::std::atomic< bool > m_bRunning;       ///< Bus thread run flag
+
+        // Service registry (local)
+        Map< String, UInt64 >   m_offeredServices;  ///< name -> instanceId
+
+        // Event subscriptions
+        Map< String, EventCallback >    m_eventSubscriptions;
+
+        // Method handlers
+        Map< String, MethodHandler >    m_methodHandlers;
+
+        // Field notification callbacks
+        Map< String, FieldNotificationCallback > m_fieldNotifications;
     };
 
 } // namespace binding

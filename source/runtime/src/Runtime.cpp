@@ -26,6 +26,8 @@
 #include "CRegistryProxy.hpp"
 #include "BindingManager.hpp"
 #include "ServiceDiscovery.hpp"
+#include "StaticInstanceManager.hpp"
+#include "ConfigParser.hpp"
 
 // ==================== Standard Library Headers ====================
 #include <chrono>
@@ -222,7 +224,20 @@ namespace com
                 // Non-fatal: discovery is supplementary to binding-level discovery
             }
 
-            // Step 4: Heartbeat
+            // Step 4: StaticInstanceManager (SWS_CM_02201–02203)
+            {
+                discovery::StaticInstanceManager::Config staticConfig;
+                // Use same static config path as discovery layer
+                auto staticResult = discovery::StaticInstanceManager::Create(
+                    staticConfig );
+                if ( staticResult.HasValue() )
+                {
+                    m_pStaticInstanceMgr = std::move( staticResult ).Value();
+                }
+                // Non-fatal: static instances may not be configured
+            }
+
+            // Step 5: Heartbeat
             StartHeartbeat();
             return Result< void >::FromValue();
         }
@@ -276,6 +291,13 @@ namespace com
 
             // Shutdown three-tier ServiceDiscoveryManager
             m_pDiscovery.reset();
+
+            // Shutdown StaticInstanceManager
+            if ( m_pStaticInstanceMgr )
+            {
+                m_pStaticInstanceMgr->Shutdown();
+                m_pStaticInstanceMgr.reset();
+            }
 
             // Shutdown binding manager (deferred — singleton lifecycle)
             // binding::BindingManager::GetInstance().Shutdown();
@@ -678,6 +700,9 @@ namespace com
 
         /// Three-tier service discovery manager (Static Config → DDS Server → Dynamic)
         lap::core::UniqueHandle< discovery::ServiceDiscoveryManager > m_pDiscovery;
+
+        /// Static instance manager (SWS_CM_02201–02203)
+        std::unique_ptr< discovery::StaticInstanceManager > m_pStaticInstanceMgr;
     };
 
     // ====================================================================

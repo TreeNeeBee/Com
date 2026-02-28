@@ -18,6 +18,7 @@
 // ==================== Third-Party Headers ====================
 #include <fastdds/dds/publisher/qos/DataWriterQos.hpp>
 #include <fastdds/dds/subscriber/qos/DataReaderQos.hpp>
+#include <fastdds/rtps/attributes/RTPSParticipantAttributes.hpp>
 
 // ==================== Standard Library Headers ====================
 #include <sstream>
@@ -98,6 +99,9 @@ namespace binding
         wqos.history().kind  = KEEP_LAST_HISTORY_QOS;
         wqos.history().depth = config.m_iHistoryDepth;
 
+        // Apply extended QoS (deadline, lifespan, resource limits)
+        ApplyWriterQos( wqos, config );
+
         DataWriter* pWriter = pPublisher->create_datawriter( pTopic, wqos );
         if ( pWriter == nullptr ) {
             LAP_COM_LOG_ERROR << "Failed to create DataWriter";
@@ -127,6 +131,9 @@ namespace binding
         rqos.history().kind  = KEEP_LAST_HISTORY_QOS;
         rqos.history().depth = config.m_iHistoryDepth;
 
+        // Apply extended QoS (deadline, lifespan, resource limits)
+        ApplyReaderQos( rqos, config );
+
         DataReader* pReader = pSubscriber->create_datareader(
             pTopic, rqos, pListener, mask );
 
@@ -138,20 +145,67 @@ namespace binding
     }
 
     // ====================================================================
-    // AF_XDP (stub)
+    // FastDDS QoS Helpers
     // ====================================================================
 
-    Result< void > CDdsCodec::InitializeAfXdp() noexcept
+    void CDdsCodec::ApplyWriterQos(
+        DataWriterQos& wqos,
+        const DdsConfig& config ) noexcept
     {
-        LAP_COM_LOG_INFO << "AF_XDP initialization not yet implemented";
-        return Result< void >::FromError( MakeErrorCode( ComErrc::kInvalidState ) );
+        // Deadline QoS
+        if ( config.m_iDeadlinePeriodMs > 0 )
+        {
+            wqos.deadline().period.seconds =
+                static_cast< int32_t >( config.m_iDeadlinePeriodMs / 1000 );
+            wqos.deadline().period.nanosec =
+                ( config.m_iDeadlinePeriodMs % 1000 ) * 1000000U;
+        }
+
+        // Lifespan QoS
+        if ( config.m_iLifespanPeriodMs > 0 )
+        {
+            wqos.lifespan().duration.seconds =
+                static_cast< int32_t >( config.m_iLifespanPeriodMs / 1000 );
+            wqos.lifespan().duration.nanosec =
+                ( config.m_iLifespanPeriodMs % 1000 ) * 1000000U;
+        }
+
+        // Resource limits — max payload
+        if ( config.m_iMaxPayloadSize > 0 )
+        {
+            wqos.endpoint().history_memory_policy =
+                eprosima::fastdds::rtps::PREALLOCATED_WITH_REALLOC_MEMORY_MODE;
+        }
     }
 
-    Result< void > CDdsCodec::SendViaAfXdp( const ByteBuffer& data ) noexcept
+    void CDdsCodec::ApplyReaderQos(
+        DataReaderQos& rqos,
+        const DdsConfig& config ) noexcept
     {
-        LAP_COM_LOG_ERROR << "AF_XDP send not yet implemented (size="
-                          << data.size() << " bytes)";
-        return Result< void >::FromError( MakeErrorCode( ComErrc::kCommunicationFailure ) );
+        // Deadline QoS
+        if ( config.m_iDeadlinePeriodMs > 0 )
+        {
+            rqos.deadline().period.seconds =
+                static_cast< int32_t >( config.m_iDeadlinePeriodMs / 1000 );
+            rqos.deadline().period.nanosec =
+                ( config.m_iDeadlinePeriodMs % 1000 ) * 1000000U;
+        }
+
+        // Lifespan QoS
+        if ( config.m_iLifespanPeriodMs > 0 )
+        {
+            rqos.lifespan().duration.seconds =
+                static_cast< int32_t >( config.m_iLifespanPeriodMs / 1000 );
+            rqos.lifespan().duration.nanosec =
+                ( config.m_iLifespanPeriodMs % 1000 ) * 1000000U;
+        }
+
+        // Resource limits — max payload
+        if ( config.m_iMaxPayloadSize > 0 )
+        {
+            rqos.endpoint().history_memory_policy =
+                eprosima::fastdds::rtps::PREALLOCATED_WITH_REALLOC_MEMORY_MODE;
+        }
     }
 
 } // namespace binding

@@ -1,25 +1,26 @@
 /**
  * @file        SocketBinding.hpp
  * @author      LightAP Development Team
- * @brief       Socket transport binding — Stub facade (not yet implemented)
+ * @brief       Socket transport binding — Unix/TCP socket implementation
  * @date        2026/02/07
  * @copyright   Copyright (c) 2026
  *
- * @details     Stub implementation of ITransportBinding for Socket.
- *              All communication methods return ComErrc::kCommunicationFailure.
- *              The composition pattern (managers + codec) will be added
- *              when the Socket binding is actually implemented.
+ * @details     Socket-based IPC transport binding.
+ *              Supports both Unix domain sockets (AF_UNIX) and TCP sockets.
+ *              Uses a simple TLV framing protocol (SocketMsgHeader + payload).
  *
- *              Future architecture:
- *              - CSocketServiceManager — service lifecycle via Unix/TCP sockets
- *              - CSocketEventManager   — event pub/sub via socket broadcast
- *              - CSocketMethodManager  — method/field RPC via socket request-reply
+ *              Implements:
+ *              - Service offer/find via local registry
+ *              - Event publish/subscribe via socket broadcast
+ *              - Method request/response via socket round-trip
+ *              - Field get/set/notify mapped to method/event primitives
  *
  * @note        Priority: 40 (fallback for testing / socket-based IPC)
  *
  * <table>
  * <tr><th>Date        <th>Version  <th>Author          <th>Description
- * <tr><td>2026/02/07  <td>1.0      <td>Aii             <td>Stub facade — all ops return kCommunicationFailure
+ * <tr><td>2026/02/07  <td>1.0      <td>Aii             <td>Stub facade
+ * <tr><td>2026/02/28  <td>2.0      <td>Aii             <td>Unix/TCP socket implementation
  * </table>
  */
 
@@ -33,6 +34,10 @@
 // ==================== Cross-Module Headers ====================
 #include <lap/core/CResult.hpp>
 
+// ==================== Standard Library Headers ====================
+#include <thread>
+#include <atomic>
+
 namespace lap
 {
 namespace com
@@ -41,9 +46,18 @@ namespace binding
 {
 
     // ====================================================================
-    // SocketBinding — Stub Facade
+    // SocketBinding — Unix/TCP Socket
     // ====================================================================
 
+    /**
+     * @brief   Socket Transport Binding (Unix domain / TCP)
+     *
+     * @details Socket-based IPC using TLV framing protocol.
+     *          Default: Unix domain socket at /tmp/lap_com.sock.
+     *          Optional: TCP socket on configurable address/port.
+     *
+     * @note    Priority: 40 (fallback for testing / socket-based IPC)
+     */
     class SocketBinding : public ITransportBinding
     {
     public:
@@ -61,7 +75,7 @@ namespace binding
         Result< void > Shutdown() noexcept override;
 
     public:
-        // Service Management (stub)
+        // Service Management
         Result< void > OfferService( UInt64 serviceId, UInt64 instanceId ) noexcept override;
         Result< void > StopOfferService( UInt64 serviceId, UInt64 instanceId ) noexcept override;
         Result< Vector< UInt64 > > FindService( UInt64 serviceId ) noexcept override;
@@ -74,20 +88,17 @@ namespace binding
             UInt64 handle ) noexcept override;
 
     public:
-        // Event Communication (stub)
+        // Event Communication
         Result< void > UnsubscribeEvent( UInt64 serviceId, UInt64 instanceId, UInt32 eventId ) noexcept override;
 
     public:
-        // Method Communication — no public overrides (Do* below)
-
-    public:
-        // Field Communication (stub)
+        // Field Communication
         Result< void > UnsubscribeFieldNotification(
             UInt64 serviceId, UInt64 instanceId,
             UInt32 fieldId ) noexcept override;
 
     protected:
-        // NVI Do* Overrides (type-erased virtual implementations)
+        // NVI Do* Overrides
         Result< void > DoSendEvent( UInt64 serviceId, UInt64 instanceId, UInt32 eventId, const void* pData, Size dataSize = 0 ) noexcept override;
         Result< void > DoSubscribeEvent( UInt64 serviceId, UInt64 instanceId, UInt32 eventId, EventCallback callback, Size dataSize = 0 ) noexcept override;
         Result< void > DoCallMethod( UInt64 serviceId, UInt64 instanceId, UInt32 methodId, const void* pRequest, void* pResponse, Size requestSize = 0, Size responseSize = 0 ) noexcept override;
@@ -106,10 +117,60 @@ namespace binding
         TransportMetrics GetMetrics() const noexcept override;
 
     private:
+        // ================================================================
+        // Internal Helpers
+        // ================================================================
+
+        void acceptorThread() noexcept;
+        void clientHandler( Int32 clientFd ) noexcept;
+        Result< void > sendMsg( Int32 fd, const SocketMsgHeader& hdr,
+                                const void* pPayload ) noexcept;
+        Result< ByteBuffer > sendAndWaitResponse(
+            const SocketMsgHeader& hdr,
+            const void* pPayload, UInt32 timeoutMs ) noexcept;
+        String makeServiceKey( UInt64 serviceId, UInt64 instanceId ) const noexcept;
+
+    private:
+        // ================================================================
+        // Member Variables
+        // ================================================================
+
         SocketConfig         m_config;
         mutable Mutex        m_mutex;
         Bool                 m_bInitialized;
         mutable TransportMetrics m_metrics;
+
+        // Server socket
+        Int32               m_iListenFd;        ///< Listening socket fd
+        Int32               m_iConnFd;           ///< Connected socket fd (client side)
+
+        // Acceptor thread
+        ::std::thread       m_acceptorThread;    ///< Background accept thread
+        ::std::atomic< bool > m_bRunning;        ///< Thread run flag
+
+        // Session tracking
+        UInt16              m_iNextSessionId;
+
+        // Service registry
+        Map< String, UInt64 > m_offeredServices;
+
+        // Event subscriptions
+        Map< String, EventCallback > m_eventSubscriptions;
+
+        // Method handlers
+        Map< String, MethodHandler > m_methodHandlers;
+
+        // Field notifications
+        Map< String, FieldNotificationCallback > m_fieldNotifications;
+
+        // Connected clients
+        Vector< Int32 >    m_clientFds;
+        mutable Mutex      m_clientMutex;
+
+        // Pending responses
+        Map< UInt16, ByteBuffer > m_pendingResponses;
+        mutable Mutex             m_responseMutex;
+        mutable ConditionVariable m_responseCv;
     };
 
 } // namespace binding

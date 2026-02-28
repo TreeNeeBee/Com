@@ -9,7 +9,7 @@
  *              - Topic name generation (event, method-request, method-response)
  *              - Composite key generation for map lookups
  *              - DataWriter / DataReader QoS-aware factory helpers
- *              - AF_XDP stubs
+ *              - FastDDS participant QoS configuration helpers
  *
  * <table>
  * <tr><th>Date        <th>Version  <th>Author          <th>Description
@@ -133,11 +133,24 @@ namespace binding
 
     public:
         // ================================================================
-        // AF_XDP (stub)
+        // FastDDS QoS Helpers
         // ================================================================
 
-        static Result< void > InitializeAfXdp() noexcept;
-        static Result< void > SendViaAfXdp( const ByteBuffer& data ) noexcept;
+        /**
+         * @brief   Apply DdsConfig QoS to a DataWriterQos
+         * @details Sets deadline, lifespan, and resource limits from config
+         */
+        static void ApplyWriterQos(
+            eprosima::fastdds::dds::DataWriterQos& wqos,
+            const DdsConfig& config ) noexcept;
+
+        /**
+         * @brief   Apply DdsConfig QoS to a DataReaderQos
+         * @details Sets deadline, lifespan, and resource limits from config
+         */
+        static void ApplyReaderQos(
+            eprosima::fastdds::dds::DataReaderQos& rqos,
+            const DdsConfig& config ) noexcept;
     };
 
 } // namespace binding

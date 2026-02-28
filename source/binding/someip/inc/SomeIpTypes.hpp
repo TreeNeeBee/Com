@@ -57,6 +57,55 @@ namespace binding
     using lap::core::Mutex;
     using lap::core::LockGuard;
     using lap::core::UniqueLock;
+    using lap::core::ConditionVariable;
+
+    // ====================================================================
+    // Configuration
+    // ====================================================================
+
+    // ====================================================================
+    // SOME/IP Wire Format Constants (AUTOSAR PRS_SOMEIP_00041)
+    // ====================================================================
+
+    static constexpr UInt8  kSomeIpProtocolVersion  = 0x01;
+    static constexpr UInt8  kSomeIpInterfaceVersion = 0x01;
+    static constexpr UInt8  kSomeIpMsgTypeRequest   = 0x00;
+    static constexpr UInt8  kSomeIpMsgTypeResponse  = 0x80;
+    static constexpr UInt8  kSomeIpMsgTypeNotify    = 0x02;
+    static constexpr UInt8  kSomeIpMsgTypeError     = 0x81;
+    static constexpr UInt8  kSomeIpReturnCodeOk     = 0x00;
+    static constexpr UInt32 kSomeIpHeaderSize       = 16;     ///< SOME/IP header: 16 bytes
+
+    // ====================================================================
+    // SOME/IP Header (on the wire, network byte order)
+    // ====================================================================
+
+    /**
+     * @brief   SOME/IP message header (PRS_SOMEIP_00041)
+     *
+     * @details 16-byte fixed header:
+     *   [0..1]  Service ID
+     *   [2..3]  Method/Event ID
+     *   [4..7]  Length (payload + 8 bytes of remaining header)
+     *   [8..9]  Client ID
+     *   [10..11] Session ID
+     *   [12]    Protocol Version (0x01)
+     *   [13]    Interface Version
+     *   [14]    Message Type
+     *   [15]    Return Code
+     */
+    struct SomeIpHeader
+    {
+        UInt16  m_iServiceId;
+        UInt16  m_iMethodId;
+        UInt32  m_iLength;
+        UInt16  m_iClientId;
+        UInt16  m_iSessionId;
+        UInt8   m_iProtocolVersion;
+        UInt8   m_iInterfaceVersion;
+        UInt8   m_iMessageType;
+        UInt8   m_iReturnCode;
+    } __attribute__(( packed ));
 
     // ====================================================================
     // Configuration
@@ -64,20 +113,21 @@ namespace binding
 
     /**
      * @brief   SOME/IP Binding configuration
-     * @note    Reserved — SOME/IP binding is not yet implemented
      *
-     * @details Future fields will include vsomeip application name,
-     *          routing manager config, service discovery multicast,
-     *          and network interface bindings.
+     * @details Lightweight SOME/IP-over-UDP transport.
+     *          Uses raw UDP sockets with SOME/IP wire format.
+     *          No vsomeip dependency — standalone implementation.
      */
     struct SomeIpConfig
     {
-        String  m_strAppName        = "LightAP";       ///< vsomeip application name
-        String  m_strConfigPath;                        ///< vsomeip JSON config file (optional)
+        String  m_strAppName        = "LightAP";       ///< Application name (for logging)
         String  m_strUnicastAddress = "127.0.0.1";      ///< Unicast IP address
-        UInt16  m_iPort             = 30490;             ///< SOME/IP-SD port
+        UInt16  m_iPort             = 30490;             ///< SOME/IP base port
+        UInt16  m_iSdPort           = 30490;             ///< SOME/IP-SD port
+        String  m_strMulticastGroup = "239.0.0.1";       ///< SD multicast group
         UInt32  m_iTimeoutMs        = 5000;              ///< Default method call timeout (ms)
-        Bool    m_bRoutingManager   = false;             ///< Act as vsomeip routing manager
+        UInt16  m_iClientId         = 0x0001;            ///< SOME/IP client ID
+        UInt32  m_iMaxPayloadSize   = 65536;             ///< Maximum payload size (bytes)
     };
 
 } // namespace binding

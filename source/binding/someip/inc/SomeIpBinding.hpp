@@ -1,25 +1,26 @@
 /**
  * @file        SomeIpBinding.hpp
  * @author      LightAP Development Team
- * @brief       SOME/IP transport binding — Stub facade (not yet implemented)
+ * @brief       SOME/IP transport binding — Lightweight UDP-based implementation
  * @date        2026/02/07
  * @copyright   Copyright (c) 2026
  *
- * @details     Stub implementation of ITransportBinding for SOME/IP.
- *              All communication methods return ComErrc::kCommunicationFailure.
- *              The composition pattern (managers + codec) will be added
- *              when the SOME/IP binding is actually implemented.
+ * @details     Lightweight SOME/IP-over-UDP transport binding.
+ *              Implements the AUTOSAR SOME/IP wire format (PRS_SOMEIP_00041)
+ *              using raw UDP sockets — no vsomeip dependency.
  *
- *              Future architecture:
- *              - CSomeIpServiceManager — service offer/find via SOME/IP-SD
- *              - CSomeIpEventManager   — event pub/sub via event groups
- *              - CSomeIpMethodManager  — method/field RPC via request/response
+ *              Supports:
+ *              - Service offer/find via local registry
+ *              - Event publish/subscribe via UDP unicast
+ *              - Method request/response via UDP round-trip
+ *              - Field get/set/notify mapped to method/event primitives
  *
  * @note        Priority: 60 (automotive standard — inter-ECU)
  *
  * <table>
  * <tr><th>Date        <th>Version  <th>Author          <th>Description
- * <tr><td>2026/02/07  <td>1.0      <td>Aii             <td>Stub facade — all ops return kCommunicationFailure
+ * <tr><td>2026/02/07  <td>1.0      <td>Aii             <td>Stub facade
+ * <tr><td>2026/02/28  <td>2.0      <td>Aii             <td>Lightweight SOME/IP-over-UDP implementation
  * </table>
  */
 
@@ -33,6 +34,10 @@
 // ==================== Cross-Module Headers ====================
 #include <lap/core/CResult.hpp>
 
+// ==================== Standard Library Headers ====================
+#include <thread>
+#include <atomic>
+
 namespace lap
 {
 namespace com
@@ -41,16 +46,16 @@ namespace binding
 {
 
     // ====================================================================
-    // SomeIpBinding — Stub Facade
+    // SomeIpBinding — Lightweight SOME/IP-over-UDP
     // ====================================================================
 
     /**
-     * @brief   SOME/IP Transport Binding (Stub)
+     * @brief   SOME/IP Transport Binding (Lightweight UDP)
      *
-     * @details All ITransportBinding operations return kCommunicationFailure.
-     *          This class reserves the plugin slot so that the binding
-     *          manager can enumerate it.  Actual SOME/IP communication
-     *          (via vsomeip) will be implemented in a future release.
+     * @details Implements SOME/IP wire format over UDP sockets.
+     *          Service management uses a local in-memory registry.
+     *          Events use UDP unicast with SOME/IP notification messages.
+     *          Methods use UDP request/response with session tracking.
      *
      * @note    Priority: 60 (automotive standard)
      */
@@ -171,6 +176,22 @@ namespace binding
 
     private:
         // ================================================================
+        // Internal Helpers
+        // ================================================================
+
+        void receiverThread() noexcept;
+        Result< void > sendUdp( const ByteBuffer& packet ) noexcept;
+        Result< ByteBuffer > sendAndWaitResponse(
+            const ByteBuffer& packet, UInt32 timeoutMs ) noexcept;
+        ByteBuffer buildSomeIpPacket(
+            UInt16 serviceId, UInt16 methodId,
+            UInt8 msgType, const void* pPayload,
+            Size payloadSize ) noexcept;
+        String makeServiceKey(
+            UInt64 serviceId, UInt64 instanceId ) const noexcept;
+
+    private:
+        // ================================================================
         // Member Variables
         // ================================================================
 
@@ -178,6 +199,33 @@ namespace binding
         mutable Mutex       m_mutex;            ///< Main serialisation lock
         Bool                m_bInitialized;     ///< Initialisation state
         mutable TransportMetrics m_metrics;     ///< Transport metrics
+
+        // UDP socket
+        Int32               m_iSockFd;          ///< UDP socket fd
+
+        // Receiver thread
+        ::std::thread       m_receiverThread;   ///< Background RX thread
+        ::std::atomic< bool > m_bRunning;       ///< Receiver run flag
+
+        // Session tracking
+        UInt16              m_iNextSessionId;   ///< Next session ID
+
+        // Service registry (local)
+        Map< String, UInt64 >   m_offeredServices;  ///< serviceKey -> instanceId
+
+        // Event subscriptions: "svc_inst_evt" -> callback
+        Map< String, EventCallback >    m_eventSubscriptions;
+
+        // Method handlers: "svc_inst_met" -> handler
+        Map< String, MethodHandler >    m_methodHandlers;
+
+        // Field notification callbacks: "svc_inst_fld" -> callback
+        Map< String, FieldNotificationCallback > m_fieldNotifications;
+
+        // Pending method responses: sessionId -> response buffer
+        Map< UInt16, ByteBuffer >       m_pendingResponses;
+        mutable Mutex                   m_responseMutex;
+        mutable ConditionVariable       m_responseCv;
     };
 
 } // namespace binding

@@ -849,6 +849,385 @@ private:
 
 };
 /*!
+ * @brief This class represents the structure VisitorCountNotify defined by the user in the IDL file.
+ * @ingroup HelloWorld2Service
+ */
+class VisitorCountNotify
+{
+public:
+
+    /*!
+     * @brief Default constructor.
+     */
+    eProsima_user_DllExport VisitorCountNotify()
+    {
+    }
+
+    /*!
+     * @brief Default destructor.
+     */
+    eProsima_user_DllExport ~VisitorCountNotify()
+    {
+    }
+
+    /*!
+     * @brief Copy constructor.
+     * @param x Reference to the object VisitorCountNotify that will be copied.
+     */
+    eProsima_user_DllExport VisitorCountNotify(
+            const VisitorCountNotify& x)
+    {
+                    m_value = x.m_value;
+
+    }
+
+    /*!
+     * @brief Move constructor.
+     * @param x Reference to the object VisitorCountNotify that will be copied.
+     */
+    eProsima_user_DllExport VisitorCountNotify(
+            VisitorCountNotify&& x) noexcept
+    {
+        m_value = x.m_value;
+    }
+
+    /*!
+     * @brief Copy assignment.
+     * @param x Reference to the object VisitorCountNotify that will be copied.
+     */
+    eProsima_user_DllExport VisitorCountNotify& operator =(
+            const VisitorCountNotify& x)
+    {
+
+                    m_value = x.m_value;
+
+        return *this;
+    }
+
+    /*!
+     * @brief Move assignment.
+     * @param x Reference to the object VisitorCountNotify that will be copied.
+     */
+    eProsima_user_DllExport VisitorCountNotify& operator =(
+            VisitorCountNotify&& x) noexcept
+    {
+
+        m_value = x.m_value;
+        return *this;
+    }
+
+    /*!
+     * @brief Comparison operator.
+     * @param x VisitorCountNotify object to compare.
+     */
+    eProsima_user_DllExport bool operator ==(
+            const VisitorCountNotify& x) const
+    {
+        return (m_value == x.m_value);
+    }
+
+    /*!
+     * @brief Comparison operator.
+     * @param x VisitorCountNotify object to compare.
+     */
+    eProsima_user_DllExport bool operator !=(
+            const VisitorCountNotify& x) const
+    {
+        return !(*this == x);
+    }
+
+    /*!
+     * @brief This function sets a value in member value
+     * @param _value New value for member value
+     */
+    eProsima_user_DllExport void value(
+            uint32_t _value)
+    {
+        m_value = _value;
+    }
+
+    /*!
+     * @brief This function returns the value of member value
+     * @return Value of member value
+     */
+    eProsima_user_DllExport uint32_t value() const
+    {
+        return m_value;
+    }
+
+    /*!
+     * @brief This function returns a reference to member value
+     * @return Reference to member value
+     */
+    eProsima_user_DllExport uint32_t& value()
+    {
+        return m_value;
+    }
+
+
+
+private:
+
+    uint32_t m_value{0};
+
+};
+/*!
+ * @brief This class represents the structure ServerNameNotify defined by the user in the IDL file.
+ * @ingroup HelloWorld2Service
+ */
+class ServerNameNotify
+{
+public:
+
+    /*!
+     * @brief Default constructor.
+     */
+    eProsima_user_DllExport ServerNameNotify()
+    {
+    }
+
+    /*!
+     * @brief Default destructor.
+     */
+    eProsima_user_DllExport ~ServerNameNotify()
+    {
+    }
+
+    /*!
+     * @brief Copy constructor.
+     * @param x Reference to the object ServerNameNotify that will be copied.
+     */
+    eProsima_user_DllExport ServerNameNotify(
+            const ServerNameNotify& x)
+    {
+                    m_value = x.m_value;
+
+    }
+
+    /*!
+     * @brief Move constructor.
+     * @param x Reference to the object ServerNameNotify that will be copied.
+     */
+    eProsima_user_DllExport ServerNameNotify(
+            ServerNameNotify&& x) noexcept
+    {
+        m_value = std::move(x.m_value);
+    }
+
+    /*!
+     * @brief Copy assignment.
+     * @param x Reference to the object ServerNameNotify that will be copied.
+     */
+    eProsima_user_DllExport ServerNameNotify& operator =(
+            const ServerNameNotify& x)
+    {
+
+                    m_value = x.m_value;
+
+        return *this;
+    }
+
+    /*!
+     * @brief Move assignment.
+     * @param x Reference to the object ServerNameNotify that will be copied.
+     */
+    eProsima_user_DllExport ServerNameNotify& operator =(
+            ServerNameNotify&& x) noexcept
+    {
+
+        m_value = std::move(x.m_value);
+        return *this;
+    }
+
+    /*!
+     * @brief Comparison operator.
+     * @param x ServerNameNotify object to compare.
+     */
+    eProsima_user_DllExport bool operator ==(
+            const ServerNameNotify& x) const
+    {
+        return (m_value == x.m_value);
+    }
+
+    /*!
+     * @brief Comparison operator.
+     * @param x ServerNameNotify object to compare.
+     */
+    eProsima_user_DllExport bool operator !=(
+            const ServerNameNotify& x) const
+    {
+        return !(*this == x);
+    }
+
+    /*!
+     * @brief This function copies the value in member value
+     * @param _value New value to be copied in member value
+     */
+    eProsima_user_DllExport void value(
+            const std::string& _value)
+    {
+        m_value = _value;
+    }
+
+    /*!
+     * @brief This function moves the value in member value
+     * @param _value New value to be moved in member value
+     */
+    eProsima_user_DllExport void value(
+            std::string&& _value)
+    {
+        m_value = std::move(_value);
+    }
+
+    /*!
+     * @brief This function returns a constant reference to member value
+     * @return Constant reference to member value
+     */
+    eProsima_user_DllExport const std::string& value() const
+    {
+        return m_value;
+    }
+
+    /*!
+     * @brief This function returns a reference to member value
+     * @return Reference to member value
+     */
+    eProsima_user_DllExport std::string& value()
+    {
+        return m_value;
+    }
+
+
+
+private:
+
+    std::string m_value;
+
+};
+/*!
+ * @brief This class represents the structure TemperatureNotify defined by the user in the IDL file.
+ * @ingroup HelloWorld2Service
+ */
+class TemperatureNotify
+{
+public:
+
+    /*!
+     * @brief Default constructor.
+     */
+    eProsima_user_DllExport TemperatureNotify()
+    {
+    }
+
+    /*!
+     * @brief Default destructor.
+     */
+    eProsima_user_DllExport ~TemperatureNotify()
+    {
+    }
+
+    /*!
+     * @brief Copy constructor.
+     * @param x Reference to the object TemperatureNotify that will be copied.
+     */
+    eProsima_user_DllExport TemperatureNotify(
+            const TemperatureNotify& x)
+    {
+                    m_value = x.m_value;
+
+    }
+
+    /*!
+     * @brief Move constructor.
+     * @param x Reference to the object TemperatureNotify that will be copied.
+     */
+    eProsima_user_DllExport TemperatureNotify(
+            TemperatureNotify&& x) noexcept
+    {
+        m_value = x.m_value;
+    }
+
+    /*!
+     * @brief Copy assignment.
+     * @param x Reference to the object TemperatureNotify that will be copied.
+     */
+    eProsima_user_DllExport TemperatureNotify& operator =(
+            const TemperatureNotify& x)
+    {
+
+                    m_value = x.m_value;
+
+        return *this;
+    }
+
+    /*!
+     * @brief Move assignment.
+     * @param x Reference to the object TemperatureNotify that will be copied.
+     */
+    eProsima_user_DllExport TemperatureNotify& operator =(
+            TemperatureNotify&& x) noexcept
+    {
+
+        m_value = x.m_value;
+        return *this;
+    }
+
+    /*!
+     * @brief Comparison operator.
+     * @param x TemperatureNotify object to compare.
+     */
+    eProsima_user_DllExport bool operator ==(
+            const TemperatureNotify& x) const
+    {
+        return (m_value == x.m_value);
+    }
+
+    /*!
+     * @brief Comparison operator.
+     * @param x TemperatureNotify object to compare.
+     */
+    eProsima_user_DllExport bool operator !=(
+            const TemperatureNotify& x) const
+    {
+        return !(*this == x);
+    }
+
+    /*!
+     * @brief This function sets a value in member value
+     * @param _value New value for member value
+     */
+    eProsima_user_DllExport void value(
+            double _value)
+    {
+        m_value = _value;
+    }
+
+    /*!
+     * @brief This function returns the value of member value
+     * @return Value of member value
+     */
+    eProsima_user_DllExport double value() const
+    {
+        return m_value;
+    }
+
+    /*!
+     * @brief This function returns a reference to member value
+     * @return Reference to member value
+     */
+    eProsima_user_DllExport double& value()
+    {
+        return m_value;
+    }
+
+
+
+private:
+
+    double m_value{0.0};
+
+};
+/*!
  * @brief This class represents the structure SayHelloRequest defined by the user in the IDL file.
  * @ingroup HelloWorld2Service
  */

@@ -244,7 +244,13 @@ namespace com
         /**
          * @brief Deserialize request → call handler → serialize response
          * @param request Serialized request bytes
-         * @return Serialized response bytes (empty on error)
+         * @return Serialized response bytes (prefixed with 4-byte UInt32 status)
+         *
+         * @details Response envelope:
+         *   [UInt32(big-endian) status] [serialized Output (only on success)]
+         *   status=0           → success (payload follows)
+         *   status=ComErrc val → application error from handler
+         *   empty buffer       → internal/transport error
          */
         binding::ByteBuffer HandleIncomingCall(
             const binding::ByteBuffer& request ) noexcept
@@ -267,19 +273,39 @@ namespace com
             // Block for result (skeleton methods are dispatched synchronously
             // by the binding's I/O thread)
             auto result = future.GetResult();
+
+            // Build response with 4-byte status prefix
+            serialization::CBinarySerializer respSerializer;
+
             if ( !result.HasValue() )
             {
-                return binding::ByteBuffer{};
+                // Error response: status = error code value
+                auto code = static_cast< lap::core::UInt32 >(
+                    result.Error().Value() );
+                static_cast< void >(
+                    serialization::SerializeValue< lap::core::UInt32 >(
+                        respSerializer, code ) );
+                auto d = respSerializer.GetData();
+                return binding::ByteBuffer( d.data(), d.data() + d.size() );
             }
 
-            // Serialize output
+            // Success: status=0 then serialized output
+            static_cast< void >(
+                serialization::SerializeValue< lap::core::UInt32 >(
+                    respSerializer, lap::core::UInt32( 0 ) ) );
+
             auto responseBytes = serializeOutput( result.Value() );
             if ( !responseBytes.HasValue() )
             {
                 return binding::ByteBuffer{};
             }
 
-            return std::move( responseBytes ).Value();
+            auto prefixData = respSerializer.GetData();
+            const auto& payload = responseBytes.Value();
+            binding::ByteBuffer resp(
+                prefixData.data(), prefixData.data() + prefixData.size() );
+            resp.insert( resp.end(), payload.begin(), payload.end() );
+            return resp;
         }
 
         /**

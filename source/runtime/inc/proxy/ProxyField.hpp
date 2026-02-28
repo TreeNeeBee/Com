@@ -31,6 +31,7 @@
 // ==================== Cross-Module Headers ====================
 #include <core/CResult.hpp>
 #include <core/CFuture.hpp>
+#include <core/CPromise.hpp>
 #include <core/CSync.hpp>
 
 // ==================== Standard Library Headers ====================
@@ -362,24 +363,26 @@ namespace com
         /**
          * @brief Get field value asynchronously via binding
          * @return Future containing field value
+         * @note Runs sync doGet() on a detached thread, returns immediately via Then().
          */
         lap::core::Future< FieldType > DoGetAsync() noexcept
         {
-            lap::core::Promise< FieldType > promise;
+            // Launch sync doGet() on background thread, chain via Future::Then()
+            auto launchFuture = std::async( std::launch::async,
+                [this]() -> lap::core::Result< FieldType >
+                {
+                    return doGet();
+                } );
 
-            // Delegate to sync Get() and wrap in future
-            // TODO: True async via binding when core Future::Then() available
-            auto result = doGet();
-            if ( result.HasValue() )
-            {
-                promise.SetValue( std::move( result ).Value() );
-            }
-            else
-            {
-                promise.SetError( result.Error() );
-            }
+            lap::core::Future< FieldType > coreFuture(
+                std::move( launchFuture ) );
 
-            return promise.GetFuture();
+            return coreFuture.Then(
+                []( lap::core::Future< FieldType > f )
+                    -> lap::core::Result< FieldType >
+                {
+                    return f.GetResult();
+                } );
         }
 
         /**
@@ -426,21 +429,22 @@ namespace com
          */
         lap::core::Future< void > DoSetAsync( const FieldType& value ) noexcept
         {
-            lap::core::Promise< void > promise;
+            // Launch sync doSet() on background thread, chain via Future::Then()
+            auto launchFuture = std::async( std::launch::async,
+                [this, value]() -> lap::core::Result< void >
+                {
+                    return doSet( value );
+                } );
 
-            // Delegate to sync doSet() and wrap in future
-            // TODO: True async via binding when core Future::Then() available
-            auto result = doSet( value );
-            if ( result.HasValue() )
-            {
-                promise.SetValue();
-            }
-            else
-            {
-                promise.SetError( result.Error() );
-            }
+            lap::core::Future< void > coreFuture(
+                std::move( launchFuture ) );
 
-            return promise.GetFuture();
+            return coreFuture.Then(
+                []( lap::core::Future< void > f )
+                    -> lap::core::Result< void >
+                {
+                    return f.GetResult();
+                } );
         }
 
         void setConnected( Bool connected ) noexcept

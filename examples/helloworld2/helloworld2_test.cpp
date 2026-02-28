@@ -232,6 +232,40 @@ int main()
     }
 
     // ================================================================
+    // Test: Method Error Handling (server-side input validation)
+    // ================================================================
+    std::cout << "\n[Test] Method Error Handling ---" << std::endl;
+
+    // SayHello with empty name — server validates and rejects
+    {
+        auto r = proxy.sayHello( String( "" ) );
+        CHECK( !r.HasValue(),
+               "SayHello(\"\") returns error (not a value)" );
+        CHECK( !r.HasValue() &&
+               r.Error() == MakeErrorCode( ComErrc::kInvalidArgument, 0 ),
+               "SayHello(\"\") error is kInvalidArgument" );
+        if ( !r.HasValue() )
+        {
+            std::cout << "         error: " << r.Error().Message() << std::endl;
+        }
+    }
+
+    // ComputeHash with empty payload — server validates and rejects
+    {
+        ByteArray emptyPayload{};
+        auto r = proxy.computeHash( emptyPayload );
+        CHECK( !r.HasValue(),
+               "ComputeHash(empty) returns error (not a value)" );
+        CHECK( !r.HasValue() &&
+               r.Error() == MakeErrorCode( ComErrc::kInvalidArgument, 0 ),
+               "ComputeHash(empty) error is kInvalidArgument" );
+        if ( !r.HasValue() )
+        {
+            std::cout << "         error: " << r.Error().Message() << std::endl;
+        }
+    }
+
+    // ================================================================
     // Test: Fields
     // ================================================================
     std::cout << "\n[Test] Fields ---" << std::endl;
