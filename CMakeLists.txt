@@ -459,6 +459,34 @@ if( ENABLE_SOMEIP_BINDING )
     )
 
     install( TARGETS lap_com_binding_someip LIBRARY DESTINATION lib )
+
+    # SOME/IP binding unit tests (GTest)
+    if( ENABLE_BUILD_TESTS )
+        add_executable( test_someip_binding
+            ${MODULE_ROOT_DIR}/source/binding/someip/test/test_someip_binding.cpp
+        )
+        target_include_directories( test_someip_binding PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/someip/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+        )
+        target_link_libraries( test_someip_binding PRIVATE
+            lap_com_binding_someip
+            lap_com
+            lap_core
+            lap_log
+            pthread
+            GTest::GTest
+            GTest::Main
+        )
+        add_test( NAME SomeIpBindingTest COMMAND test_someip_binding )
+        set_tests_properties( SomeIpBindingTest PROPERTIES
+            TIMEOUT 30
+            LABELS "binding"
+        )
+    endif()
+
     message( STATUS "SOME/IP binding configured successfully" )
 endif()
 
@@ -497,6 +525,35 @@ if( ENABLE_DBUS_BINDING )
         )
 
         install( TARGETS lap_com_binding_dbus LIBRARY DESTINATION lib )
+
+        # D-Bus binding unit tests (GTest)
+        if( ENABLE_BUILD_TESTS )
+            add_executable( test_dbus_binding
+                ${MODULE_ROOT_DIR}/source/binding/dbus/test/test_dbus_binding.cpp
+            )
+            target_include_directories( test_dbus_binding PRIVATE
+                ${MODULE_ROOT_DIR}/source/binding/dbus/inc
+                ${MODULE_ROOT_DIR}/source/binding/common
+                ${MODULE_ROOT_DIR}/source/runtime/inc
+                ${CMAKE_CURRENT_BINARY_DIR}/include
+            )
+            target_link_libraries( test_dbus_binding PRIVATE
+                lap_com_binding_dbus
+                lap_com
+                lap_core
+                lap_log
+                systemd
+                pthread
+                GTest::GTest
+                GTest::Main
+            )
+            add_test( NAME DbusBindingTest COMMAND test_dbus_binding )
+            set_tests_properties( DbusBindingTest PROPERTIES
+                TIMEOUT 30
+                LABELS "binding"
+            )
+        endif()
+
         message( STATUS "D-Bus binding configured successfully" )
     else()
         message( STATUS "D-Bus binding SKIPPED (libsystemd not found)" )
@@ -531,6 +588,34 @@ if( ENABLE_SOCKET_BINDING )
     )
 
     install( TARGETS lap_com_binding_socket LIBRARY DESTINATION lib )
+
+    # Socket binding unit tests (GTest)
+    if( ENABLE_BUILD_TESTS )
+        add_executable( test_socket_binding
+            ${MODULE_ROOT_DIR}/source/binding/socket/test/test_socket_binding.cpp
+        )
+        target_include_directories( test_socket_binding PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/socket/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+        )
+        target_link_libraries( test_socket_binding PRIVATE
+            lap_com_binding_socket
+            lap_com
+            lap_core
+            lap_log
+            pthread
+            GTest::GTest
+            GTest::Main
+        )
+        add_test( NAME SocketBindingTest COMMAND test_socket_binding )
+        set_tests_properties( SocketBindingTest PROPERTIES
+            TIMEOUT 30
+            LABELS "binding"
+        )
+    endif()
+
     message( STATUS "Socket binding configured successfully" )
 endif()
 

@@ -97,53 +97,57 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 │  └──────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │ Binding Manager (运行时动态加载 .so 插件)                          │  │
-│  │  - 按优先级选择最优 Binding (priority: 100 → 50 → 10)             │  │
+│  │  - 按优先级选择最优 Binding (priority: 80→60→50→40→20)            │  │
 │  │  - dlopen() 动态加载插件                                           │  │
 │  │  - 配置驱动 (YAML manifest 决定启用哪些 Binding)                 │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────────────────────────────┘
                           ↓ (插件按优先级动态加载)
 ┌──────────────────────────────────────────────────────────────────────────┐
-│         可插拔 Transport Binding (.so 动态库，按需加载)                   │
+│      可插拔 Transport Binding (.so 动态库，按需加载) — 5 个已实现          │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ binding_coreipc.so (priority: 100, 本地零拷贝)                    │  │
+│  │ ① lap_com_binding_coreipc.so (priority: 80, 本地零拷贝)           │  │
 │  │  - Core IPC 进程自管理架构（无守护进程，基于Core模块）            │  │
-│  │  - 内存服务注册表（临时实现，后续迁移到Core）                     │  │
 │  │  - Publisher/Subscriber API（基于lap::core::ipc）               │  │
 │  │  - 零拷贝数据传输 (<5μs 延迟, >10GB/s 吞吐)                        │  │
 │  │  - Lock-free Queue (RingBufferBlock实现，内存安全)                │  │
+│  │  - ✅ 已实现，3个单元测试                                          │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ binding_dds.so (priority: 50, 跨 ECU 通信)                         │  │
-│  │  - DDS 实现 (eProsima Fast-DDS / CycloneDDS)                      │  │
+│  │ ② lap_com_binding_someip.so (priority: 60, AUTOSAR SOME/IP)       │  │
+│  │  - 轻量级 SOME/IP-over-UDP (无vsomeip依赖)                        │  │
+│  │  - AUTOSAR PRS_SOMEIP_00041 线格式 (16字节标头)                   │  │
+│  │  - Session 跟踪 + CV 同步的请求/响应匹配                          │  │
+│  │  - Field→Method 映射 (fieldId|0x8000 get, fieldId|0x8001 set)   │  │
+│  │  - Background receiver thread (poll 100ms)                        │  │
+│  │  - ✅ 已实现，GTest单元测试                                        │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ ③ lap_com_binding_dds.so (priority: 50, 跨 ECU 通信)              │  │
+│  │  - DDS 实现 (eProsima Fast-DDS)                                    │  │
 │  │  - Simple Discovery Protocol (标准 DDS-RTPS)                      │  │
 │  │  - Shared Memory (本地) + UDP/TCP (跨网络)                        │  │
 │  │  - DDS QoS Policies (Reliability / Durability / Deadline)         │  │
+│  │  - ✅ 已实现，DdsBindingTest + DdsDiscoveryTest                    │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ binding_custom_protocol.so (priority: 20, 自定义私有协议 + UDS)     │  │
-│  │  - Unix Domain Socket 高性能本地通信                               │  │
-│  │  - 自定义二进制协议（可扩展编解码器）                                │  │
-│  │  - 支持流式/数据报模式（SOCK_STREAM / SOCK_DGRAM）                 │  │
-│  │  - 轻量级私有协议，适合遗留系统集成                                  │  │
-│  │  - 延迟 <10μs，吞吐量 >500MB/s                                     │  │
+│  │ ④ lap_com_binding_socket.so (priority: 40, Unix/TCP Socket)       │  │
+│  │  - AF_UNIX (默认) 或 AF_INET SOCK_STREAM                          │  │
+│  │  - TLV 帧格式 (20字节标头: opCode+serviceId+methodId+session)     │  │
+│  │  - Acceptor thread + per-client handler (detached threads)       │  │
+│  │  - 本地事件广播到所有连接的客户端                                   │  │
+│  │  - Field→Method 映射 (与SOME/IP一致)                               │  │
+│  │  - ✅ 已实现，GTest单元测试                                        │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ binding_legacy.so (priority: 10, 遗留兼容，仅在需要时加载)          │  │
-│  │  - 不直接实现协议，只是网关接口                                     │  │
-│  │  - 将 lap::com 调用转发到独立网关进程                               │  │
-│  │  - SOME/IP Gateway / D-Bus Diag 进程通信                          │  │
+│  │ ⑤ lap_com_binding_dbus.so (priority: 20, D-Bus/sd-bus)            │  │
+│  │  - systemd sd-bus API (无sdbus-c++依赖)                           │  │
+│  │  - 服务发现 = sd_bus_request_name (well-known name)               │  │
+│  │  - 事件 = sd_bus_emit_signal + 本地回调分发                        │  │
+│  │  - 方法 = sd_bus_call_method (远程) + 本地handler优先             │  │
+│  │  - Offline mode fallback (无D-Bus总线时仍然可用本地注册表)         │  │
+│  │  - ✅ 已实现，GTest单元测试                                        │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────────────┘
-                          ↓ (仅在配置启用时运行)
-┌──────────────────────────────────────────────────────────────────────────┐
-│       独立遗留兼容进程 (可选部署，独立生命周期)                            │
-│  ┌─────────────────────────┐  ┌───────────────────────────────────────┐ │
-│  │ SomeIpGateway (独立进程) │  │ DiagDaemon (独立进程)                 │ │
-│  │ - SOME/IP ↔ DDS 双栈翻译 │  │ - 仅运行 D-Bus 诊断服务                │ │
-│  │ - vsomeip + DDS 实现     │  │ - UDS 诊断协议支持                    │ │
-│  │ - 协议完全隔离           │  │ - 与主系统解耦                        │ │
-│  └─────────────────────────┘  └───────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -397,18 +401,12 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 modules/Com/
 ├── source/
 │   ├── inc/                      # 公共API (8个头文件, ~3,140行)
-│   └── binding/                  # 传输绑定
-│       ├── dbus/                 # D-Bus (4个文件, ~950行)
-│       ├── someip/               # SOME/IP-DDS Bridge (5个文件, ~2,650行) ✅ 重构
-│       │   ├── SomeIpDdsBridge.hpp
-│       │   ├── SomeIpMessageCodec.hpp
-│       │   ├── DdsServiceMapper.hpp
-│       │   ├── VsomeipCompatLayer.hpp
-│       │   └── SomeIpServiceDiscovery.hpp
-│       ├── dds/                  # Native DDS (5个文件, ~1,510行, 计划中)
-│       ├── coreipc/              # Core IPC (已实现，零拷贝共享内存)
-│       ├── custom_protocol/      # Custom Protocol+UDS (7个文件, ~2,200行, 计划中)
-│       └── legacy/               # Legacy Gateway (3个文件, ~800行, 计划中)
+│   └── binding/                  # 传输绑定 (5个已实现)
+│       ├── coreipc/              # Core IPC (零拷贝共享内存, priority:80)
+│       ├── someip/               # SOME/IP (轻量UDP, priority:60) ✅ 已实现
+│       ├── dds/                  # Native DDS (FastDDS, priority:50) ✅ 已实现
+│       ├── socket/               # Socket (Unix/TCP+TLV, priority:40) ✅ 已实现
+│       └── dbus/                 # D-Bus (sd-bus, priority:20) ✅ 已实现
 ├── test/
 │   ├── unittest/                 # 单元测试 (6个文件, ~1,800行)
 │   └── examples/                 # 示例 (9个文件, ~1,200行)
@@ -844,9 +842,10 @@ void DdsBinding::Publish(const SamplePtr& sample) {
 | 场景 | 技术选型 | 延迟目标 | 吞吐量 | CPU 开销 |
 |------|---------|---------|--------|---------|
 | ECU 内所有通信 | CoreIPC + io_uring SQPOLL + memfd + 1GB 大页 | **< 3μs** | >10GB/s | <5% |
-| 跨 ECU 大包 (>64KB) | AF_XDP ZERO_COPY + 专用队列 | **< 15μs** | 9GB/s (10Gbps) | 10% |
-| 跨 ECU 小包/控制 | DDS SHM | **< 50μs** | 800MB/s | 15% |
-| 遗留兼容 (SOME/IP/D-Bus) | 独立网关进程（完全隔离） | - | - | - |
+| 跨 ECU (AUTOSAR) | SOME/IP-over-UDP (轻量，无vsomeip) | **< 100μs** | ~500MB/s | 10% |
+| 跨 ECU DDS | DDS/RTPS (FastDDS) + SHM | **< 50μs** | 800MB/s | 15% |
+| 本地 IPC (非SHM) | Socket (Unix Domain/TCP + TLV) | **< 10μs** | >500MB/s | 8% |
+| 诊断/系统集成 | D-Bus (sd-bus) | **< 1ms** | ~100MB/s | 5% |
 
 **关键配置文件**:
 
@@ -854,22 +853,34 @@ void DdsBinding::Publish(const SamplePtr& sample) {
 # binding_config.yaml
 bindings:
   - type: coreipc
-    priority: 100
+    priority: 80
     mempool: QM_PerceptionPool
     use_huge_pages: true
     io_uring_sqpoll: true
     cpu_affinity: [4, 5, 6, 7]
-  
+
+  - type: someip
+    priority: 60
+    unicast_address: "127.0.0.1"
+    port: 30490
+    sd_port: 30491
+    timeout_ms: 5000
+
   - type: dds
     priority: 50
-    af_xdp_enabled: true
-    af_xdp_queue: [0, 1, 2, 3]
     shm_only: true
     discovery_server: "192.168.1.100:34567"
-  
-  - type: custom_protocol
+
+  - type: socket
+    priority: 40
+    use_tcp: false
+    socket_path: "/tmp/lap_com_socket.sock"
+    max_connections: 16
+
+  - type: dbus
     priority: 20
-    enabled: false
+    use_system_bus: false
+    service_prefix: "com.lap.service"
 ```
 
 ---
@@ -878,16 +889,20 @@ bindings:
 
 ### 当前状态
 
-✅ **已完成**: 10,790行代码，完整的D-Bus和SOME/IP支持  
-✅ **架构清晰**: 插拔式 4-Binding 架构，易于扩展  
-✅ **序列化外部化**: D-Bus和SOME/IP无需手动序列化  
-✅ **测试完善**: 69+测试用例，多个完整示例  
-✅ **R24-11 标准**: 基于 AUTOSAR R24-11 标准设计，支持静态服务连接和中央服务发现  
-✅ **性能路线图**: 完整 5 步优化清单，从系统级到应用级全覆盖
+✅ **已完成**: 5个传输绑定全部实现，完整的多协议通信栈
+✅ **架构清晰**: 插拔式 5-Binding 架构，NVI模式，C导出动态加载
+✅ **绑定实现**:
+  - ① CoreIPC (priority:80) — 零拷贝共享内存，<5μs延迟
+  - ② SOME/IP (priority:60) — 轻量UDP，AUTOSAR PRS_SOMEIP_00041线格式
+  - ③ DDS (priority:50) — FastDDS，跨ECU通信
+  - ④ Socket (priority:40) — Unix/TCP + TLV帧格式
+  - ⑤ D-Bus (priority:20) — sd-bus，诊断/系统集成
+✅ **测试完善**: GTest单元测试覆盖所有绑定
+✅ **R24-11 标准**: 基于 AUTOSAR R24-11 标准设计，支持静态服务连接和中央服务发现
 
 ### 扩展计划
 
-📋 **Phase 1**: Binding Manager 实现 (1-2周)
+✅ **Phase 1**: Binding Manager 实现
 - dlopen() 动态加载插件
 - 优先级选择逻辑
 - 配置文件解析
@@ -897,12 +912,17 @@ bindings:
 - C++17 Lock-free Queue
 - ASIL-CD 双注册表物理隔离
 
-📋 **Phase 3**: DDS Binding + AF_XDP (6周)
+✅ **Phase 3**: DDS Binding (FastDDS)
 - DDS 集成 (Simple Discovery)
-- AF_XDP ZERO_COPY 跨 ECU
+- FastDDS QoS (Reliability/Durability/Deadline)
 - DDS QoS 优化
 
-📋 **Phase 4**: 性能优化实施 (8周)
+✅ **Phase 4**: 三大传输绑定（已实现）
+- SOME/IP (轻量UDP，无vsomeip依赖)
+- Socket (Unix Domain/TCP + TLV 帧格式)
+- D-Bus (sd-bus，offline fallback)
+
+📋 **Phase 5**: 性能优化实施
 - 系统级优化 (大页 + CPU 隔离)
 - io_uring SQPOLL
 - AF_XDP 用户态网络栈
@@ -910,9 +930,9 @@ bindings:
 ### 关键优势
 
 1. **AUTOSAR R24-11 标准合规**: 完整支持 SWS_CM、TPS_MANI、EXP ara::com 规范
-2. **插件化架构**: 4层 Binding (CoreIPC/DDS/CustomProtocol/Legacy)，运行时动态加载
+2. **插件化架构**: 5层 Binding (CoreIPC/SOME-IP/DDS/Socket/D-Bus)，运行时动态加载
 3. **配置驱动**: binding_config.yaml 控制所有 Binding，应用零修改
-4. **性能可扩展**: ECU内 <500ns (CoreIPC) → 跨ECU <15μs (AF_XDP) 完整覆盖
+4. **性能可扩展**: ECU内 <5μs (CoreIPC) → 跨ECU <100μs (SOME/IP) 完整覆盖
 5. **服务发现优化**: 零守护进程架构（固定槽位 < 100ns → Binding 内置发现 1-100ms）
 6. **FuSa-Ready**: MemPool 物理隔离 (QM/ASIL-D)，符合 ISO 26262
 7. **开发友好**: 统一 ara::com API，丰富文档，完整示例
