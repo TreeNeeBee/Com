@@ -8,7 +8,7 @@
     ├─ 本地进程间（同一ECU）？
     │   │
     │   ├─ 需要超低延迟（<1μs）或超高吞吐（>1GB/s）？
-    │   │   └─ ✅ **iceoryx v2 Binding**
+    │   │   └─ ✅ **CoreIPC Binding**
     │   │       - 摄像头、LiDAR、传感器融合
     │   │       - 真零拷贝，<1μs延迟
     │   │
@@ -43,7 +43,7 @@
 
 | Binding | 延迟 | 吞吐量 | 适用场景 | 零拷贝 | 跨网络 |
 |---------|------|--------|----------|--------|--------|
-| **iceoryx v2** | <1μs | >10GB/s | 本地高性能 | ✅✅ | ❌ |
+| **CoreIPC** | <1μs | >10GB/s | 本地高性能 | ✅✅ | ❌ |
 | **Native DDS** | 10-30μs | 500-800MB/s | 跨ECU通信 | ✅ | ✅ |
 | **SOME/IP Bridge** | 20-50μs | 200-300MB/s | 车载网络 | 部分 | ✅ |
 | **D-Bus Bridge** | 50-100μs | 50-100MB/s | 系统集成 | ❌ | ❌ |
@@ -51,10 +51,10 @@
 ## 典型使用场景
 
 ### 摄像头图像 (4K, 30fps, 8MB/frame)
-→ **iceoryx v2**: 零拷贝，<5ms延迟，>10GB/s吞吐
+→ **CoreIPC**: 零拷贝，<5ms延迟，>10GB/s吞吐
 
 ### LiDAR点云 (2MB/scan, 10Hz)
-→ **iceoryx v2**: <1μs延迟，实时性保证
+→ **CoreIPC**: <1μs延迟，实时性保证
 
 ### 跨ECU地图更新 (50MB, 1Hz)
 → **Native DDS**: Reliability QoS，分块传输
@@ -70,7 +70,7 @@
 
 ## 性能基准（实测）
 
-| 数据量 | iceoryx v2 | Native DDS | SOME/IP | D-Bus |
+| 数据量 | CoreIPC | Native DDS | SOME/IP | D-Bus |
 |--------|-----------|-----------|---------|-------|
 | 64B | <1μs | 10μs | 20μs | 50μs |
 | 1KB | <1μs | 15μs | 30μs | 100μs |
@@ -79,7 +79,7 @@
 
 ## 快速配置
 
-### iceoryx v2 (roudi_config.toml)
+### CoreIPC (roudi_config.toml)
 ```toml
 [general]
 version = 1
@@ -111,7 +111,7 @@ count = 100
 | Phase | Binding | 时间 | 代码量 | 优先级 |
 |-------|---------|------|--------|--------|
 | 1 | Native DDS + Bridges | 6周 | 4,200行 | ⭐⭐⭐ |
-| 2 | iceoryx v2 | 5周 | 2,200行 | ⭐⭐ |
+| 2 | CoreIPC | 5周 | 2,200行 | ⭐⭐ |
 | 3 | Custom + UDP | 3周 | 2,800行 | ⭐ |
 
 ## 相关文档

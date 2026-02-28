@@ -116,7 +116,7 @@ struct alignas(64) ServiceSlot final {
     uint32_t minor_version;
     
     // Transport binding (128 bytes)
-    char binding_type[64];   // "iceoryx2", "dds", etc.
+    char binding_type[64];   // "coreipc", "dds", etc.
     char endpoint[64];       // "shm://...", "topic://..."
     
     // Liveness (16 bytes)
@@ -183,7 +183,7 @@ mv modules/Com/source/runtime/inc/SlotAllocator.hpp \
 **Key Features:**
 - Plugin architecture: Dynamic .so loading
 - Priority-based selection:
-  - iceoryx2 (priority 100) - local IPC
+  - coreipc (priority 100) - local IPC
   - DDS (priority 80) - network
   - SOME/IP (priority 60) - automotive
   - Socket (priority 40) - fallback
@@ -202,18 +202,18 @@ mv modules/Com/source/runtime/inc/SlotAllocator.hpp \
 **Performance Targets:**
 - Target latency: < 1µs (P99)
 - Zero-copy: ✅ Shared memory
-- Lock-free: ✅ iceoryx2 v0.7.0 C++ API
+- Lock-free: ✅ CoreIPC C++17 Lock-free API
 
 **Capabilities:**
 - ✅ Event communication (pub/sub)
-- ❌ Method calls (not supported by iceoryx2)
-- ❌ Field access (not supported by iceoryx2)
+- ❌ Method calls (not supported by CoreIPC)
+- ❌ Field access (not supported by CoreIPC)
 
 **Integration Status:**
 ```cpp
 // File count: 2 files (inc/src)
-modules/Com/source/binding/iceoryx2/inc/Iceoryx2Binding.hpp
-modules/Com/source/binding/iceoryx2/src/Iceoryx2Binding.cpp
+modules/Com/source/binding/coreipc/inc/Iceoryx2Binding.hpp
+modules/Com/source/binding/coreipc/src/Iceoryx2Binding.cpp
 ```
 
 #### 4.3 DDS Binding (Phase 4)
@@ -335,7 +335,7 @@ $ find modules/Com/test -name "test_*.cpp" | wc -l
 ### Long-Term Actions (Priority 3)
 1. 📊 **Performance Benchmarking**
    - Validate < 500ns service discovery latency
-   - Measure iceoryx2 P99 latency (target: < 1µs)
+   - Measure CoreIPC P99 latency (target: < 1µs)
    - Profile DDS AF_XDP performance (target: < 15µs)
 
 2. 📚 **Documentation Improvements**
@@ -352,7 +352,7 @@ $ find modules/Com/test -name "test_*.cpp" | wc -l
 The current codebase demonstrates **100% compliance** with v3.1 architectural design for all core components:
 
 1. **Registry Layer**: Fully functional dual registry with zero-conflict slot mapping
-2. **Binding Layer**: Complete plugin architecture with iceoryx2 integration
+2. **Binding Layer**: Complete plugin architecture with CoreIPC integration
 3. **Data Structures**: Cache-optimized 256-byte ServiceSlot with seqlock
 4. **Test Coverage**: Comprehensive unit tests validating v3.1 features
 

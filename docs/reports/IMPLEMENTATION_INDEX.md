@@ -51,7 +51,7 @@ modules/Com/doc/
 
 **设计原则**:
 ```
-零Daemon + 固定槽位自注册 + iceoryx2共享内存
+零Daemon + 固定槽位自注册 + CoreIPC共享内存
 = < 500ns延迟 + 100%确定性 + 零单点故障
 ```
 
@@ -180,7 +180,7 @@ struct alignas(64) ServiceSlot {
 |-------|------|--------|---------|------|
 | **Phase 1** | Week 1-3 | 🔴 P0 | 固定槽位服务注册表 | SERVICE_DISCOVERY §2.1 |
 | **Phase 2** | Week 4-5 | 🔴 P0 | Binding Manager | 插件化架构基础 |
-| **Phase 3** | Week 6-10 | 🟡 P1 | iceoryx2 Binding | 高性能本地IPC |
+| **Phase 3** | Week 6-10 | 🟡 P1 | CoreIPC Binding | 高性能本地IPC |
 | **Phase 4** | Week 11-14 | 🟡 P1 | DDS + AF_XDP | 跨ECU高性能 |
 | **Phase 5** | Week 15-17 | 🟢 P2 | 系统优化 + Custom | 性能优化 + 遗留集成 |
 | **Phase 6** | Week 18-20 | 🟢 P2 | 集成测试 | 全功能验证 |

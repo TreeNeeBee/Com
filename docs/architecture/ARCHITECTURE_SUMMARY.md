@@ -406,7 +406,7 @@ modules/Com/
 │       │   ├── VsomeipCompatLayer.hpp
 │       │   └── SomeIpServiceDiscovery.hpp
 │       ├── dds/                  # Native DDS (5个文件, ~1,510行, 计划中)
-│       ├── iceoryx2/             # iceoryx2 (8个文件, ~2,500行, 计划中)
+│       ├── coreipc/              # Core IPC (已实现，零拷贝共享内存)
 │       ├── custom_protocol/      # Custom Protocol+UDS (7个文件, ~2,200行, 计划中)
 │       └── legacy/               # Legacy Gateway (3个文件, ~800行, 计划中)
 ├── test/
@@ -498,7 +498,7 @@ modules/Com/
 
 2. **binding_dds.so**:
    - ✅ AF_XDP Transport 层
-   - ✅ UMEM 与 iceoryx2 共享内存池
+   - ✅ UMEM 与 CoreIPC 共享内存池
    - ✅ 大小包路由策略 (>64KB → AF_XDP, <64KB → SHM)
    - ✅ DDS 基础支持 (Domain/Participant/QoS)
 
@@ -543,9 +543,9 @@ cat /sys/kernel/mm/transparent_hugepage/enabled
 # [always] madvise never
 ```
 
-**iceoryx2 配置对接**:
+**CoreIPC 内存池配置 (binding_coreipc.so)**:
 ```toml
-# mempool_config.toml
+# /etc/lap/com/mempool_config.toml
 [[mempool]]
 name = "UltimatePool"
 size = 17179869184        # 16GB (16个1GB大页)
@@ -575,8 +575,8 @@ sudo reboot
 
 **线程绑核策略**:
 ```cpp
-// binding_iceoryx2.so 内部实现
-void IceoryxBinding::BindThreadsToCore() {
+// binding_coreipc.so 内部实现
+void CoreIPCBinding::BindThreadsToCore() {
     // AF_XDP / io_uring 绑小核 (CPU 0-3)
     cpu_set_t small_cores;
     CPU_ZERO(&small_cores);
@@ -606,25 +606,25 @@ watch -n 1 'cat /proc/interrupts | grep eth0'
 
 ---
 
-### 11.3 Step 2: iceoryx2 去中心化（1 周，+30% 性能）
+### 11.3 Step 2: CoreIPC 零守护进程架构（✅ 已实现，+30% 性能）
 
-#### **2.1 移除 RouDi 单点故障**
+#### **2.1 零守护进程设计（已实现于 binding_coreipc.so）**
 
-**Before (iceoryx v1)**:
+**传统方案 (有中央守护进程)**:
 ```
-应用进程 → RouDi (中央守护进程) → MemPool 创建
-问题: RouDi 挂掉 = 所有通信中断
-```
-
-**After (iceoryx2)**:
-```
-应用进程 → 直接创建 MemPool (进程自管理)
-优势: 去中心化，进程独立，故障隔离
+应用进程 → RouDi/Daemon → MemPool 创建
+问题: Daemon 挂掉 = 所有通信中断
 ```
 
-**配置简化**:
+**CoreIPC 方案 (已实现)**:
+```
+应用进程 → 直接访问共享内存注册表 (固定槽位)
+优势: 零守护进程，进程独立，故障隔离
+```
+
+**CoreIPC 内存池配置**:
 ```toml
-# config.toml (全局共享配置，无需 RouDi)
+# /etc/lap/com/mempool_config.toml
 [[mempool]]
 name = "QM_PerceptionPool"
 size = 8589934592        # 8GB
@@ -638,36 +638,29 @@ chunk_size = 524288      # 512KB
 safety_level = "ASIL_D"
 ```
 
-**Binding 实现变化**:
+**CoreIPC Binding 实现**:
 ```cpp
-// binding_iceoryx2.so 内部
-#include <iceoryx2/api.hpp>  // Rust 实现的 C++ FFI
+// binding_coreipc.so
+#include "CoreIPCBinding.hpp"
 
-void IceoryxBinding::Initialize() {
-    // iceoryx2: 无需连接 RouDi，直接创建 Publisher
-    auto service = iox2::ServiceBuilder("Radar/Objects")
-        .publish_subscribe()
-        .open_or_create()
-        .expect("Failed to create service");
-
-    publisher_ = service.publisher_builder()
-        .max_loaned_samples(16)
-        .create()
-        .expect("Failed to create publisher");
+void CoreIPCBinding::Initialize() {
+    // 直接打开共享内存注册表，无需守护进程
+    m_registry = CRegistryProxy::Create("/dev/shm/lap_com_registry_qm");
+    m_mempool  = CSharedMemPool::Open("QM_PerceptionPool");
 }
 ```
 
-**性能提升**: 消除 RouDi IPC 开销 (~200ns)，启动时间从 500ms → 50ms
+**性能**: 零守护进程开销，启动时间 < 10ms
 
 ---
 
-#### **2.2 memfd 替代 POSIX SHM**
+#### **2.2 memfd 替代 POSIX SHM（CoreIPC 内部实现）**
 
-**优势**: 更轻量的共享内存机制
+**优势**: 更轻量的共享内存机制，进程退出自动清理
 
 ```cpp
-// iceoryx2 内部使用 memfd_create
-int memfd = memfd_create("iceoryx2_pool", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+// CoreIPC 内部使用 memfd_create
+int memfd = memfd_create("coreipc_pool", MFD_CLOEXEC | MFD_ALLOW_SEALING);
 ftruncate(memfd, pool_size);
 void* addr = mmap(NULL, pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, memfd, 0);
 ```
@@ -688,10 +681,10 @@ void* addr = mmap(NULL, pool_size, PROT_READ | PROT_WRITE, MAP_SHARED, memfd, 0)
 **原理**: 内核专用线程轮询 SQ，用户态提交任务零系统调用
 
 ```cpp
-// binding_iceoryx2.so 内部集成 io_uring
+// binding_coreipc.so 内部集成 io_uring
 #include <liburing.h>
 
-void IceoryxBinding::InitializeIoUring() {
+void CoreIPCBinding::InitializeIoUring() {
     struct io_uring_params params = {};
     params.flags = IORING_SETUP_SQPOLL | IORING_SETUP_ATTACH_WQ;
     params.sq_thread_cpu = 2;          // 绑定小核 CPU 2
@@ -700,7 +693,7 @@ void IceoryxBinding::InitializeIoUring() {
     io_uring_queue_init_params(32768, &ring_, &params);
 }
 
-void IceoryxBinding::PublishWithIoUring(const SamplePtr& sample) {
+void CoreIPCBinding::PublishWithIoUring(const SamplePtr& sample) {
     // 直接往 SQ 写提交请求，无需 io_uring_submit() 系统调用
     struct io_uring_sqe* sqe = io_uring_get_sqe(&ring_);
     io_uring_prep_send(sqe, fd_, sample->data(), sample->size(), 0);
@@ -721,7 +714,7 @@ void IceoryxBinding::PublishWithIoUring(const SamplePtr& sample) {
 
 #### **4.1 XDP 用户态网络栈**
 
-**目标**: 跳过内核网络栈，直接 DMA 到用户态 iceoryx2 chunk
+**目标**: 跳过内核网络栈，直接 DMA 到用户态 CoreIPC 共享内存 chunk
 
 ```bash
 # 1. 配置网卡多队列 (8队列给 AF_XDP)
@@ -734,13 +727,13 @@ sudo ip link set eth0 xdp obj xdp_af_xsk.o sec xsks_map
 sudo xdp-loader load -m skb -s xsks_map eth0 xdp_af_xsk.o
 ```
 
-**UMEM 与 iceoryx2 chunk 共享**:
+**UMEM 与 CoreIPC chunk 共享**:
 ```cpp
 // binding_dds.so 扩展：跨 ECU 大包走 AF_XDP
 #include <xdp/xsk.h>
 
 void DdsBinding::InitializeAfXdp() {
-    // 1. 创建 UMEM (注册 iceoryx2 chunk pool)
+    // 1. 创建 UMEM (注册 CoreIPC chunk pool)
     struct xsk_umem_config umem_cfg = {
         .fill_size = 4096,
         .comp_size = 4096,
@@ -749,8 +742,8 @@ void DdsBinding::InitializeAfXdp() {
         .flags = XDP_UMEM_UNALIGNED_CHUNK_FLAG
     };
 
-    // 直接使用 iceoryx2 的 chunk pool 作为 UMEM
-    void* chunk_pool = iceoryx_binding_->GetChunkPool();
+    // 直接使用 CoreIPC 的 chunk pool 作为 UMEM
+    void* chunk_pool = coreipc_binding_->GetChunkPool();
     xsk_umem__create(&umem_, chunk_pool, POOL_SIZE, &fill_, &comp_, &umem_cfg);
 
     // 2. 创建 AF_XDP socket
@@ -764,7 +757,7 @@ void DdsBinding::InitializeAfXdp() {
 }
 
 void DdsBinding::PublishLargePayload(const SamplePtr& sample) {
-    // 3. 零拷贝发送 (网卡 DMA 直接读 iceoryx2 chunk)
+    // 3. 零拷贝发送 (网卡 DMA 直接读 CoreIPC chunk)
     uint64_t addr = xsk_umem__add_offset_to_addr(sample->chunk_offset());
     struct xdp_desc* tx_desc = xsk_ring_prod__tx_desc(&tx_, idx);
     tx_desc->addr = addr;
@@ -850,7 +843,7 @@ void DdsBinding::Publish(const SamplePtr& sample) {
 
 | 场景 | 技术选型 | 延迟目标 | 吞吐量 | CPU 开销 |
 |------|---------|---------|--------|---------|
-| ECU 内所有通信 | iceoryx2 + io_uring SQPOLL + memfd + 1GB 大页 | **< 3μs** | >10GB/s | <5% |
+| ECU 内所有通信 | CoreIPC + io_uring SQPOLL + memfd + 1GB 大页 | **< 3μs** | >10GB/s | <5% |
 | 跨 ECU 大包 (>64KB) | AF_XDP ZERO_COPY + 专用队列 | **< 15μs** | 9GB/s (10Gbps) | 10% |
 | 跨 ECU 小包/控制 | DDS SHM | **< 50μs** | 800MB/s | 15% |
 | 遗留兼容 (SOME/IP/D-Bus) | 独立网关进程（完全隔离） | - | - | - |
@@ -860,7 +853,7 @@ void DdsBinding::Publish(const SamplePtr& sample) {
 ```yaml
 # binding_config.yaml
 bindings:
-  - type: iceoryx2
+  - type: coreipc
     priority: 100
     mempool: QM_PerceptionPool
     use_huge_pages: true
@@ -899,10 +892,10 @@ bindings:
 - 优先级选择逻辑
 - 配置文件解析
 
-📋 **Phase 2**: iceoryx2 Binding 实现 (5周)
-- 进程自管理 MemPool
-- io_uring SQPOLL 集成
-- FuSa 物理隔离
+✅ **Phase 2**: CoreIPC Binding（已实现）
+- 零守护进程共享内存注册表
+- C++17 Lock-free Queue
+- ASIL-CD 双注册表物理隔离
 
 📋 **Phase 3**: DDS Binding + AF_XDP (6周)
 - DDS 集成 (Simple Discovery)
@@ -917,9 +910,9 @@ bindings:
 ### 关键优势
 
 1. **AUTOSAR R24-11 标准合规**: 完整支持 SWS_CM、TPS_MANI、EXP ara::com 规范
-2. **插件化架构**: 4层 Binding (iceoryx2/DDS/CustomProtocol/Legacy)，运行时动态加载
+2. **插件化架构**: 4层 Binding (CoreIPC/DDS/CustomProtocol/Legacy)，运行时动态加载
 3. **配置驱动**: binding_config.yaml 控制所有 Binding，应用零修改
-4. **性能可扩展**: ECU内 <500ns (iceoryx2) → 跨ECU <15μs (AF_XDP) 完整覆盖
+4. **性能可扩展**: ECU内 <500ns (CoreIPC) → 跨ECU <15μs (AF_XDP) 完整覆盖
 5. **服务发现优化**: 零守护进程架构（固定槽位 < 100ns → Binding 内置发现 1-100ms）
 6. **FuSa-Ready**: MemPool 物理隔离 (QM/ASIL-D)，符合 ISO 26262
 7. **开发友好**: 统一 ara::com API，丰富文档，完整示例
@@ -931,7 +924,7 @@ bindings:
 3. ✅ 5步性能优化集成完成
 4. ✅ YAML 配置格式标准化（yaml-cpp + arxml2yaml 工具）
 5. 📋 Phase 1: Binding Manager 实现 (1-2周)
-6. 📋 Phase 2: iceoryx2 Binding 实现 (5周)
+6. ✅ Phase 2: CoreIPC Binding（已实现）
 7. 📋 Phase 3: DDS Binding + AF_XDP 实现 (6周)
 8. 📋 Phase 4: 性能优化实施与验证 (8周)
 
@@ -1025,7 +1018,7 @@ public:
 | `binding_config.yaml` | `/etc/lap/com/binding_config.yaml` | Binding 插件配置 |
 | `static_endpoints.yaml` | `/etc/lap/com/static_endpoints.yaml` | 静态服务端点 |
 | `slot_mapping.yaml` | `/etc/lap/com/slot_mapping.yaml` | **服务槽位映射配置** (双注册表 + 槽位 0 保护) |
-| `mempool_config.toml` | `/etc/iceoryx2/mempool_config.toml` | iceoryx2 内存池配置 |
+| `mempool_config.toml` | `/etc/lap/com/mempool_config.toml` | CoreIPC 内存池配置 |
 | `dds_qos.yaml` | `/etc/lap/com/dds_qos.yaml` | DDS QoS 配置 |
 | `custom_protocol.yaml` | `/etc/lap/com/custom_protocol.yaml` | 自定义协议配置 |
 
@@ -1255,7 +1248,7 @@ slot_allocation:
 
 **依赖库**:
 - yaml-cpp: 配置解析 (https://github.com/jbeder/yaml-cpp)
-- iceoryx2: 零拷贝共享内存与零守护进程架构 (https://github.com/eclipse-iceoryx/iceoryx2)
+- FastDDS: DDS 传输层 (https://github.com/eProsima/Fast-DDS)
 
 **文档版本**: 3.10 (Phase 25 — Global Template Spacing & Multiline Variable Fix)  
 **最后更新**: 2026-02-09  

@@ -135,8 +135,8 @@ enum class BindingPriority : uint32_t
 ```yaml
 # 插件列表
 bindings:
-  - name: iceoryx2
-    library: /usr/lib/lap/com/binding_iceoryx2.so
+  - name: coreipc
+    library: /usr/lib/lap/com/binding_coreipc.so
     priority: 100
     enabled: true
     parameters:
@@ -155,7 +155,7 @@ bindings:
 static_mappings:
   - service_id: "0xF001"  # 高优先级服务
     instance_id: "0x0001"
-    binding: iceoryx2
+    binding: coreipc
     
   - service_id: "0x1234"  # 远程服务
     binding: dds           # instance_id=0 表示所有实例
@@ -364,7 +364,7 @@ std::map<std::string, TransportMetrics> BindingManager::GetAllMetrics() const no
 **使用示例**:
 ```cpp
 // 获取单个绑定指标
-auto metrics = manager.GetBindingMetrics("iceoryx2");
+auto metrics = manager.GetBindingMetrics("coreipc");
 if (metrics.has_value())
 {
     std::cout << "平均延迟: " << metrics.value().avg_latency_ns << " ns\n";
@@ -540,7 +540,7 @@ Optional<uint32_t> BindingManager::GetBindingPriority(
 **应用示例**:
 ```cpp
 // 检查是否支持零拷贝
-if (manager.SupportsZeroCopy("iceoryx2"))
+if (manager.SupportsZeroCopy("coreipc"))
 {
     // 使用零拷贝优化路径
 }
@@ -587,12 +587,12 @@ LAP_COM_LOG_DEBUG << "Selected binding '" << binding->GetName()
 ```
 [INFO ] BindingManager: Loading binding configuration from: /etc/lap/bindings.yaml
 [INFO ] BindingManager: Found 5 binding configurations in YAML
-[INFO ] Loading binding: name=iceoryx2, library=/usr/lib/lap/com/binding_iceoryx2.so
-[INFO ] Successfully loaded binding 'iceoryx2' with priority 100
+[INFO ] Loading binding: name=coreipc, library=/usr/lib/lap/com/binding_coreipc.so
+[INFO ] Successfully loaded binding 'coreipc' with priority 100
 [INFO ] Loading binding: name=dds, library=/usr/lib/lap/com/binding_dds.so
 [INFO ] Successfully loaded binding 'dds' with priority 80
 [INFO ] Binding manager initialization complete. Loaded 5 bindings
-[DEBUG] Selected binding 'iceoryx2' (priority=100) for service 0xF001
+[DEBUG] Selected binding 'coreipc' (priority=100) for service 0xF001
 ```
 
 ---
@@ -677,7 +677,7 @@ target_link_libraries(lap_com_binding_manager
 8. **性能基准测试** - 验证选择延迟 < 100ns
 
 ### 低优先级 (Phase 3)
-9. **iceoryx2 Binding 实现** - 零拷贝 IPC 插件
+9. **CoreIPC Binding 实现** - 零拷贝 IPC 插件
 10. **监控仪表板** - 可视化绑定健康/性能
 11. **自动故障切换** - 基于健康检查的自动切换
 12. **配置验证器** - YAML schema 验证

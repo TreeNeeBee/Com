@@ -155,7 +155,7 @@ namespace lap::com {
 
 **实施优先级调整**:
 - 🔴 P0: 固定槽位注册表 + Binding Manager（核心架构）
-- 🟡 P1: iceoryx2 + DDS Binding（高性能通信）
+- 🟡 P1: CoreIPC + DDS Binding（高性能通信）
 - 🟢 P2: 系统优化 + Custom Protocol（最后实施）
 
 ---
@@ -168,7 +168,7 @@ namespace lap::com {
 |------|------|---------|---------|
 | **Phase 1: 固定槽位服务注册表** | ✅ **完成** | 2025-11-20 | SERVICE_DISCOVERY_ARCHITECTURE.md |
 | **Phase 2: Binding Manager** | ✅ **完成** | 2025-11-21 | PHASE2_COMPLETE_FEATURES.md |
-| **Phase 3: iceoryx2 Binding** | ✅ **完成** | 2025-11-23 | BINDING_STANDARDIZATION_STATUS.md |
+| **Phase 3: CoreIPC Binding** | ✅ **完成** | 2025-11-23 | BINDING_STANDARDIZATION_STATUS.md |
 | **Phase 4: DDS + AF_XDP** | 🔄 **进行中** | 2025-11-23 启动 | PHASE4_DDS_IMPLEMENTATION_STATUS.md |
 
 ### Phase 3 详细进度 ✅ 100% 完成
@@ -179,7 +179,7 @@ namespace lap::com {
 |--------|------|------|
 | ITransportBinding 接口定义 | ✅ 完成 | 18个方法，100% AUTOSAR 标准 |
 | Iceoryx2Binding 框架实现 | ✅ 完成 | 完整的接口实现 |
-| iceoryx2 C FFI 集成 | ✅ 完成 | 使用 v0.7.0 API |
+| CoreIPC API 集成 | ✅ 完成 | 使用 v0.7.0 API |
 | 配置参数化 | ✅ 完成 | Iceoryx2Config 结构体 |
 | 多尺寸消息验证 | ✅ 完成 | 1B-1024B 测试通过 |
 | Binding 标准化接口 | ✅ 完成 | 100% 符合 ITransportBinding |
@@ -188,7 +188,7 @@ namespace lap::com {
 | **集成测试** | ✅ **完成** | **3个测试全部通过（414ms）** |
 
 **最近成果** (2025-11-23):
-- ✅ 创建 iceoryx2 集成测试（test_iceoryx2_binding_manager_integration）
+- ✅ 创建 CoreIPC 集成测试（test_coreipc_binding_manager_integration）
 - ✅ 测试1：DirectBindingCreation - 通过 (2ms)
 - ✅ 测试2：CompletePubSubFlow - 通过 (204ms, 10/10消息)
 - ✅ 测试3：PerformanceMetrics - 通过 (207ms, 20/20消息)
@@ -266,7 +266,7 @@ namespace lap::com {
 2. [实施路线图](#2-实施路线图)
 3. [Phase 1: 固定槽位服务注册表](#3-phase-1-固定槽位服务注册表)
 4. [Phase 2: Binding Manager](#4-phase-2-binding-manager)
-5. [Phase 3: iceoryx2 Binding](#5-phase-3-iceoryx2-binding)
+5. [Phase 3: CoreIPC Binding](#5-phase-3-coreipc-binding)
 6. [Phase 4: DDS + AF_XDP](#6-phase-4-dds--af_xdp)
 7. [Phase 5: 系统优化 + Custom Protocol](#7-phase-5-系统优化--custom-protocol)
 8. [验收标准](#8-验收标准)
@@ -410,7 +410,7 @@ ASIL-CD Registry: /dev/shm/lap_com_registry_asil (256KB, 1024 slots, 权限 0640
 
 ### 任务目标
 
-完成 iceoryx2 Binding 与标准 ITransportBinding 接口的完全对接，确保：
+完成 CoreIPC Binding 与标准 ITransportBinding 接口的完全对接，确保：
 1. ✅ 符合 AUTOSAR R24-11 标准接口规范
 2. ✅ 正确实现所有必需方法
 3. ✅ 提供完整的能力查询接口
@@ -421,7 +421,7 @@ ASIL-CD Registry: /dev/shm/lap_com_registry_asil (256KB, 1024 slots, 权限 0640
 **现有实现**:
 - ✅ `ITransportBinding.hpp` - 标准接口定义（375行）
 - ✅ `Iceoryx2Binding.hpp/cpp` - 完整框架实现（600+行）
-- ✅ iceoryx2 C FFI API 集成（v0.7.0）
+- ✅ CoreIPC API 集成
 - ✅ Publisher/Subscriber 实现
 - ✅ Event-Driven 架构（epoll + 监听线程）
 - ✅ 配置参数化（Iceoryx2Config）
@@ -460,11 +460,11 @@ ASIL-CD Registry: /dev/shm/lap_com_registry_asil (256KB, 1024 slots, 权限 0640
 ```cpp
 Result<BindingCapabilities> Iceoryx2Binding::GetCapabilities() const noexcept {
     BindingCapabilities caps;
-    caps.name = "iceoryx2";
+    caps.name = "coreipc";
     caps.priority = 100;
     caps.supports_zero_copy = true;
     caps.supports_event = true;
-    caps.supports_method = false;  // iceoryx2 不支持 RPC
+    caps.supports_method = false;  // CoreIPC 不支持 RPC
     caps.supports_field = false;
     caps.max_payload_size = config_.max_payload_size;
     caps.scope = TransportScope::LOCAL;  // 仅本地通信
@@ -526,9 +526,9 @@ struct PerformanceMetrics {
 #### Step 5: 集成测试 (2小时)
 
 **测试内容**:
-- [ ] 创建 `test_iceoryx2_binding_manager_integration.cpp`
-- [ ] 测试 BindingManager 动态加载 iceoryx2 插件
-- [ ] 测试优先级选择（iceoryx2 应为本地通信首选）
+- [ ] 创建 `test_coreipc_binding_manager_integration.cpp`
+- [ ] 测试 BindingManager 动态加载 CoreIPC 插件
+- [ ] 测试优先级选择（CoreIPC | Core IPC (实际)应为本地通信首选）
 - [ ] 测试完整的 Offer -> Subscribe -> Send -> Receive 流程
 - [ ] 验证 Shutdown 清理正确
 
@@ -537,17 +537,17 @@ struct PerformanceMetrics {
 TEST(Iceoryx2Integration, BindingManagerLoadAndSelect) {
     BindingManager manager;
     
-    // 1. 加载 iceoryx2 binding
+    // 1. 加载 CoreIPC binding
     BindingConfig config;
-    config.name = "iceoryx2";
-    config.library_path = "./binding_iceoryx2.so";
+    config.name = "coreipc";
+    config.library_path = "./binding_coreipc.so";
     config.priority = 100;
     ASSERT_TRUE(manager.LoadBinding(config).IsSuccess());
     
     // 2. 选择 binding
     auto binding = manager.SelectBinding(SERVICE_LOCAL, INSTANCE_1);
     ASSERT_NE(binding, nullptr);
-    ASSERT_EQ(binding->GetName(), "iceoryx2");
+    ASSERT_EQ(binding->GetName(), "coreipc");
     
     // 3. 测试通信
     binding->OfferService(SERVICE_LOCAL, INSTANCE_1);
@@ -594,7 +594,7 @@ TEST(Iceoryx2Integration, BindingManagerLoadAndSelect) {
            ┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
 Phase 1    │███████████│          │          │          │          │          │ 固定槽位服务注册表
 Phase 2    │          │██████████│          │          │          │          │ Binding Manager
-Phase 3    │          │          │███████████████████████          │          │ iceoryx2 Binding
+Phase 3    │          │          │███████████████████████          │          │ CoreIPC Binding
 Phase 4    │          │          │          │████████████████████████          │ DDS + AF_XDP
 Phase 5    │          │          │          │          │          │████████████ 系统优化+Custom
 测试验证   │      ████████      ████████      ████████      ████████      ████████ 持续测试
@@ -607,7 +607,7 @@ Phase 5    │          │          │          │          │          │�
 |--------|------|--------|---------|
 | **M1** | Week 3 | 双注册表 + seqlock | 发现延迟 < 500ns |
 | **M2** | Week 5 | Binding Manager | 4个Binding动态加载 |
-| **M3** | Week 10 | iceoryx2 Binding | IPC延迟 < 1µs |
+| **M3** | Week 10 | CoreIPC Binding | IPC延迟 < 1µs |
 | **M4** | Week 14 | DDS + AF_XDP | 跨ECU延迟 < 15µs |
 | **M5** | Week 17 | 系统优化 | CPU占用 < 1% |
 | **M6** | Week 20 | Custom Protocol + 完整测试 | 全功能验证 |
@@ -620,7 +620,7 @@ Phase 5    │          │          │          │          │          │�
 
 **设计依据**: `SERVICE_DISCOVERY_ARCHITECTURE.md` §2.1 核心数据结构
 
-实现完全去中心化的服务注册表，基于iceoryx2共享内存，达到：
+实现完全去中心化的服务注册表，基于CoreIPC共享内存，达到：
 - ✅ 服务发现延迟 < 500ns (P99)
 - ✅ 零Daemon架构（无RouDi/无守护进程）
 - ✅ O(1) 查找复杂度（固定槽位映射）
@@ -648,7 +648,7 @@ struct alignas(64) ServiceSlot {  // Cache line对齐
     uint32_t minor_version;          // 次版本号
     
     // === 网络端点 (96 bytes) ===
-    char binding_type[16];           // "iceoryx2", "dds", "someip"
+    char binding_type[16];           // "coreipc", "dds", "someip"
     char endpoint[80];               // IP:Port / Topic / Service Name
     
     // === 生命周期控制 (24 bytes) ===
@@ -850,7 +850,7 @@ private:
 
 ---
 
-## 5. Phase 3: iceoryx2 Binding
+## 5. Phase 3: CoreIPC Binding
 
 （与原方案保持一致，略）
 

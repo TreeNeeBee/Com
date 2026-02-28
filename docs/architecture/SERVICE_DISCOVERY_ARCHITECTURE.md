@@ -7,7 +7,7 @@
 - **标准**: AUTOSAR AP R24-11 (November 2024)
 - **命名空间**: lap::com (100% 兼容 AUTOSAR ara::com)
 - **架构特性**: 
-  - 零 Daemon + 固定槽位 + iceoryx2 共享内存 + seqlock + 心跳
+  - 零 Daemon + 固定槽位 + CoreIPC 共享内存 + seqlock + 心跳
   - **双层 IDL 设计**: Franca IDL (SSOT) → AUTOSAR API + DDS IDL
   - 强制版本一致性验证 (Schema Hash + TypeIdentifier)
   - QoS 独立配置 (YAML)
@@ -15,7 +15,7 @@
 - **基准文档**:
   - AUTOSAR_AP_SWS_CommunicationManagement.pdf
   - AUTOSAR_AP_SWS_NetworkManagement.pdf
-  - iceoryx2 Architecture & Design
+  - CoreIPC Architecture & Design
   - Franca IDL Specification
 - **状态**: 设计完成 (生产就绪)
 
@@ -65,7 +65,7 @@
         - [1. CPU 缓存优化](#1-cpu-缓存优化)
         - [2. NUMA 感知](#2-numa-感知)
         - [3. Lock-free 心跳](#3-lock-free-心跳)
-    - [2.5 与 iceoryx2 数据通信集成](#25-与-iceoryx2-数据通信集成)
+    - [2.5 与 CoreIPC 数据通信集成](#25-与-coreipc-数据通信集成)
   - [第 3 章: 核心组件设计](#第-3-章-核心组件设计)
     - [3.1 ServiceRegistry (服务注册表)](#31-serviceregistry-服务注册表)
       - [3.1.1 数据结构](#311-数据结构)
@@ -78,7 +78,7 @@
     - [3.3 FindServiceHandlerManager (回调管理器)](#33-findservicehandlermanager-回调管理器)
   - [第 4 章: Transport Binding 适配](#第-4-章-transport-binding-适配)
     - [4.1 ITransportBinding 接口](#41-itransportbinding-接口)
-    - [4.2 iceoryx2 Binding 服务发现（零拷贝优化）](#42-iceoryx2-binding-服务发现零拷贝优化)
+    - [4.2 CoreIPC Binding 服务发现（零拷贝优化）](#42-coreipc-binding-服务发现零拷贝优化)
       - [4.2.1 OfferService 实现](#421-offerservice-实现)
       - [4.2.2 FindService 实现（零拷贝访问）](#422-findservice-实现零拷贝访问)
     - [4.3 DDS Binding 服务发现](#43-dds-binding-服务发现)
@@ -175,7 +175,7 @@
 
 传统服务发现方案存在以下问题：
 
-1. **Daemon 依赖**: RouDi (iceoryx v1) / systemd-resolved / avahi-daemon 等守护进程
+1. **Daemon 依赖**: RouterDaemon (传统守护进程) / systemd-resolved / avahi-daemon 等守护进程
    - 单点故障风险
    - 启动顺序依赖
    - 额外的进程调度开销
@@ -190,7 +190,7 @@
 **本架构突破性创新**：
 
 ```text
-零 Daemon + 固定槽位自注册 + iceoryx2 共享内存
+零 Daemon + 固定槽位自注册 + CoreIPC 共享内存
 = < 500ns 延迟 + 100% 确定性 + 零单点故障
 ```
 
@@ -205,7 +205,7 @@
   - 强制版本一致性验证 (Schema Hash + TypeIdentifier)
   - QoS 独立配置 (YAML)，不污染 IDL
   - DDS 类型完全隔离，应用层零依赖
-- ✅ **共享内存**: iceoryx2 提供 memfd + 1GB 大页 + 权限管理
+- ✅ **共享内存**: CoreIPC 提供 memfd + 1GB 大页 + 权限管理
 - ✅ **Lock-Free**: seqlock 无锁读取，原子写入
 - ✅ **心跳机制**: 进程级生命周期检测
 - ✅ **FuSa 就绪**: Guard page + 权限隔离 + QM/ASIL 物理分离
@@ -310,7 +310,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
                           ↓ (底层共享内存管理)
 ┌──────────────────────────────────────────────────────────────────────────┐
-│          iceoryx2 底层能力 (进程自管理，零 Daemon)                         │
+│          CoreIPC 底层能力 (进程自管理，零 Daemon)                         │
 │  ┌──────────────────────────────────────────────────────────────────────┐│
 │  │ 双注册表物理隔离 (QM+AB Registry + ASIL-CD Registry)                 ││
 │  │  ┌─────────────────────────────────────────────────────────────────┐ ││
@@ -350,7 +350,7 @@
 │  └──────────────────────────────────────────────────────────────────────┘│
 └──────────────────────────────────────────────────────────────────────────┘
 
-         ❌ 无 RouDi (iceoryx v1 守护进程)
+         ❌ 无 RouDi (传统守护进程模式)
          ❌ 无 Discovery Server (DDS 守护进程)  
          ❌ 无任何中央守护进程
          ✅ 完全去中心化
@@ -393,7 +393,7 @@
    - 符合 AUTOSAR SWS_CM_02201 静态服务连接
 
 2. **Layer 2: 共享内存注册表** (< 500ns，运行时动态):
-   - 直接读取 iceoryx2 共享内存槽位
+   - 直接读取 CoreIPC 共享内存槽位
    - Lock-free seqlock 保证原子性
    - 心跳机制确保服务活性
    - **无需任何网络/IPC 通信**
@@ -735,26 +735,26 @@ struct alignas(64) ServiceSlot {  // 64字节对齐，匹配 CPU Cache Line
     uint32_t major_version;          ///< [24-27] 主版本号 (SWS_CM_00300)
     uint32_t minor_version;          ///< [28-31] 次版本号 (SWS_CM_00300)
     
-    // ========== iceoryx2 零拷贝端点信息 (32 bytes) ==========
-    uint64_t endpoint_offset;        ///< [32-39] iceoryx2 服务在共享内存的 chunk offset
+    // ========== CoreIPC 零拷贝端点信息 (32 bytes) ==========
+    uint64_t endpoint_offset;        ///< [32-39] CoreIPC 服务在共享内存的 chunk offset
                                      ///<   用途: 直接定位到 Publisher/Subscriber 的元数据区
                                      ///<   零拷贝！避免端点字符串拷贝和解析
-    uint64_t mempool_base_ptr;       ///< [40-47] iceoryx2 mempool 基址（虚拟地址）
+    uint64_t mempool_base_ptr;       ///< [40-47] CoreIPC mempool 基址（虚拟地址）
                                      ///<   用途: 跨进程验证，防止地址空间冲突
                                      ///<   注: 仅用于调试/验证，实际访问使用相对 offset
-    uint32_t qos_profile;            ///< [48-51] QoS 配置标志位（iceoryx2 专用）
+    uint32_t qos_profile;            ///< [48-51] QoS 配置标志位（CoreIPC 专用）
                                      ///<   bit[0-7]:   reliability (0=best_effort, 1=reliable)
                                      ///<   bit[8-15]:  history depth (0-255)
                                      ///<   bit[16-23]: max_channels (0=unlimited, 1-255=limit)
                                      ///<   bit[24-31]: 预留
     uint32_t subscriber_count;       ///< [52-55] 当前订阅者数量（实时统计）
                                      ///<   用途: 监控/调试，判断服务是否有消费者
-                                     ///<   更新: Publisher 定期通过 iceoryx2 API 查询并更新
+                                     ///<   更新: Publisher 定期通过 CoreIPC API 查询并更新
     
     // ========== 通用网络端点信息 (64 bytes) ==========
-    char binding_type[16];           ///< [56-71] 绑定类型: "iceoryx2", "someip", "dds"
+    char binding_type[16];           ///< [56-71] 绑定类型: "coreipc", "someip", "dds"
     char endpoint[48];               ///< [72-119] 备用端点地址（仅 SOME/IP/DDS 使用）
-                                     ///<   - iceoryx2: 留空（使用 endpoint_offset）
+                                     ///< - coreipc: 留空（使用 endpoint_offset）
                                      ///<   - SOME/IP: "192.168.1.100:30500"
                                      ///<   - DDS: "topic_name"
     
@@ -779,7 +779,7 @@ struct alignas(64) ServiceSlot {  // 64字节对齐，匹配 CPU Cache Line
     // 总大小: 256 bytes = 4 × 64-byte Cache Lines
     // 内存布局优化：
     //   - 热数据 (sequence, service_id, instance_id): 第1个 Cache Line (0-63)
-    //   - iceoryx2 端点 (endpoint_offset, mempool_base_ptr, qos): 第2个 Cache Line (64-127)
+    //   - CoreIPC 端点 (endpoint_offset, mempool_base_ptr, qos): 第2个 Cache Line (64-127)
     //   - 生命周期 (heartbeat, status, owner_pid): 第2个 Cache Line 尾部 (120-143)
     //   - 冷数据 (metadata, crc32, padding): 第3-4个 Cache Line (144-255)
 };
@@ -787,15 +787,15 @@ static_assert(sizeof(ServiceSlot) == 256, "ServiceSlot must be 256 bytes");
 static_assert(alignof(ServiceSlot) == 64, "ServiceSlot must be 64-byte aligned");
 ```
 
-**iceoryx2 Binding 专用字段说明**：
+**CoreIPC Binding 专用字段说明**：
 
 1. ✅ **endpoint_offset** (零拷贝核心)
-   - **作用**: 直接指向 iceoryx2 服务在共享内存的元数据位置
+   - **作用**: 直接指向 CoreIPC 服务在共享内存的元数据位置
    - **优势**: 避免 endpoint 字符串解析，O(1) 直接访问
    - **示例**: `offset = 0x1A2B3C` → 直接 mmap 到该地址读取 Publisher 配置
 
 2. ✅ **mempool_base_ptr** (安全验证)
-   - **作用**: 记录 iceoryx2 mempool 的虚拟基址
+   - **作用**: 记录 CoreIPC mempool 的虚拟基址
    - **用途**: 跨进程验证地址空间一致性，防止错误访问
    - **注意**: 仅用于验证，实际访问使用 `base + endpoint_offset`
 
@@ -811,7 +811,7 @@ static_assert(alignof(ServiceSlot) == 64, "ServiceSlot must be 64-byte aligned")
 
 4. ✅ **subscriber_count** (运行时监控)
    - **作用**: 实时统计当前订阅者数量
-   - **更新**: Publisher 每次心跳时通过 iceoryx2 API 更新
+   - **更新**: Publisher 每次心跳时通过 CoreIPC API 更新
    - **用途**:
      - 判断服务是否被消费（0 = 无订阅者，可能浪费资源）
      - 调试服务发现问题
@@ -822,7 +822,7 @@ static_assert(alignof(ServiceSlot) == 64, "ServiceSlot must be 64-byte aligned")
 1. ✅ **Cache Line 对齐**: 64字节对齐，避免 False Sharing
 2. ✅ **固定大小**: 256字节，方便槽位地址计算 (`slot_addr = base + index * 256`)
 3. ✅ **热数据前置**: 高频访问字段放在前面，提升 Cache 命中率
-4. ✅ **iceoryx2 优化**: endpoint_offset 实现零拷贝服务发现
+4. ✅ **CoreIPC 优化**: endpoint_offset 实现零拷贝服务发现
 5. ✅ **seqlock 无锁**: 读者无锁并发访问，零竞争
 6. ✅ **安全增强**: CRC32 + write_counter 支持 ASIL-C/D 级别安全需求
 7. ✅ **灵活扩展**: metadata 字段支持 JSON 格式自定义元数据
@@ -2256,9 +2256,9 @@ std::atomic<uint64_t> last_heartbeat_ns;
 last_heartbeat_ns.store(now_ns, std::memory_order_relaxed);
 ```
 
-### 2.5 与 iceoryx2 数据通信集成
+### 2.5 与 CoreIPC 数据通信集成
 
-**重要**: 本注册表仅用于服务发现，数据传输仍使用 iceoryx2 本身的零拷贝机制。
+**重要**: 本注册表仅用于服务发现，数据传输仍使用 CoreIPC 本身的零拷贝机制。
 
 **集成方式**：
 
@@ -2266,22 +2266,22 @@ last_heartbeat_ns.store(now_ns, std::memory_order_relaxed);
 // 1. OfferService: 注册服务到共享内存槽位
 auto offer_result = OfferService<RadarService>(instance_spec);
 
-// 槽位中记录 iceoryx2 服务名称:
-// slot.binding_type = "iceoryx2"
+// 槽位中记录 CoreIPC 服务名称:
+// slot.binding_type = "coreipc"
 // slot.endpoint = "/perception/radar_front"
 
-// 2. FindService: 从槽位读取 iceoryx2 服务名称
+// 2. FindService: 从槽位读取 CoreIPC 服务名称
 auto handles = FindService<RadarService>();
 // handles[0].endpoint = "/perception/radar_front"
 
-// 3. iceoryx2 Binding: 使用服务名称创建 Publisher/Subscriber
-auto publisher = iceoryx2::Publisher::new(
+// 3. CoreIPC Binding: 使用服务名称创建 Publisher/Subscriber
+auto publisher = coreipc::Publisher::create(
     ServiceName::new("/perception/radar_front"));
 
-auto subscriber = iceoryx2::Subscriber::new(
+auto subscriber = coreipc::Subscriber::create(
     ServiceName::new("/perception/radar_front"));
 
-// 4. 数据传输: iceoryx2 零拷贝（本注册表不参与）
+// 4. 数据传输: CoreIPC 零拷贝（本注册表不参与）
 publisher.loan().unwrap().write(&radar_data).send();
 ```
 
@@ -2290,7 +2290,7 @@ publisher.loan().unwrap().write(&radar_data).send();
 | 层次 | 职责 | 技术 |
 |------|------|------|
 | 服务发现 | 服务注册/查找 | 本注册表 (共享内存槽位) |
-| 数据传输 | 零拷贝 Pub/Sub | iceoryx2 原生机制 |
+| 数据传输 | 零拷贝 Pub/Sub | CoreIPC 原生机制 |
 
 ---
 
@@ -2713,9 +2713,9 @@ public:
 } // namespace lap::com::runtime
 ```
 
-### 4.2 iceoryx2 Binding 服务发现（零拷贝优化）
+### 4.2 CoreIPC Binding 服务发现（零拷贝优化）
 
-**核心设计**: iceoryx2 服务通过固定槽位注册表直接管理，无需传统服务发现协议。
+**核心设计**: CoreIPC 服务通过固定槽位注册表直接管理，无需传统服务发现协议。
 
 #### 4.2.1 OfferService 实现
 
@@ -2726,7 +2726,7 @@ public:
         const InstanceIdentifier& instance_id,
         const ServiceInterfaceInfo& interface_info
     ) override {
-        // 1. 创建 iceoryx2 Publisher
+        // 1. 创建 CoreIPC Publisher
         auto publisher_builder = iox2::PublisherBuilder<SampleType>()
             .service_name(interface_info.name)
             .max_slice_len(1024);
@@ -2762,15 +2762,15 @@ public:
             slot->major_version = interface_info.major_version;
             slot->minor_version = interface_info.minor_version;
             
-            // iceoryx2 专用字段
+            // CoreIPC 专用字段
             slot->endpoint_offset = endpoint_offset;      // 零拷贝关键！
             slot->mempool_base_ptr = mempool_base;
             slot->qos_profile = qos_profile;
             slot->subscriber_count = 0;  // 初始无订阅者
             
             // 通用字段
-            std::strncpy(slot->binding_type, "iceoryx2", 16);
-            slot->endpoint[0] = '\0';  // iceoryx2 不使用字符串端点
+            std::strncpy(slot->binding_type, "coreipc", 16);
+            slot->endpoint[0] = '\0';  // coreipc 不使用字符串端点
             
             slot->last_heartbeat_ns = GetMonotonicTimeNs();
             slot->heartbeat_interval_ms = 1000;
@@ -2810,7 +2810,7 @@ private:
             WriteSlotWithSeqlock(slot, [&]() {
                 slot->last_heartbeat_ns = GetMonotonicTimeNs();
                 
-                // 2. 查询当前订阅者数量（iceoryx2 API）
+                // 2. 查询当前订阅者数量（CoreIPC API）
                 slot->subscriber_count = publisher.number_of_subscribers();
                 
                 // 3. 更新 CRC32
@@ -2858,7 +2858,7 @@ Result<std::vector<ServiceInstanceInfo>> Iceoryx2Binding::FindService(
         return Result<void>::FromError(ErrorCode::kDataCorrupted);
     }
     
-    // 4. 通过 endpoint_offset 零拷贝访问 iceoryx2 Publisher
+    // 4. 通过 endpoint_offset 零拷贝访问 CoreIPC Publisher
     iox2::Publisher<SampleType>* publisher = 
         reinterpret_cast<iox2::Publisher<SampleType>*>(
             snapshot.mempool_base_ptr + snapshot.endpoint_offset
@@ -2894,7 +2894,7 @@ Result<std::vector<ServiceInstanceInfo>> Iceoryx2Binding::FindService(
 **零拷贝优势**：
 
 1. ✅ **无字符串解析**: endpoint_offset 直接定位，避免 "service_name" 字符串解析
-2. ✅ **无内存拷贝**: 直接返回 iceoryx2 Publisher 指针，Proxy 可立即使用
+2. ✅ **无内存拷贝**: 直接返回 CoreIPC Publisher 指针，Proxy 可立即使用
 3. ✅ **O(1) 性能**: 槽位索引 + offset 计算，延迟 < 100ns
 4. ✅ **实时监控**: subscriber_count 字段提供服务健康度信息
 
@@ -3214,7 +3214,7 @@ Result<void> SomeipBinding::StartFindService(
 
 1. **SD-Proxy 仅提供元数据查询**：
    - SD-Proxy 仅返回 ASIL 服务的**元数据**（service_id, endpoint, version）
-   - 不涉及 ASIL 服务的**数据通路**（数据通过 iceoryx2/SOME/IP 直接传输）
+   - 不涉及 ASIL 服务的**数据通路**（数据通过 CoreIPC/SOME/IP 直接传输）
    - 符合 ISO 26262 的安全隔离要求
 
 2. **ASIL 服务的数据通路保持隔离**：
@@ -3244,7 +3244,7 @@ SD-Proxy 缓存 (QM 等级)
     ↓ 返回元数据给应用
 Application (ASIL-D)
     ↓ 使用 endpoint 建立 ASIL-CD 数据通路
-ASIL-CD 数据通路 (iceoryx2/SOME/IP)
+ASIL-CD 数据通路 (CoreIPC/SOME/IP)
     ✅ 刹车数据通过 ASIL-CD 通道传输
     ✅ 与 QM SD-Proxy 完全隔离
 ```
@@ -3638,7 +3638,7 @@ ServiceSlot slot_1 = {
     .major_version = 1,
     .minor_version = 0,
     
-    // iceoryx2 端点（SD Proxy 内部通信）
+    // CoreIPC 端点（SD Proxy 内部通信）
     .endpoint_offset = 0x1000,  // SD Proxy 共享内存偏移
     .mempool_base_ptr = 0x7f1234567000,
     .qos_profile = 0x00010100,  // reliable, history=1, max_channels=0
@@ -4395,7 +4395,7 @@ int main(int argc, char* argv[]) {
     
     // 7. 主循环：处理应用查询请求
     while (true) {
-        // 通过 iceoryx2 接收应用的 FindService 请求
+        // 通过 CoreIPC 接收应用的 FindService 请求
         // 调用 cross_ecu_router->FindService()
         // 返回结果给应用
         
@@ -4435,7 +4435,7 @@ int main(int argc, char* argv[]) {
                                     ↓
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      SD Proxy Service (Slot 1/512)                       │
-│  通过 iceoryx2 接收 FindService 请求                                     │
+│  通过 CoreIPC 接收 FindService 请求                                     │
 └─────────────────────────────────────────────────────────────────────────┘
                                     ↓
                     Step 3: 查询 SD Proxy Cache (< 1ms)
@@ -4596,7 +4596,7 @@ Result<std::vector<ServiceInstanceInfo>> QuerySDProxyViaSlot(
     uint32_t slot_index,
     const InstanceSpecifier& instance_specifier
 ) {
-    // 通过 iceoryx2 向 SD Proxy 发送查询请求
+    // 通过 CoreIPC 向 SD Proxy 发送查询请求
     auto sd_proxy_endpoint = GetSDProxyEndpoint(slot_index);
     
     // 发送 FindServiceRequest
@@ -5079,8 +5079,8 @@ dds_qos:
     domain_id: 0
     participant_name: "ECU_ADAS_Front"
 
-# iceoryx2 QoS 配置 (本地通信)
-iceoryx2_qos:
+# CoreIPC QoS 配置 (本地通信)
+coreipc_qos:
   max_channels: 8
   max_samples: 16
   node_name: "radar_provider"
@@ -5317,7 +5317,7 @@ struct ServiceEntry {
     uint32_t minor_version;
     
     // 统一端点表示（屏蔽底层协议差异）
-    std::string endpoint;  // "iceoryx2://..." / "someip://192.168.1.10:30500"
+    std::string endpoint;  //  / "someip://192.168.1.10:30500"
     
     // 统一绑定类型
     TransportBindingType binding_type;  // kIceoryx2 / kSomeip / kDDS
@@ -5527,7 +5527,7 @@ services:
       patch: 3
     role: provider  # ECU-A 提供雷达服务
     bindings:
-      - type: iceoryx2
+      - type: coreipc
         topic: "lap/radar/objects"  # 本地共享内存
       - type: dds
         topic: "lap/radar/ObjectsDetectedEvent"  # 跨 ECU (自动从 Franca 生成)
@@ -6200,8 +6200,8 @@ TEST(ServiceDiscoveryPerformanceTest, FindServiceLatency) {
 ### Week 3-4: Transport Binding 插件集成 + 代码生成
 
 - ✅ ITransportBinding 接口定义
-- ✅ iceoryx2 Binding 服务发现（共享内存元数据）
-- ✅ iceoryx2 Binding 服务发现（共享内存直接访问）
+- ✅ CoreIPC Binding 服务发现（共享内存元数据）
+- ✅ CoreIPC Binding 服务发现（共享内存直接访问）
 - ✅ DDS Binding 服务发现（Topic-Based Discovery）
 - ✅ Custom Protocol Binding 服务发现
 - ✅ **双层 IDL 代码生成集成**
@@ -6305,7 +6305,7 @@ TEST(ServiceDiscoveryPerformanceTest, FindServiceLatency) {
 | **服务注册 (OfferService v2.0)** | 20-30 µs | < 50 µs | Core IPC MPSC请求 + SPMC响应 |
 | **服务注销 (StopOfferService v2.0)** | 20-30 µs | < 50 µs | Core IPC MPSC请求 + SPMC响应 |
 | **心跳更新 (UpdateHeartbeat v2.0)** | 5-10 µs | < 20 µs | Fire-and-forget，无需等待响应 |
-| **iceoryx2 Binding 发现** | 1-3 ms | 5 ms | 本地零拷贝服务 |
+| **CoreIPC Binding 发现** | 1-3 ms | 5 ms | 本地零拷贝服务 |
 | **DDS Binding 发现** | 10-30 ms | 100 ms | 跨 ECU 服务 |
 
 **v2.0架构性能特征**：
@@ -6422,7 +6422,7 @@ AUTOSAR AP R24-11 正式引入了两种服务发现优化机制：
 
 - ✅ **零守护进程**：完全去中心化，无任何 Daemon
 - ✅ **固定槽位映射**：编译期或静态配置确定
-- ✅ **共享内存直接访问**：iceoryx2 + memfd，< 500ns 延迟
+- ✅ **共享内存直接访问**：CoreIPC + memfd，< 500ns 延迟
 - ✅ **Lock-Free 同步**：seqlock 机制，100% 确定性
 - ✅ **自动生命周期管理**：心跳机制 + 进程退出自动清理
 
@@ -6522,7 +6522,7 @@ QoS 配置独立于 IDL，放在单独的 YAML 文件中（`qos_config/` 目录�
 - SOME/IP Service Discovery Protocol Specification v1.4
 - OMG DDS Discovery Protocol Specification v2.5
 - Fast DDS IDL v4.2 Specification
-- iceoryx2 Service Discovery Design
+- CoreIPC Service Discovery Design
 
 ### 相关章节
 
@@ -6538,7 +6538,7 @@ QoS 配置独立于 IDL，放在单独的 YAML 文件中（`qos_config/` 目录�
 - **FastDDS**: eProsima Fast DDS (RTPS 实现) (<https://github.com/eProsima/Fast-DDS>)
 - **fastddsgen**: Fast DDS IDL 代码生成器
 - yaml-cpp: 配置解析 (<https://github.com/jbeder/yaml-cpp>)
-- iceoryx2: 零拷贝通信与本地服务发现 (<https://github.com/eclipse-iceoryx/iceoryx2>)
+- FastDDS: 高性能 DDS 传输层 (https://github.com/eProsima/Fast-DDS)
 
 ### 工具链
 

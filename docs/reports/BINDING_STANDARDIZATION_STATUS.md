@@ -15,12 +15,12 @@
 | 接口方法 | 实现状态 | 签名匹配 | noexcept | 说明 |
 |---------|---------|---------|---------|------|
 | **生命周期** | | | | |
-| `Initialize()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 初始化 iceoryx2 运行时 |
+| `Initialize()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 初始化 CoreIPC 运行时 |
 | `Shutdown()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 清理资源 |
 | **服务管理** | | | | |
 | `OfferService()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 创建 Publisher |
 | `StopOfferService()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 销毁 Publisher |
-| `FindService()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 服务发现（iceoryx2 自动） |
+| `FindService()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 服务发现（CoreIPC 自动） |
 | **事件通信** | | | | |
 | `SendEvent()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 零拷贝发送 |
 | `SubscribeEvent()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 订阅 + 监听线程 |
@@ -32,7 +32,7 @@
 | `GetField()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回不支持错误 |
 | `SetField()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回不支持错误 |
 | **能力查询** | | | | |
-| `GetName()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回 "iceoryx2" |
+| `GetName()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回 "coreipc" |
 | `GetVersion()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回 0x000700 |
 | `GetPriority()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回 100（最高优先级） |
 | `SupportsZeroCopy()` | ✅ 已实现 | ✅ 完全匹配 | ✅ | 返回 true |
@@ -56,7 +56,7 @@
 // SupportsService() - 已实现
 bool Iceoryx2Binding::SupportsService(uint64_t /*service_id*/) const noexcept
 {
-    // iceoryx2 supports all local IPC services
+    // coreipc supports all local IPC services
     return true;
 }
 
@@ -164,7 +164,7 @@ TransportMetrics Iceoryx2Binding::GetMetrics() const noexcept
 ```cpp
 bool Iceoryx2Binding::SupportsService(uint64_t service_id) const noexcept
 {
-    // iceoryx2 仅支持本地 IPC 服务
+    // CoreIPC 仅支持本地 IPC 服务
     // 根据 SERVICE_DISCOVERY_ARCHITECTURE.md 槽位分配策略
     
     // QM 本地服务 (0x0001~0x03FF)
@@ -187,9 +187,9 @@ bool Iceoryx2Binding::SupportsService(uint64_t service_id) const noexcept
 
 ### 可选优化 2: 添加集成测试
 
-创建 `test_iceoryx2_binding_manager_integration.cpp`:
-- 测试动态加载 binding_iceoryx2.so
-- 验证优先级选择（本地服务选择 iceoryx2）
+创建 `test_coreipc_binding_manager_integration.cpp`:
+- 测试动态加载 binding_coreipc.so
+- 验证优先级选择（本地服务选择 CoreIPC）
 - 完整 pub/sub 流程测试
 
 **优先级**: 🔴 高（推荐）

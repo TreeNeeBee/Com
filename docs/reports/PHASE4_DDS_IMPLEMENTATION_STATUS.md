@@ -198,7 +198,7 @@ writer->write(&sample);
 
 **任务**:
 1. AF_XDP socket 初始化
-2. UMEM 与 iceoryx2 共享配置
+2. UMEM 与 CoreIPC 共享配置
 3. 大载荷路由逻辑（>64KB → AF_XDP）
 4. 零拷贝发送/接收实现
 
@@ -272,7 +272,7 @@ writer->write(&sample);
 ### 7.2 示例代码
 
 - FastDDS examples: `/usr/share/fastdds/examples/`
-- iceoryx2 C FFI examples: 参考 Phase 3 实现
+- CoreIPC API examples: 参考 Phase 3 实现
 
 ### 7.3 工具
 

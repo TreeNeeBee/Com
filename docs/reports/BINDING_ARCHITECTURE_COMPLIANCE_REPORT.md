@@ -35,7 +35,7 @@ auto binding = create_fn();
 ### 2. 优先级排序 (ARCHITECTURE_SUMMARY.md §7.2)
 
 **架构要求**:
-- iceoryx2: 100 (最高优先级)
+- coreipc: 100 (最高优先级)
 - DDS: 80
 - SOME/IP: 60
 - Socket: 40
@@ -51,8 +51,8 @@ auto binding = create_fn();
 **架构要求**:
 ```yaml
 bindings:
-  - type: iceoryx2
-    library: /usr/lib/lap/com/binding_iceoryx2.so
+  - type: coreipc
+    library: /usr/lib/lap/com/binding_coreipc.so
     priority: 100
     enabled: true
 ```
@@ -70,7 +70,7 @@ bindings:
 static_service_configuration:
   - service_instance:
       service_id: 0xF001
-      binding: iceoryx2
+      binding: coreipc
 ```
 
 **当前实现**: ✅ **完全符合**
@@ -160,7 +160,7 @@ if (binding->SupportsService(service_id)) {
 **解决方案**: ✅ **已补充**
 - 添加 `SupportsService(uint64_t service_id)` 接口
 - 更新 `BindingManager::SelectBinding()` 使用此接口过滤
-- 示例: iceoryx2 仅支持本地服务，DDS 仅支持网络服务
+- 示例: CoreIPC | Core IPC (实际)仅支持本地服务，DDS 仅支持网络服务
 
 ### 4. GetMetrics() 接口 ✅ **已添加**
 
@@ -360,7 +360,7 @@ extern "C" {
 8. ⏳ 性能基准测试
 
 ### 中期任务 (Phase 3)
-9. ⏳ 实现 iceoryx2 Binding (零拷贝 IPC)
+9. ⏳ 实现 CoreIPC Binding (零拷贝 IPC)
 10. ⏳ 实现 DDS Binding (网络通信)
 11. ⏳ Runtime 集成 (Runtime::Initialize 调用 BindingManager)
 
@@ -377,7 +377,7 @@ extern "C" {
 5. ✅ **线程安全设计**: 所有操作 mutex 保护
 6. ✅ **AUTOSAR 合规**: 符合 SWS_CM_00401/00402/00403 标准
 
-**整体评价**: 架构设计与实现**完全一致**，可以进入 Phase 3 (iceoryx2 Binding 实现)。
+**整体评价**: 架构设计与实现**完全一致**，可以进入 Phase 3 (CoreIPC Binding 实现)。
 
 ---
 

@@ -39,7 +39,7 @@ ara::com Runtime
 
 ```
 ara::com Runtime + Binding Manager
-    ├── dlopen("binding_iceoryx.so")  → priority: 100
+    ├── dlopen("binding_coreipc.so")  → priority: 100
     ├── dlopen("binding_dds.so")      → priority: 50
     └── dlopen("binding_legacy.so")   → priority: 10（可选）
 ```
@@ -80,13 +80,13 @@ extern "C" {
 {
   "bindings": [
     {
-      "type": "iceoryx",
-      "library": "/usr/lib/ara/com/binding_iceoryx.so",
+      "type": "coreipc",
+      "library": "/usr/lib/ara/com/binding_coreipc.so",
       "priority": 100,
       "enabled": true,
       "config": {
         "mempool": "QM_PerceptionPool",
-        "roudi_config": "/etc/iceoryx/roudi_config.toml"
+        "roudi_config": "/etc/lap/com/mempool_config.toml"
       }
     },
     {
@@ -112,7 +112,7 @@ extern "C" {
 ```xml
 <ServiceInstance>
   <ServiceId>0x1234</ServiceId>
-  <Binding>iceoryx</Binding>
+  <Binding>coreipc</Binding>
   <Endpoint>
     <ServiceName>/perception/camera_front</ServiceName>
     <MemPool>QM_PerceptionPool</MemPool>
@@ -152,7 +152,7 @@ access_mode = "read_only_for_non_writers"  # 强制只读
 | 功能点 | 实现位置 | 应用感知 | 说明 |
 |--------|---------|---------|------|
 | **服务发现** | Runtime 内部（静态→中央→内置） | ❌ 无感 | 三层自动降级 |
-| **零拷贝传输** | binding_iceoryx.so 内部 | ❌ 无感 | 只看到普通 C++ 对象 |
+| **零拷贝传输** | binding_coreipc.so 内部 | ❌ 无感 | 只看到普通 C++ 对象 |
 | **epoll + ET 主循环** | Binding 动态库内部 | ❌ 无感 | Runtime 保持阻塞/回调语义 |
 | **QM/ASIL-D 隔离** | iox-roudi 配置 + Binding 强制 | ❌ 无感 | 物理隔离，FuSa 自动 |
 | **遗留协议兼容** | 独立网关进程 + Runtime fallback | ❌ 无感 | 按需加载插件 |
@@ -161,7 +161,7 @@ access_mode = "read_only_for_non_writers"  # 强制只读
 ### 应用代码示例（100% AUTOSAR 标准）
 
 ```cpp
-// 应用层代码 - 完全不知道底层用的是 iceoryx 还是 DDS
+// 应用层代码 - 完全不知道底层用的是 CoreIPC 还是 DDS
 #include <ara/com/Runtime.h>
 #include <ara/com/ServiceProxy.h>
 
@@ -172,12 +172,12 @@ int main() {
     // 2. 查找服务（透明使用：静态配置 or Discovery Server or 内置发现）
     auto handles = FindService<CameraServiceProxy>();
     
-    // 3. 创建代理（自动选择 iceoryx > dds > legacy）
+    // 3. 创建代理（自动选择 coreipc > dds > legacy）
     auto proxy = std::make_shared<CameraServiceProxy>(handles[0]);
     
     // 4. 订阅事件（零拷贝自动生效，QM mempool 自动选择）
     proxy->ImageData.Subscribe([](const Image& img) {
-        ProcessImage(img);  // img 可能是 iceoryx 零拷贝对象
+        ProcessImage(img);  // img 可能是 CoreIPC 零拷贝对象
     });
     
     Runtime::Shutdown();
@@ -258,7 +258,7 @@ ServiceHandleContainer<Proxy> Runtime::FindService() {
 |------|------|------|----------|-------------|
 | **1. 静态** | ARXML 配置加载 | **0ms** | 固定拓扑 | SWS_CM_02201 |
 | **2. 中央** | Discovery Server | **~0.5ms** | 动态部署 | EXP 7.2.1 |
-| **3. 内置** | DDS/iceoryx 原生发现 | **5-100ms** | 完全动态 | SWS_CM_00001 |
+| **3. 内置** | DDS/CoreIPC 原生发现 | **5-100ms** | 完全动态 | SWS_CM_00001 |
 
 ---
 
@@ -268,7 +268,7 @@ ServiceHandleContainer<Proxy> Runtime::FindService() {
 
 | Binding | 优先级 | 延迟 | 吞吐量 | 零拷贝 | 适用场景 |
 |---------|--------|------|--------|--------|----------|
-| **iceoryx** | 100 | <1μs | >10GB/s | ✅✅ | 本地高性能 |
+| **CoreIPC** | 100 | <1μs | >10GB/s | ✅✅ | 本地高性能 |
 | **DDS** | 50 | 10-30μs | 500-800MB/s | ✅ | 跨ECU通信 |
 | **legacy** | 10 | >50μs | <300MB/s | ❌ | 遗留兼容 |
 
@@ -276,11 +276,11 @@ ServiceHandleContainer<Proxy> Runtime::FindService() {
 
 ```bash
 # 场景1：高性能本地通信
-# 修改 binding_config.json: 启用 iceoryx（priority: 100）
+# 修改 binding_config.json: 启用 coreipc（priority: 100）
 # 结果：<1μs 延迟，>10GB/s 吞吐
 
 # 场景2：跨ECU通信
-# 修改 binding_config.json: 禁用 iceoryx，启用 DDS（priority: 50）
+# 修改 binding_config.json: 禁用 coreipc，启用 DDS（priority: 50）
 # 结果：10-30μs 延迟，500-800MB/s 吞吐
 
 # 应用代码：零修改
@@ -321,7 +321,7 @@ ServiceHandleContainer<Proxy> Runtime::FindService() {
    - 配置文件解析（binding_config.json）
    - 按优先级选择 Binding
 
-2. **Phase 2（插件）**: binding_iceoryx.so 实现
+2. **Phase 2（插件）**: binding_coreipc.so 实现
    - RouDi 集成
    - MemPool 配置与隔离
    - ara::com Event/Method 绑定
@@ -343,12 +343,12 @@ ServiceHandleContainer<Proxy> Runtime::FindService() {
 ```ini
 # /etc/systemd/system/iox-roudi.service
 [Unit]
-Description=iceoryx RouDi Daemon
+Description=CoreIPC 无守护进程架构
 Before=ara-com-runtime.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/iox-roudi -c /etc/iceoryx/roudi_config.toml
+ExecStart=/usr/bin/iox-roudi -c /etc/lap/com/mempool_config.toml
 Restart=always
 
 [Install]
@@ -365,7 +365,7 @@ WantedBy=multi-user.target
 |---------|------|---------|------|
 | **SWS_CM_02201** | 静态服务连接 | static_endpoints.xml | ✅ |
 | **EXP 7.2.1** | 中央服务发现 | fastdds-discovery-server | ✅ |
-| **SWS_CM_00001** | 动态服务发现 | DDS/iceoryx 内置 | ✅ |
+| **SWS_CM_00001** | 动态服务发现 | DDS/CoreIPC 内置 | ✅ |
 
 ### ISO 26262 FuSa 符合性
 
@@ -381,7 +381,7 @@ WantedBy=multi-user.target
 
 ### 核心成果
 
-✅ **插件化架构**: 3个 Binding 动态库（iceoryx/dds/legacy）  
+✅ **插件化架构**: 3个 Binding 动态库（coreipc/dds/legacy）  
 ✅ **配置驱动**: JSON/ARXML 控制，应用零修改  
 ✅ **系统守护进程**: iox-roudi、Discovery Server（对应用透明）  
 ✅ **FuSa MemPool 隔离**: QM/ASIL-D 物理隔离，一句话过审  
@@ -390,7 +390,7 @@ WantedBy=multi-user.target
 
 ### 技术优势
 
-- 🚀 **性能**: iceoryx <1μs 延迟，>10GB/s 吞吐
+- 🚀 **性能**: CoreIPC <1μs 延迟，>10GB/s 吞吐
 - 🔒 **安全**: FuSa 物理隔离，ISO 26262 认证简化
 - 🎯 **灵活**: 配置文件切换 Binding，零重编译
 - 📐 **标准**: 100% AUTOSAR AP R24-11 符合性

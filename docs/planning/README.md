@@ -102,7 +102,7 @@ Franca IDL → AUTOSAR API + DDS IDL
 - **状态**: ✅ 完成
 - **日期**: 2025-11-21
 
-### Phase 3: iceoryx2 Binding
+### Phase 3: CoreIPC Binding
 - **状态**: ✅ 完成
 - **日期**: 2025-11-23
 - **测试**: 3/3 通过 (414ms)

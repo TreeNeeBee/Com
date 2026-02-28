@@ -204,7 +204,7 @@ slot_mapping:
       service_id: "0x12345678"
       instance_id: 1
       version: "1.0"
-      binding: "iceoryx2"
+      binding: "coreipc"
       endpoint: "/lap/perception"
       safety_level: "QM"
       description: "..."

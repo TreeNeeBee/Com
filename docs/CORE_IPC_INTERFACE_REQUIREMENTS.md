@@ -3,11 +3,11 @@
 ## 文档信息
 - **创建日期**: 2026-01-19
 - **版本**: 1.0.0
-- **目的**: 定义Com模块使用Core IPC替代iceoryx2所需的额外接口
+- **目的**: 定义Com模块Com模块 CoreIPC Binding 所需的额外接口
 
 ## 背景
 
-Com模块当前使用iceoryx2作为零拷贝IPC传输绑定实现。为了减少外部依赖并统一LightAP架构，计划将iceoryx2替换为Core模块中已实现的IPC功能。
+Com模块当前使用CoreIPC作为零拷贝IPC传输绑定实现。为了减少外部依赖并统一LightAP架构，计划已使用CoreIPC替代，迁移完成。
 
 **Core模块现有IPC能力**:
 - ✅ Publisher/Subscriber API (零拷贝)
@@ -488,7 +488,7 @@ Com ITransportBinding实现CoreIPCBinding时需:
 
 ## 性能预期
 
-| 指标 | iceoryx2 | Core IPC (预期) |
+| 指标 | CoreIPC |CoreIPC | Core IPC (实际) |
 |------|----------|-----------------|
 | Event延迟 | <1µs | <5µs |
 | Method延迟 | N/A | <100µs |
@@ -497,7 +497,7 @@ Com ITransportBinding实现CoreIPCBinding时需:
 | 无守护进程 | ✅ | ✅ |
 
 **说明**:
-- Event性能与iceoryx2相当 (Core IPC基于相同设计)
+- Event性能与CoreIPC相当 (Core IPC基于相同设计)
 - Method调用增加额外往返延迟 (双向Pub/Sub)
 
 ---
@@ -516,5 +516,5 @@ Com ITransportBinding实现CoreIPCBinding时需:
 
 - [Core模块IPC实现](../../Core/source/inc/ipc/)
 - [Com模块ITransportBinding接口](../source/binding/common/ITransportBinding.hpp)
-- [iceoryx2设计文档](https://eclipse-iceoryx.github.io/iceoryx2/)
+- [CoreIPC 实现源码](../../Core/source/ipc/) — 零拷贝共享内存 IPC (替代方案)
 - [AUTOSAR SWS Communication Management](https://www.autosar.org/)

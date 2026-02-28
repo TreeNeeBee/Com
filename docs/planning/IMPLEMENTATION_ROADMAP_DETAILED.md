@@ -11,7 +11,7 @@
 
 1. [Phase 1详细分解: 零守护进程服务发现](#phase-1详细分解)
 2. [Phase 2详细分解: Binding Manager](#phase-2详细分解)
-3. [Phase 3详细分解: iceoryx2 Binding](#phase-3详细分解)
+3. [Phase 3详细分解: CoreIPC Binding](#phase-3详细分解)
 4. [代码模板与最佳实践](#代码模板与最佳实践)
 5. [调试与故障排查指南](#调试与故障排查指南)
 
@@ -655,16 +655,16 @@ void TestSeqlockConcurrency() {
 
 #### dlopen错误诊断
 ```cpp
-void* handle = dlopen("binding_iceoryx2.so", RTLD_LAZY);
+void* handle = dlopen("binding_coreipc.so", RTLD_LAZY);
 if (!handle) {
     // 打印详细错误
     fprintf(stderr, "dlopen failed: %s\n", dlerror());
     
     // 检查库依赖
-    system("ldd binding_iceoryx2.so");
+    system("ldd binding_coreipc.so");
     
     // 检查符号导出
-    system("nm -D binding_iceoryx2.so | grep CreateBindingInstance");
+    system("nm -D binding_coreipc.so | grep CreateBindingInstance");
 }
 ```
 

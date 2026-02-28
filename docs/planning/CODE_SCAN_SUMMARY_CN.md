@@ -96,7 +96,7 @@ struct alignas(64) ServiceSlot final {
 **功能特性：**
 - ✅ 插件架构：动态.so加载
 - ✅ 优先级选择：
-  - iceoryx2 (优先级100) - 本地IPC
+  - coreipc (优先级100) - 本地IPC
   - DDS (优先级80) - 网络通信
   - SOME/IP (优先级60) - 汽车标准
   - Socket (优先级40) - 测试回退
@@ -110,12 +110,12 @@ struct alignas(64) ServiceSlot final {
 **性能指标：**
 - ✅ 目标延迟：< 1µs (P99)
 - ✅ 零拷贝：共享内存
-- ✅ 无锁通信：iceoryx2 v0.7.0 C++ API
+- ✅ 无锁通信：CoreIPC C++17 Lock-free API
 
 **功能支持：**
 - ✅ 事件通信 (发布/订阅)
-- ❌ 方法调用 (iceoryx2不支持)
-- ❌ 字段访问 (iceoryx2不支持)
+- ❌ 方法调用 (CoreIPC不支持)
+- ❌ 字段访问 (CoreIPC不支持)
 
 #### 3.3 DDS Binding 🔄 40% (Phase 4进行中)
 **预期功能：**
@@ -247,7 +247,7 @@ TEST_F(SharedMemoryRegistryTest, FixedSlotMapping)           // 零冲突映射
 - ✅ Iceoryx2Binding实现
 - ✅ 零拷贝发布/订阅
 - ✅ < 1µs延迟目标
-- ✅ iceoryx2 v0.7.0 C++ API
+- ✅ CoreIPC C++17 Lock-free API
 
 ### Phase 4: DDS绑定 🔄 40% 进行中
 - 🔄 DDS绑定实现（部分完成）
@@ -278,7 +278,7 @@ TEST_F(SharedMemoryRegistryTest, FixedSlotMapping)           // 零冲突映射
 ### 长期行动（优先级3）
 1. 📊 **性能基准测试**
    - 验证 < 500ns服务发现延迟
-   - 测量iceoryx2 P99延迟（目标: < 1µs）
+   - 测量CoreIPC P99延迟（目标: < 1µs）
    - 分析DDS AF_XDP性能（目标: < 15µs）
 
 2. 📚 **文档改进**
@@ -309,7 +309,7 @@ TEST_F(SharedMemoryRegistryTest, FixedSlotMapping)           // 零冲突映射
 当前代码库展现了**卓越的架构实现质量**：
 
 1. **核心注册表层**：功能完整的双注册表，零冲突槽位映射
-2. **绑定层**：完整的插件架构和iceoryx2集成
+2. **绑定层**：完整的插件架构和CoreIPC集成
 3. **数据结构**：缓存优化的256字节ServiceSlot和顺序锁
 4. **测试覆盖率**：全面的单元测试验证v3.1功能
 

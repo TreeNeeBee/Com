@@ -86,7 +86,7 @@ ITransportBinding* SelectBinding(uint64_t service_id, uint64_t instance_id)
 **Default Priority Order**:
 | Binding   | Priority | Use Case                      |
 |-----------|----------|-------------------------------|
-| iceoryx2  | 100      | Zero-copy IPC (< 1µs)         |
+| CoreIPC  | 100      | Zero-copy IPC (< 1µs)         |
 | DDS       | 80       | Network communication         |
 | SOME/IP   | 60       | Automotive standard           |
 | Socket    | 40       | Fallback/testing              |
@@ -134,9 +134,9 @@ vector<StaticBindingMapping> static_mappings_;
 **Example Configuration**:
 ```yaml
 bindings:
-  - name: iceoryx2
+  - name: coreipc
     priority: 100
-    library: /usr/lib/lap/com/liblap_binding_iceoryx2.so
+    library: /usr/lib/lap/com/liblap_binding_coreipc.so
     enabled: true
     parameters:
       domain_id: 0
@@ -145,7 +145,7 @@ bindings:
 static_mappings:
   - service_id: 0xF001  # ASIL-D brake control
     instance_id: 0x0001
-    binding: iceoryx2
+    binding: coreipc
 ```
 
 **Features**:
@@ -253,11 +253,11 @@ The following existing bindings need to be adapted to the new ITransportBinding 
 
 ---
 
-## 🚀 Phase 3 Preparation: iceoryx2 Binding
+## 🚀 Phase 3 Preparation: CoreIPC Binding
 
 **Reference**: IMPLEMENTATION_PLAN_UPDATED.md Phase 3  
 **Timeline**: Week 6-10  
-**Objective**: Implement iceoryx2 zero-copy IPC binding
+**Objective**: implement CoreIPC zero-copy IPC binding
 
 **Prerequisites (from Phase 2)**:
 - ✅ ITransportBinding interface defined
@@ -266,12 +266,12 @@ The following existing bindings need to be adapted to the new ITransportBinding 
 - ✅ Dynamic loading mechanism
 
 **Next Implementation**:
-1. Create `modules/Com/source/binding/iceoryx2/` directory
+1. Create `modules/Com/source/binding/coreipc/` directory
 2. Implement Iceoryx2Binding class (inherits ITransportBinding)
-3. Zero-copy memory management (iceoryx2 API)
+3. Zero-copy memory management (CoreIPC API)
 4. Publisher/Subscriber implementation
 5. Request/Response (method calls) implementation
-6. CMakeLists.txt for liblap_binding_iceoryx2.so
+6. CMakeLists.txt for liblap_binding_coreipc.so
 7. Unit tests and performance benchmarks (< 1µs latency target)
 
 ---
@@ -307,7 +307,7 @@ The following existing bindings need to be adapted to the new ITransportBinding 
 
 **Overall Phase 2 Status**: ✅ **COMPLETE** (Core Framework)
 
-**Next Milestone**: M3 - iceoryx2 Binding (Week 10, IPC latency < 1µs)
+**Next Milestone**: M3 - CoreIPC Binding (Week 10, IPC latency < 1µs)
 
 ---
 

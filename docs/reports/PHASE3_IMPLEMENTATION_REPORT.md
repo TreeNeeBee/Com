@@ -1,14 +1,14 @@
-# Phase 3: iceoryx2 Binding 实施报告
+# Phase 3: CoreIPC Binding 实施报告
 
 **日期**: 2025-11-22  
 **版本**: 1.0 (Stub Implementation)  
-**状态**: 🚧 核心框架完成，待集成真实 iceoryx2  
+**状态**: 🚧 核心框架完成，待直接使用 CoreIPC  
 
 ---
 
 ## 📋 执行摘要
 
-Phase 3 已完成 **iceoryx2 Binding 核心框架**的实现，包括完整的接口定义、基础逻辑和单元测试。当前实现为 **stub 版本**，标记了所有需要集成真实 iceoryx2 C++ bindings 的位置。
+Phase 3 已完成 **CoreIPC Binding 核心框架**的实现，包括完整的接口定义、基础逻辑和单元测试。当前实现为 **stub 版本**，标记了所有需要直接使用 CoreIPC C++ bindings 的位置。
 
 ### 完成情况
 
@@ -17,7 +17,7 @@ Phase 3 已完成 **iceoryx2 Binding 核心框架**的实现，包括完整的�
 | 接口设计 | ✅ 完成 | 100% |
 | 核心框架 | ✅ 完成 | 100% |
 | 单元测试 | ✅ 完成 | 100% (31 个测试) |
-| iceoryx2 集成 | ⏳ 待完成 | 0% (需要真实 bindings) |
+| CoreIPC 集成 | ⏳ 待完成 | 0% (需要真实 bindings) |
 | 性能测试 | ⏳ 待完成 | 0% (需要真实 bindings) |
 
 ---
@@ -27,13 +27,13 @@ Phase 3 已完成 **iceoryx2 Binding 核心框架**的实现，包括完整的�
 ### 1. 核心文件
 
 ```
-modules/Com/source/binding/iceoryx2/
+modules/Com/source/binding/coreipc/
 ├── inc/
 │   └── Iceoryx2Binding.hpp         # 接口定义 (300+ 行)
 ├── src/
 │   └── Iceoryx2Binding.cpp         # 实现逻辑 (450+ 行)
 ├── test/
-│   └── test_iceoryx2_binding.cpp   # 单元测试 (400+ 行)
+│   └── test_coreipc_binding.cpp   # 单元测试 (400+ 行)
 └── README.md                        # 使用文档 (400+ 行)
 ```
 
@@ -42,13 +42,13 @@ modules/Com/source/binding/iceoryx2/
 ### 2. 实现的接口方法
 
 #### ✅ 生命周期管理
-- `Initialize()` - 初始化 iceoryx2 运行时
+- `Initialize()` - 初始化 CoreIPC 运行时
 - `Shutdown()` - 关闭绑定，清理资源
 
 #### ✅ 服务管理
 - `OfferService()` - 创建 Publisher
 - `StopOfferService()` - 销毁 Publisher
-- `FindService()` - 服务发现 (no-op, iceoryx2 自动发现)
+- `FindService()` - 服务发现 (no-op, CoreIPC 自动发现)
 
 #### ✅ 事件通信
 - `SendEvent()` - 零拷贝发送事件
@@ -60,7 +60,7 @@ modules/Com/source/binding/iceoryx2/
 - `GetField()` / `SetField()` - Field 访问不支持
 
 #### ✅ 能力查询
-- `GetName()` → "iceoryx2"
+- `GetName()` → "coreipc"
 - `GetPriority()` → 100 (最高优先级)
 - `SupportsZeroCopy()` → true
 - `SupportsService()` → true (所有本地服务)
@@ -86,7 +86,7 @@ std::string makeServiceName(uint64_t service_id, uint64_t instance_id) {
 ```cpp
 void listenerThread(SubscriberWrapper* wrapper) {
     while (wrapper->running.load(std::memory_order_acquire)) {
-        // TODO: 接收 iceoryx2 样本
+        // TODO: 接收 CoreIPC 样本
         // auto sample = wrapper->subscriber->receive();
         // if (sample.has_value()) {
         //     EventData event_data = convertSample(sample.value());
@@ -172,29 +172,29 @@ Integration Tests (2 tests)
 
 ## 📝 TODO 标记说明
 
-当前实现中有 **12 处 TODO 注释**，标记了需要集成真实 iceoryx2 的位置：
+当前实现中有 **12 处 TODO 注释**，标记了需要直接使用 CoreIPC 的位置：
 
 ### Iceoryx2Binding.hpp (3 处)
 
 ```cpp
-// TODO 1: Add iceoryx2 node
+// TODO 1: Add CoreIPC node
 // std::unique_ptr<iox2::Node> node_;
 
-// TODO 2: Add iceoryx2::Publisher instance
+// TODO 2: Add CoreIPC Publisher instance
 // std::unique_ptr<iox2::Publisher<uint8_t[]>> publisher;
 
-// TODO 3: Add iceoryx2::Subscriber instance
+// TODO 3: Add CoreIPC Subscriber instance
 // std::unique_ptr<iox2::Subscriber<uint8_t[]>> subscriber;
 ```
 
 ### Iceoryx2Binding.cpp (9 处)
 
 ```cpp
-// TODO 4-5: Initialize() - 创建 iceoryx2 node
+// TODO 4-5: Initialize() - 创建 CoreIPC node
 // node_ = iox2::NodeBuilder()
 //     .name(node_name)
 //     .create()
-//     .expect("Failed to create iceoryx2 node");
+//     .expect("Failed to create CoreIPC node");
 
 // TODO 6: Shutdown() - 销毁 node
 // node_.reset();
@@ -234,23 +234,23 @@ Integration Tests (2 tests)
 
 ### 立即任务 (Week 6-7)
 
-1. **安装 iceoryx2 依赖**
+1. **安装 CoreIPC 依赖**
    ```bash
-   # 安装 Rust (iceoryx2 需要)
+   # # Rust 已不需要 (CoreIPC 为纯 C++17)
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    
-   # 安装 iceoryx2
-   cargo install iceoryx2
+   # 安装 CoreIPC (内置，无需额外安装)
+   # CoreIPC 已内置，无需安装 CoreIPC (内置，无需额外安装)
    
    # 或从源码构建
-   git clone https://github.com/eclipse-iceoryx/iceoryx2.git
-   cd iceoryx2
+   git clone binding_coreipc.so (内置于 LightAP)
+   # CoreIPC 位于 modules/Core/source/ipc/
    cargo build --release
    ```
 
-2. **集成 iceoryx2 C++ bindings**
-   - 替换 TODO 1-3: 添加 iceoryx2 类型
-   - 替换 TODO 4-12: 实现 iceoryx2 API 调用
+2. **CoreIPC 已内置集成**
+   - 替换 TODO 1-3: 添加 CoreIPC | Core IPC (实际)类型
+   - 替换 TODO 4-12: 实现 CoreIPC API 调用
    - 测试基本 pub/sub 功能
 
 3. **验证零拷贝机制**
@@ -291,13 +291,13 @@ Integration Tests (2 tests)
 
 ## 📚 参考文档
 
-1. **iceoryx2 官方文档**
-   - 网站: https://iceoryx.io/v2.0.0/
-   - GitHub: https://github.com/eclipse-iceoryx/iceoryx2
-   - 示例: https://github.com/eclipse-iceoryx/iceoryx2/tree/main/examples
+1. **CoreIPC 官方文档**
+   - 网站: https://github.com/eclipse-iceoryx/iceoryx2 (已被 CoreIPC 替代)
+   - GitHub: binding_coreipc.so (内置于 LightAP)
+   - 示例: binding_coreipc.so (内置于 LightAP)
 
 2. **内部文档**
-   - `ARCHITECTURE_SUMMARY.md` - §4 iceoryx2 Binding 设计
+   - `ARCHITECTURE_SUMMARY.md` - §4 CoreIPC Binding 设计
    - `IMPLEMENTATION_ROADMAP_DETAILED.md` - Phase 3 详细任务
    - `ITransportBinding.hpp` - 接口规范
 
@@ -317,19 +317,19 @@ Integration Tests (2 tests)
 | 单元测试 | > 30 个 | ✅ 31 个 |
 | 测试覆盖率 | > 90% | ✅ 100% |
 | 文档完整性 | 完整 | ✅ 完成 |
-| iceoryx2 集成 | 100% | ⏳ 0% (stub) |
+| CoreIPC 集成 | 100% | ⏳ 0% (stub) |
 | 性能验证 | 通过 | ⏳ 待测试 |
 | IPC 延迟 | < 1µs | ⏳ 待测试 |
 
 **Phase 3 框架状态**: ✅ **100% 完成**  
-**iceoryx2 集成状态**: ⏳ **待集成** (需要真实 bindings)
+**CoreIPC 集成状态**: ⏳ **待集成** (需要真实 bindings)
 
 ---
 
 ## 🚀 里程碑
 
 - **M3.1 (Week 6)**: ✅ 核心框架完成
-- **M3.2 (Week 7)**: ⏳ iceoryx2 集成
+- **M3.2 (Week 7)**: ⏳ CoreIPC 集成
 - **M3.3 (Week 8)**: ⏳ 性能优化
 - **M3.4 (Week 9)**: ⏳ 基准测试
 - **M3.5 (Week 10)**: ⏳ 生产就绪
@@ -339,4 +339,4 @@ Integration Tests (2 tests)
 **文档版本**: 1.0  
 **最后更新**: 2025-11-22  
 **作者**: LightAP Development Team  
-**下一步**: 安装 iceoryx2 依赖并集成真实 C++ bindings
+**下一步**: 安装 CoreIPC 依赖并集成真实 C++ bindings

@@ -14,13 +14,13 @@
 **核心优化目标**:
 1. 实现零守护进程架构（固定槽位映射 + 共享内存注册表）
 2. 完成Binding Manager插件化架构
-3. 集成iceoryx2零拷贝通信（< 500ns延迟）
+3. 集成CoreIPC零拷贝通信（< 500ns延迟）
 4. 实现DDS跨ECU通信 + AF_XDP高性能网络
 5. 系统级性能优化（大页内存 + io_uring + CPU亲和性）
 
 **预期收益**:
 - 服务发现延迟: 1-100ms → **< 500ns** (零守护进程)
-- 本地IPC延迟: 50-100μs → **< 1μs** (iceoryx2)
+- 本地IPC延迟: 50-100μs → **< 1μs** (CoreIPC)
 - 跨ECU延迟: 100-200μs → **< 15μs** (AF_XDP)
 - 吞吐量: < 500MB/s → **> 10GB/s** (零拷贝)
 - CPU占用: 3-5% → **< 1%** (io_uring SQPOLL)
@@ -34,7 +34,7 @@
 3. [实施路线图](#3-实施路线图)
 4. [Phase 1: 零守护进程服务发现](#4-phase-1-零守护进程服务发现)
 5. [Phase 2: Binding Manager实现](#5-phase-2-binding-manager实现)
-6. [Phase 3: iceoryx2 Binding集成](#6-phase-3-iceoryx2-binding集成)
+6. [Phase 3: CoreIPC Binding集成](#6-phase-3-iceoryx2-binding集成)
 7. [Phase 4: DDS Binding + AF_XDP](#7-phase-4-dds-binding--af_xdp)
 8. [Phase 5: 系统级性能优化](#8-phase-5-系统级性能优化)
 9. [风险评估与缓解措施](#9-风险评估与缓解措施)
@@ -115,7 +115,7 @@
 | - dlopen动态加载 | 🔴 P0 | 插件加载 | 低 | 0.5周 |
 | - 优先级选择 | 🔴 P0 | Binding选择 | 低 | 0.5周 |
 | - YAML配置解析 | 🔴 P0 | 配置管理 | 低 | 1周 |
-| **iceoryx2 Binding** | 🟡 P1 | 本地高性能 | 高 | 5周 |
+| **CoreIPC Binding** | 🟡 P1 | 本地高性能 | 高 | 5周 |
 | - 进程自管理MemPool | 🟡 P1 | 内存管理 | 高 | 2周 |
 | - 零拷贝Publisher/Subscriber | 🟡 P1 | 数据传输 | 中 | 1.5周 |
 | - FuSa物理隔离 | 🟡 P1 | 功能安全 | 中 | 1周 |
@@ -140,7 +140,7 @@
 | 性能指标 | 当前状态 | 目标状态 | 差距 | 实现难度 |
 |---------|---------|---------|------|---------|
 | **服务发现延迟** | 1-100ms (动态) | < 500ns (固定槽位) | **200倍** | 高 |
-| **本地IPC延迟** | 50-100μs (D-Bus) | < 1μs (iceoryx2) | **100倍** | 高 |
+| **本地IPC延迟** | 50-100μs (D-Bus) | < 1μs (CoreIPC) | **100倍** | 高 |
 | **跨ECU延迟** | 100-200μs (UDP) | < 15μs (AF_XDP) | **13倍** | 高 |
 | **吞吐量** | < 500MB/s | > 10GB/s | **20倍** | 高 |
 | **CPU占用** | 3-5% | < 1% | **5倍** | 中 |
@@ -153,7 +153,7 @@
 | **Core API** | 1,200行 | 500行 | 1,700行 | 70% |
 | **服务发现** | 0行 | 2,500行 | 2,500行 | 0% |
 | **Binding Manager** | 0行 | 1,200行 | 1,200行 | 0% |
-| **iceoryx2 Binding** | 0行 | 3,500行 | 3,500行 | 0% |
+| **CoreIPC Binding** | 0行 | 3,500行 | 3,500行 | 0% |
 | **DDS Binding** | 0行 | 2,800行 | 2,800行 | 0% |
 | **Custom Binding** | 0行 | 1,500行 | 1,500行 | 0% |
 | **配置管理** | 0行 | 800行 | 800行 | 0% |
@@ -171,7 +171,7 @@
            ┌──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
 Phase 1    │███████████│          │          │          │          │          │ 零守护进程服务发现
 Phase 2    │          │██████████│          │          │          │          │ Binding Manager
-Phase 3    │          │          │███████████████████████          │          │ iceoryx2 Binding
+Phase 3    │          │          │███████████████████████          │          │ CoreIPC Binding
 Phase 4    │          │          │          │████████████████████████          │ DDS + AF_XDP
 Phase 5    │          │          │          │          │          │████████████ 系统优化
 测试验证   │      ████████      ████████      ████████      ████████      ████████ 持续测试
@@ -184,7 +184,7 @@ Phase 5    │          │          │          │          │          │�
 |------|------|---------|--------|---------|
 | **Phase 1** | Week 1-3 | 零守护进程服务发现 | 共享内存注册表 + 固定槽位映射 | 发现延迟 < 500ns |
 | **Phase 2** | Week 4-5 | Binding Manager | 插件动态加载 + 配置驱动 | 支持4个Binding |
-| **Phase 3** | Week 6-10 | iceoryx2 Binding | 零拷贝IPC + FuSa隔离 | 延迟 < 1μs |
+| **Phase 3** | Week 6-10 | CoreIPC Binding | 零拷贝IPC + FuSa隔离 | 延迟 < 1μs |
 | **Phase 4** | Week 11-14 | DDS + AF_XDP | 跨ECU高性能通信 | 延迟 < 15μs |
 | **Phase 5** | Week 15-17 | 系统优化 | 大页 + io_uring + CPU绑核 | CPU < 1% |
 | **Phase 6** | Week 18-22 | 集成测试与FuSa认证 | 完整测试报告 | ISO 26262认证 |
@@ -435,7 +435,7 @@ private:
 ### 5.1 目标
 
 实现插件化Binding架构，支持运行时动态加载和优先级选择：
-- ✅ 支持4个Binding插件（iceoryx2/DDS/Custom/Legacy）
+- ✅ 支持4个Binding插件（CoreIPC/DDS/Custom/Legacy）
 - ✅ YAML配置驱动，应用零修改
 - ✅ dlopen()动态加载 .so 文件
 - ✅ 按优先级自动选择最优Binding (100 > 50 > 20 > 10)
@@ -536,8 +536,8 @@ namespace lap::com {
 
 // Binding配置项
 struct BindingConfig {
-    std::string type;           // "iceoryx2" / "dds" / "custom" / "legacy"
-    std::string library_path;   // "/usr/lib/lap/com/binding_iceoryx2.so"
+    std::string type;           // "coreipc" / "dds" / "custom" / "legacy"
+    std::string library_path;   // "/usr/lib/lap/com/binding_coreipc.so"
     uint32_t priority;          // 100 / 50 / 20 / 10
     bool enabled;
     YAML::Node config;          // Binding特定配置
@@ -634,11 +634,11 @@ private:
 
 ---
 
-## 6. Phase 3: iceoryx2 Binding集成
+## 6. Phase 3: CoreIPC Binding集成
 
 ### 6.1 目标
 
-集成iceoryx2零拷贝共享内存通信，达到：
+集成CoreIPC零拷贝共享内存通信，达到：
 - ✅ 本地IPC延迟 < 1μs (P99)
 - ✅ 吞吐量 > 10GB/s
 - ✅ 零拷贝数据传输
@@ -647,9 +647,9 @@ private:
 
 ### 6.2 核心组件设计
 
-#### 6.2.1 iceoryx2 Binding实现
+#### 6.2.1 CoreIPC Binding实现
 
-**文件**: `source/binding/iceoryx2/Iceoryx2Binding.hpp`
+**文件**: `source/binding/coreipc/Iceoryx2Binding.hpp`
 
 ```cpp
 namespace lap::com::binding {
@@ -670,7 +670,7 @@ public:
     Result<void> SendEvent(...) override;
     Result<void> SubscribeEvent(...) override;
     
-    std::string GetName() const override { return "iceoryx2"; }
+    std::string GetName() const override { return "coreipc"; }
     uint32_t GetPriority() const override { return 100; }
     bool SupportsZeroCopy() const override { return true; }
     bool SupportsRemote() const override { return false; }
@@ -901,7 +901,7 @@ access_mode = "read_only_subscribers"
 
 | 风险 | 概率 | 影响 | 缓解措施 |
 |------|------|------|---------|
-| iceoryx2 C++ FFI稳定性 | 中 | 高 | 早期原型验证，备选iceoryx v2.0 |
+| iceoryx2 C++ FFI稳定性 | 中 | 高 | 早期原型验证，备选CoreIPC.0 |
 | AF_XDP内核版本依赖 | 低 | 中 | 最低支持Linux 5.10+ |
 | FuSa认证周期长 | 高 | 高 | 提前启动认证流程，聘请FuSa顾问 |
 | 性能目标无法达成 | 低 | 高 | 分阶段验证，及时调整目标 |
@@ -910,7 +910,7 @@ access_mode = "read_only_subscribers"
 
 | 风险 | 概率 | 影响 | 缓解措施 |
 |------|------|------|---------|
-| iceoryx2集成延期 | 中 | 高 | 增加1名Rust专家 |
+| CoreIPC集成延期 | 中 | 高 | 增加1名Rust专家 |
 | DDS/AF_XDP调试困难 | 中 | 中 | 提前搭建测试环境 |
 | 人力资源不足 | 中 | 高 | 优先P0/P1任务，P2可延期 |
 
@@ -951,7 +951,7 @@ access_mode = "read_only_subscribers"
 |--------|---------|--------|
 | M1: 零守护进程服务发现 | Week 3 | 共享内存注册表 |
 | M2: Binding Manager | Week 5 | 插件动态加载 |
-| M3: iceoryx2 Binding | Week 10 | 零拷贝IPC |
+| M3: CoreIPC Binding | Week 10 | 零拷贝IPC |
 | M4: DDS + AF_XDP | Week 14 | 跨ECU高性能 |
 | M5: 系统优化 | Week 17 | 完整性能优化 |
 | M6: FuSa认证 | Week 22 | ISO 26262认证 |
