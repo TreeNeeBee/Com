@@ -293,14 +293,15 @@ namespace binding
                 MakeErrorCode( ComErrc::kCommunicationFailure ) );
         }
 
-        // Wait briefly for request/response matching
-        // 200 ms is enough to detect "no server present" in single-process tests.
-        // Cross-process matching may take longer; the response-poll window
-        // below (3 s) covers endpoint discovery latency.
+        // Wait briefly for request/response matching.
+        // 500 ms covers freshly-created per-method channels whose endpoint
+        // discovery may lag behind an already-warmed SayHello channel.
+        // Cross-process matching can take longer; the response-poll window
+        // below (3 s + possible 1.5 s extension) covers remaining latency.
         Bool matchedBeforeSend = false;
         {
             const auto matchDeadline =
-                ::std::chrono::steady_clock::now() + ::std::chrono::milliseconds( 200 );
+                ::std::chrono::steady_clock::now() + ::std::chrono::milliseconds( 500 );
             PublicationMatchedStatus pubStatus;
             SubscriptionMatchedStatus subStatus;
 
@@ -353,7 +354,7 @@ namespace binding
         // Retry logic: with VOLATILE durability, if the request was written
         // before endpoint matching completed, the server never receives it.
         // When matching is detected during polling, re-send the request.
-        const auto deadline =
+        auto deadline =
             ::std::chrono::steady_clock::now() + ::std::chrono::milliseconds( 3000 );
         DdsPayload responseMsg;
         SampleInfo sampleInfo;
@@ -367,7 +368,15 @@ namespace binding
                     PublicationMatchedStatus pubStatus;
                     pReqWriter->get_publication_matched_status( pubStatus );
                     if ( pubStatus.current_count > 0 ) {
-                        // Matching happened after our first write; re-send
+                        // Matching happened after our first write; re-send.
+                        // Extend the deadline so the server has ≥1500 ms to
+                        // respond even when matching was detected late.
+                        const auto minDeadline =
+                            ::std::chrono::steady_clock::now()
+                            + ::std::chrono::milliseconds( 1500 );
+                        if ( minDeadline > deadline ) {
+                            deadline = minDeadline;
+                        }
                         pReqWriter->write( &requestMsg );
                         m_metrics.messagesSent++;
                         m_metrics.bytesSent += requestMsg.data().size();
