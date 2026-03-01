@@ -1,8 +1,9 @@
 # LightAP 服务注册表安全架构总结
 
-**版本**: 3.1  
-**日期**: 2025-11-19  
+**版本**: 3.2  
+**日期**: 2026-03-01  
 **状态**: 设计完成，待实现  
+**AUTOSAR 标准**: AP R25-11 (向前兼容 R24-11)
 
 ## 1. 安全需求概览
 
@@ -564,7 +565,7 @@ journalctl -t lap-registry-security -f
 
 ## 9. 参考文献
 
-1. **AUTOSAR AP R24-11**: Communication Management Specification
+1. **AUTOSAR AP R25-11**: Communication Management Specification (向前兼容 R24-11)
 2. **ISO 26262**: Road vehicles - Functional safety
 3. **CWE-863**: Incorrect Authorization
 4. **CWE-502**: Deserialization of Untrusted Data
@@ -575,5 +576,5 @@ journalctl -t lap-registry-security -f
 ---
 
 **维护者**: LightAP Architecture Team  
-**最后更新**: 2025-11-19  
-**文档版本**: 3.1
+**最后更新**: 2026-03-01  
+**文档版本**: 3.2

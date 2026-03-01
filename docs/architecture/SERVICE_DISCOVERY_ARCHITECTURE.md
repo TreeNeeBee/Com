@@ -2,9 +2,9 @@
 
 ## 文档信息
 
-- **版本**: 3.1 (零 Daemon + 双层 IDL 架构)
-- **日期**: 2025-11-24
-- **标准**: AUTOSAR AP R24-11 (November 2024)
+- **版本**: 3.2 (零 Daemon + 双层 IDL 架构)
+- **日期**: 2026-03-01
+- **标准**: AUTOSAR AP R25-11 (向前兼容 R24-11)
 - **命名空间**: lap::com (100% 兼容 AUTOSAR ara::com)
 - **架构特性**: 
   - 零 Daemon + 固定槽位 + CoreIPC 共享内存 + seqlock + 心跳
@@ -13,7 +13,9 @@
   - QoS 独立配置 (YAML)
   - DDS 类型隔离 (Proxy 层封装)
 - **基准文档**:
-  - AUTOSAR_AP_SWS_CommunicationManagement.pdf
+  - AUTOSAR_AP_SWS_CommunicationManagement.pdf (R25-11, 675 页)
+  - AUTOSAR_AP_EXP_ARAComAPI.pdf (R25-11, 125 页)
+  - AUTOSAR_AP_TPS_ManifestSpecification.pdf (R25-11)
   - AUTOSAR_AP_SWS_NetworkManagement.pdf
   - CoreIPC Architecture & Design
   - Franca IDL Specification
@@ -153,7 +155,7 @@
     - [12.3 吞吐量](#123-吞吐量)
   - [附录](#附录)
     - [附录 A: 设计背景](#附录-a-设计背景)
-    - [附录 B: AUTOSAR R24-11 标准对比](#附录-b-autosar-r24-11-标准对比)
+    - [附录 B: AUTOSAR R25-11 标准对比](#附录-b-autosar-r25-11-标准对比)
       - [B.1 三种服务发现机制对比](#b1-三种服务发现机制对比)
       - [B.2 架构优势总结](#b2-架构优势总结)
     - [附录 C: 配置文件集成（YAML 格式）](#附录-c-配置文件集成yaml-格式)
@@ -5238,7 +5240,7 @@ private:
 // AUTOSAR 标准 API（永不变化）
 namespace lap::com {
 
-// FindService API（R19-11 → R24-11 → 未来版本，保持兼容）
+// FindService API（R19-11 → R24-11 → R25-11，保持兼容）
 template<typename ProxyType>
 ara::core::Result<ServiceHandleContainer<ProxyType::HandleType>> 
 FindService(InstanceSpecifier instance_specifier);
@@ -6398,9 +6400,9 @@ TEST(ServiceDiscoveryPerformanceTest, FindServiceLatency) {
 
 ### 附录 A: 设计背景
 
-**AUTOSAR R24-11 标准支持**:
+**AUTOSAR R25-11 标准支持** (含 R24-11 引入特性):
 
-AUTOSAR AP R24-11 正式引入了两种服务发现优化机制：
+AUTOSAR AP R24-11 引入、R25-11 沿用的两种服务发现优化机制：
 
 1. **Static Service Connection** (静态服务连接) - SWS_CM_02201
    - 通过静态预配置的应用端点绕过服务发现协议
@@ -6418,7 +6420,7 @@ AUTOSAR AP R24-11 正式引入了两种服务发现优化机制：
 
 **本设计采用零 Daemon 创新架构**：
 
-基于 AUTOSAR R24-11 标准，本设计突破传统限制：
+基于 AUTOSAR R25-11 标准（向前兼容 R24-11），本设计突破传统限制：
 
 - ✅ **零守护进程**：完全去中心化，无任何 Daemon
 - ✅ **固定槽位映射**：编译期或静态配置确定
@@ -6428,17 +6430,17 @@ AUTOSAR AP R24-11 正式引入了两种服务发现优化机制：
 
 **设计原则**:
 
-1. ✅ **标准兼容性**: 完全符合 AUTOSAR R24-11 规范
+1. ✅ **标准兼容性**: 完全符合 AUTOSAR R25-11 规范（向前兼容 R24-11）
 2. ✅ **API 兼容性**: 与 AUTOSAR FindService/OfferService API 完全兼容
 3. ✅ **性能突破**: < 500ns 延迟，远超传统方案
 4. ✅ **零单点故障**: 无守护进程依赖
 5. ✅ **FuSa 就绪**: QM/ASIL 物理隔离
 
-### 附录 B: AUTOSAR R24-11 标准对比
+### 附录 B: AUTOSAR R25-11 标准对比
 
 #### B.1 三种服务发现机制对比
 
-AUTOSAR R24-11 支持三种服务发现机制：
+AUTOSAR R25-11 支持三种服务发现机制：
 
 | 机制 | AUTOSAR 标准 | 适用场景 | 延迟 | 可靠性 | 本设计支持 |
 |------|-------------|----------|------|--------|-----------||
@@ -6515,8 +6517,9 @@ QoS 配置独立于 IDL，放在单独的 YAML 文件中（`qos_config/` 目录�
 
 ### 标准文档
 
-- AUTOSAR_AP_SWS_CommunicationManagement (R24-11, November 2024)
-- AUTOSAR_AP_TPS_ManifestSpecification (R24-11, TPS_MANI_03312-03315)
+- AUTOSAR_AP_SWS_CommunicationManagement (R25-11, 675 页)
+- AUTOSAR_AP_EXP_ARAComAPI (R25-11, 125 页)
+- AUTOSAR_AP_TPS_ManifestSpecification (R25-11, TPS_MANI_03312-03315)
 - AUTOSAR_AP_SWS_NetworkManagement
 - **Franca IDL Specification** (Common API C++ IDL)
 - SOME/IP Service Discovery Protocol Specification v1.4
@@ -6551,9 +6554,10 @@ QoS 配置独立于 IDL，放在单独的 YAML 文件中（`qos_config/` 目录�
 
 ---
 
-**文档版本**: 3.0 (零守护进程架构)  
-**最后更新**: 2025-11-19  
+**文档版本**: 3.2 (零守护进程架构)  
+**最后更新**: 2026-03-01  
 **作者**: LightAP Com Module Team  
 **命名空间**: lap::com (100% 兼容 AUTOSAR ara::com)  
+**AUTOSAR 标准**: AP R25-11 (向前兼容 R24-11)  
 **配置格式**: YAML (使用 arxml2yaml 工具转换 AUTOSAR ARXML)
 

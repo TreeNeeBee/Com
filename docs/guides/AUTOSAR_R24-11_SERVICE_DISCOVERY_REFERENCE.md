@@ -1,12 +1,14 @@
-# AUTOSAR R24-11 服务发现标准支持对比
+# AUTOSAR R25-11 服务发现标准支持对比
 
 ## 快速参考
 
-本文档总结 AUTOSAR R24-11 标准中的服务发现机制及 LightAP 实现支持。
+本文档总结 AUTOSAR R25-11 标准中的服务发现机制及 LightAP 实现支持。
+
+> **注**: 静态服务连接特性由 R24-11 引入，R25-11 沿用并增强。
 
 ---
 
-## 1. AUTOSAR R24-11 官方支持的三种机制
+## 1. AUTOSAR R25-11 官方支持的三种机制
 
 ### 机制对比表
 
@@ -18,18 +20,18 @@
 
 ---
 
-## 2. 静态服务连接 (R24-11 新特性)
+## 2. 静态服务连接 (R24-11 引入，R25-11 沿用)
 
 ### 标准定义
 
-**文档**: AUTOSAR_AP_SWS_CommunicationManagement.pdf (R24-11)
+**文档**: AUTOSAR_AP_SWS_CommunicationManagement.pdf (R25-11, 675 页)
 
 **需求**:
 - [SWS_CM_02201] Static service connection
 - [SWS_CM_02202] Service Discovery is bypassed
 - [SWS_CM_02203] Service versioning is not checked at runtime
 
-**配置**: AUTOSAR_AP_TPS_ManifestSpecification.pdf (R24-11)
+**配置**: AUTOSAR_AP_TPS_ManifestSpecification.pdf (R25-11)
 - [TPS_MANI_03312] ProvidedSomeipServiceInstance 静态配置
 - [TPS_MANI_03313] SomeipRemoteUnicastConfig.eventGroup 语义
 - [TPS_MANI_03314] RequiredSomeipServiceInstance 静态配置
@@ -84,7 +86,7 @@
 
 ### 标准定义
 
-**文档**: AUTOSAR_AP_EXP_ARAComAPI.pdf (R24-11, Section 7.2.1)
+**文档**: AUTOSAR_AP_EXP_ARAComAPI.pdf (R25-11, Section 7.2.1)
 
 **原文摘录**:
 
@@ -297,21 +299,20 @@
 
 ## 8. 参考文档
 
-### AUTOSAR R24-11 官方文档
+### AUTOSAR R25-11 官方文档
 
 1. **AUTOSAR_AP_SWS_CommunicationManagement.pdf**
    - Section 7.2.1.1: Static Service Connection
    - Section 7.2.1.2: Service Discovery
-   - 672 页
+   - 675 页
 
 2. **AUTOSAR_AP_TPS_ManifestSpecification.pdf**
    - Section 11.3.1.3: Provided Service Instance with static remote peers
    - Section 11.3.1.4: Required Service Instance with static remote peers
-   - 1253 页
 
 3. **AUTOSAR_AP_EXP_ARAComAPI.pdf**
    - Section 7.2.1: Central vs Distributed approach
-   - 141 页
+   - 125 页
 
 ### LightAP 设计文档
 
@@ -320,6 +321,6 @@
 
 ---
 
-**版本**: 1.0.0  
-**日期**: 2024-01  
-**基于**: AUTOSAR Adaptive Platform R24-11
+**版本**: 1.1.0  
+**日期**: 2026-03-01  
+**基于**: AUTOSAR Adaptive Platform R25-11 (向前兼容 R24-11)

@@ -27,9 +27,9 @@
 - **TPS Manifest Specification** (R25-11)
 - **TR DDS Security Integration**
 
-### AUTOSAR R24-11 / R25-11 特性支持
+### AUTOSAR R25-11 特性支持
 
-#### ✅ 静态服务连接 (R24-11 新增)
+#### ✅ 静态服务连接 (R24-11 引入，R25-11 沿用)
 - **[SWS_CM_02201]** Static Service Connection
 - **[SWS_CM_02202]** 绕过服务发现协议
 - **[SWS_CM_02203]** 静态连接无运行时版本检查
@@ -57,7 +57,7 @@ Com模块实现了以下核心功能集群（Functional Cluster）：
 
 - ✅ **Service-Oriented Communication** (ara::com)
 - ✅ **Service Discovery and Registry** (固定槽位 + 共享内存 + 心跳机制)
-- ✅ **Static Service Connection** (R24-11 新特性)
+- ✅ **Static Service Connection** (R24-11 引入，R25-11 沿用)
 - ✅ **Event-Driven Communication** (epoll + Edge-Triggered，完全封装在Binding内部)
 - ✅ **Method Call (Request/Response)**
 - ✅ **Field Notification**
@@ -169,7 +169,7 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-### AUTOSAR R24-11 / R25-11 需求追溯表（核心需求）
+### AUTOSAR R25-11 需求追溯表（核心需求）
 
 | AUTOSAR 需求 ID | 描述 | 实现状态 | 对应组件 |
 |----------------|------|---------|----------|
@@ -182,7 +182,7 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 | **SWS_CM_00122** | FindService InstanceSpecifier 过滤 | ✅ 完成 | Runtime::FindService |
 | **SWS_CM_00130** | Proxy 构造函数 (InstanceSpecifier) | ✅ 完成 | ProxyBase |
 | **SWS_CM_00191** | 方法调用 (同步/异步) | ✅ 完成 | ProxyMethod |
-| **SWS_CM_02201** | 静态服务连接 (R24-11 新增) | ✅ 设计+实现 | StaticInstanceManager |
+| **SWS_CM_02201** | 静态服务连接 (R24-11 引入) | ✅ 设计+实现 | StaticInstanceManager |
 | **SWS_CM_02202** | 静态配置加载 | ✅ 完成 | ConfigParser (YAML) |
 | **SWS_CM_02203** | 静态实例生命周期管理 | ✅ 完成 | StaticInstanceManager |
 | **SWS_CM_10289** | SOME/IP 协议支持 | ✅ 完成 | SomeIpBinding |
@@ -195,11 +195,11 @@ Com模块采用 **插件化、配置驱动、对应用完全透明** 的架构�
 
 > **R25-11 差距分析**: 详见 [`GENERATOR.md` §14-§15](GENERATOR.md#14-autosar-标准追溯)，包含 Trigger 通信原语、Bitfield、ServiceState 等 7 项 R25-11 新特性差距。
 
-### AUTOSAR R24-11 / R25-11 新特性支持
+### AUTOSAR R25-11 新特性支持
 
 #### 1. 静态服务连接 (Static Service Connection)
 
-**标准支持**: SWS_CM_02201-02203 (AUTOSAR R24-11 标准)
+**标准支持**: SWS_CM_02201-02203 (R24-11 引入，R25-11 沿用)
 
 **当前状态**: ✅ 已实现 (ConfigParser + StaticInstanceManager)
 

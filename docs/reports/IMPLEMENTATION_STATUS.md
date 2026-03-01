@@ -264,7 +264,7 @@ Total: 15/15 (100%)
 ## 📚 References
 
 - **SERVICE_DISCOVERY_ARCHITECTURE.md** §2.2.2: memfd_create + SCM_RIGHTS
-- **AUTOSAR AP R24-11**: SWS_CommunicationManagement §7.1
+- **AUTOSAR AP R25-11**: SWS_CommunicationManagement §7.1
 - **Linux man pages**: memfd_create(2), unix(7), cmsg(3)
 - **systemd**: Socket Activation, sd_listen_fds(3)
 

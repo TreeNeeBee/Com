@@ -1,36 +1,37 @@
 # Com模块新架构实施优化方案（基于SERVICE_DISCOVERY_ARCHITECTURE.md）
 
-**文档版本**: 3.0（采用零Daemon固定槽位架构 + 双层IDL设计）  
+**文档版本**: 3.1（采用零Daemon固定槽位架构 + 双层IDL设计）  
 **创建日期**: 2025-11-24  
-**基于标准**: AUTOSAR Adaptive Platform R24-11  
-**参考设计**: `SERVICE_DISCOVERY_ARCHITECTURE.md` v3.1  
+**最后更新**: 2026-03-01  
+**基于标准**: AUTOSAR Adaptive Platform R25-11 (向前兼容 R24-11)  
+**参考设计**: `SERVICE_DISCOVERY_ARCHITECTURE.md` v3.2  
 **架构特性**: 零Daemon + 固定槽位 + 双注册表物理隔离 + seqlock + 槽位0保护 + 广播互通 + 双层IDL  
 
 ---
 
 ## ⚠️ 前置条件与强制要求
 
-### 📜 接口规范（严格遵循AUTOSAR R24-11标准）
+### 📜 接口规范（严格遵循AUTOSAR R25-11标准）
 
 所有接口设计**必须**参考以下AUTOSAR标准文档，有不明确的地方**直接查阅对应文档**：
 
-1. **AUTOSAR_AP_EXP_ARAComAPI** (141页)
-   - 路径: `LightAP/doc/R24-11/AUTOSAR_AP_EXP_ARAComAPI.pdf`
+1. **AUTOSAR_AP_EXP_ARAComAPI** (125页)
+   - 路径: `LightAP/docs/R25-11/AUTOSAR_AP_EXP_ARAComAPI.pdf`
    - 用途: ara::com API完整规范与示例
    - 关键章节: API Reference, Usage Examples
 
 2. **AUTOSAR_AP_RS_CommunicationManagement** 
-   - 路径: `LightAP/doc/R24-11/AUTOSAR_AP_RS_CommunicationManagement.pdf`
+   - 路径: `LightAP/docs/R25-11/AUTOSAR_AP_RS_CommunicationManagement.pdf`
    - 用途: 通信管理需求规范
    - 关键章节: Requirements Traceability
 
-3. **AUTOSAR_AP_SWS_CommunicationManagement** (672页)
-   - 路径: `LightAP/doc/R24-11/AUTOSAR_AP_SWS_CommunicationManagement.pdf`
+3. **AUTOSAR_AP_SWS_CommunicationManagement** (675页)
+   - 路径: `LightAP/docs/R25-11/AUTOSAR_AP_SWS_CommunicationManagement.pdf`
    - 用途: 通信管理软件规范
    - 关键章节: Service Discovery, Binding Specification
 
 4. **AUTOSAR_AP_SWS_NetworkManagement**
-   - 路径: `LightAP/doc/R24-11/AUTOSAR_AP_SWS_NetworkManagement.pdf`
+   - 路径: `LightAP/docs/R25-11/AUTOSAR_AP_SWS_NetworkManagement.pdf`
    - 用途: 网络管理规范
    - 关键章节: Network Bindings, Transport Protocols
 
@@ -43,13 +44,13 @@
 
 所有架构设计**必须**遵循以下设计文档，有不明确的地方**直接查阅对应文档**：
 
-1. **ARCHITECTURE_SUMMARY.md** (3,380行)
-   - 路径: `modules/Com/doc/ARCHITECTURE_SUMMARY.md`
+1. **ARCHITECTURE_SUMMARY.md** (~2000行)
+   - 路径: `modules/Com/docs/architecture/ARCHITECTURE_SUMMARY.md`
    - 用途: 完整架构设计总览
    - 关键章节: 4-Binding架构, 性能优化方案
 
-2. **SERVICE_DISCOVERY_ARCHITECTURE.md** (3,553行) 🎯
-   - 路径: `modules/Com/doc/SERVICE_DISCOVERY_ARCHITECTURE.md`
+2. **SERVICE_DISCOVERY_ARCHITECTURE.md** (~6,500行) 🎯
+   - 路径: `modules/Com/docs/architecture/SERVICE_DISCOVERY_ARCHITECTURE.md`
    - 用途: **服务发现核心设计**（零Daemon架构）
    - 关键章节: §1.4 架构层次, §2.1 核心数据结构, §2.1.1 槽位分配策略
 
@@ -107,7 +108,7 @@ namespace lap::com {
 **删除清单**（需确认后执行）:
 - [ ] 旧的服务发现实现（如有动态发现代码）
 - [ ] 硬编码的Binding选择逻辑
-- [ ] 不符合AUTOSAR R24-11的API
+- [ ] 不符合 AUTOSAR R25-11 的 API
 
 ### 🛑 问题上报机制
 
@@ -411,7 +412,7 @@ ASIL-CD Registry: /dev/shm/lap_com_registry_asil (256KB, 1024 slots, 权限 0640
 ### 任务目标
 
 完成 CoreIPC Binding 与标准 ITransportBinding 接口的完全对接，确保：
-1. ✅ 符合 AUTOSAR R24-11 标准接口规范
+1. ✅ 符合 AUTOSAR R25-11 标准接口规范
 2. ✅ 正确实现所有必需方法
 3. ✅ 提供完整的能力查询接口
 4. ✅ 支持 Binding Manager 动态加载

@@ -134,7 +134,7 @@ Protobuf + Socket Binding的完整设计已保留在：
 ✅ 架构更清晰: 4种binding各司其职，无功能重叠  
 ✅ 性能更优异: CoreIPC提供业界顶级的本地IPC性能  
 ✅ 维护更简单: 减少技术栈复杂度  
-✅ 标准符合: 完全符合AUTOSAR AP R24-11规范  
+✅ 标准符合: 完全符合AUTOSAR AP R25-11 规范（向前兼容 R24-11）  
 ✅ 设计保留: Protobuf+Socket设计完整归档供参考
 
 ---

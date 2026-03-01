@@ -217,7 +217,7 @@ bool Iceoryx2Binding::SupportsService(uint64_t service_id) const noexcept
 1. ✅ Iceoryx2Binding 完全实现 ITransportBinding 接口（18/18 方法）
 2. ✅ 性能统计集成完整（发送/接收/延迟/字节数）
 3. ✅ 线程安全设计合理（mutex + atomic + 智能指针）
-4. ✅ 符合 AUTOSAR R24-11 标准（SWS_CM_00400, SWS_CM_00401）
+4. ✅ 符合 AUTOSAR R25-11 标准（SWS_CM_00400, SWS_CM_00401）
 5. ✅ 支持 BindingManager 动态加载（C export 函数）
 
 **当前状态**: **生产就绪**

@@ -107,7 +107,7 @@ extern "C" {
 }
 ```
 
-#### static_endpoints.xml（R24-11 静态配置）
+#### static_endpoints.xml（R24-11 引入, R25-11 沿用）
 
 ```xml
 <ServiceInstance>
@@ -233,7 +233,7 @@ proxy->SteeringAngle.Subscribe([](const Angle& angle) {
 
 ---
 
-## 服务发现三层架构（R24-11）
+## 服务发现三层架构（R25-11）
 
 ### 三层降级策略
 
@@ -359,7 +359,7 @@ WantedBy=multi-user.target
 
 ## 认证符合性
 
-### AUTOSAR AP R24-11 符合性
+### AUTOSAR AP R25-11 符合性（向前兼容 R24-11）
 
 | 需求 ID | 描述 | 实现方式 | 状态 |
 |---------|------|---------|------|
@@ -393,7 +393,7 @@ WantedBy=multi-user.target
 - 🚀 **性能**: CoreIPC <1μs 延迟，>10GB/s 吞吐
 - 🔒 **安全**: FuSa 物理隔离，ISO 26262 认证简化
 - 🎯 **灵活**: 配置文件切换 Binding，零重编译
-- 📐 **标准**: 100% AUTOSAR AP R24-11 符合性
+- 📐 **标准**: 100% AUTOSAR AP R25-11 符合性
 - 🔧 **维护**: 插件化架构，易扩展
 
 ---

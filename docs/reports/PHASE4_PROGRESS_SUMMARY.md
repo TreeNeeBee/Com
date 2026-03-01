@@ -361,7 +361,7 @@ Result<void> DdsBinding::SetField(...) {
 
 ### 架构合规性 ✅ 100%
 
-1. **AUTOSAR R24-11标准**:
+1. **AUTOSAR R25-11 标准**:
    - ✅ 完整ITransportBinding接口实现
    - ✅ SWS_CM_00400 (Transport Binding)
    - ✅ 错误码使用ComErrc枚举

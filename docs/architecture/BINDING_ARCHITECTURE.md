@@ -3,7 +3,8 @@
 > 本文档从 [ARCHITECTURE_SUMMARY.md](ARCHITECTURE_SUMMARY.md) 拆分而来，
 > 包含所有 Transport Binding 相关的架构设计、配置与实现细节。
 >
-> **最后更新**: 2026-02-24
+> **最后更新**: 2026-03-01  
+> **AUTOSAR 标准**: AP R25-11 (向前兼容 R24-11)
 
 ---
 
@@ -96,7 +97,7 @@ runtime:
   event_loop: binding_managed
 ```
 
-### 1.2 static_endpoints.yaml（静态服务配置，R24-11 SWS_CM_02201）
+### 1.2 static_endpoints.yaml（静态服务配置，R25-11 SWS_CM_02201）
 
 
 ```yaml

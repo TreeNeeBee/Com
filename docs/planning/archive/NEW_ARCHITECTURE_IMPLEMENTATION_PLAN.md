@@ -2,7 +2,7 @@
 
 **文档版本**: 1.0  
 **创建日期**: 2025-11-20  
-**基于标准**: AUTOSAR Adaptive Platform R24-11  
+**基于标准**: AUTOSAR Adaptive Platform R25-11 (向前兼容 R24-11)  
 **参考文档**: ARCHITECTURE_SUMMARY.md v3.0  
 
 ---

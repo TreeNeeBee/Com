@@ -124,4 +124,4 @@
 ---
 
 **维护者**: LightAP Team  
-**AUTOSAR 标准**: R24-11 (November 2024)
+**AUTOSAR 标准**: R25-11 (向前兼容 R24-11)

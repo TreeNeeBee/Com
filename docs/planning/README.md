@@ -2,7 +2,7 @@
 
 **最后更新**: 2025-11-24  
 **当前架构**: v3.1 (零 Daemon + 双注册表 + 槽位 0 保护 + 广播互通 + 双层 IDL)  
-**AUTOSAR 标准**: R24-11 (November 2024)
+**AUTOSAR 标准**: R25-11 (向前兼容 R24-11)
 
 ---
 
@@ -142,12 +142,12 @@ Franca IDL → AUTOSAR API + DDS IDL
 
 ### AUTOSAR 标准
 
-- **AUTOSAR_AP_EXP_ARAComAPI.pdf** (R24-11)
-  - 路径: `../../../doc/R24-11/AUTOSAR_AP_EXP_ARAComAPI.pdf`
+- **AUTOSAR_AP_EXP_ARAComAPI.pdf** (R25-11)
+  - 路径: `../../../docs/R25-11/AUTOSAR_AP_EXP_ARAComAPI.pdf`
   - ara::com API 完整规范
 
-- **AUTOSAR_AP_SWS_CommunicationManagement.pdf** (R24-11)
-  - 路径: `../../../doc/R24-11/AUTOSAR_AP_SWS_CommunicationManagement.pdf`
+- **AUTOSAR_AP_SWS_CommunicationManagement.pdf** (R25-11)
+  - 路径: `../../../docs/R25-11/AUTOSAR_AP_SWS_CommunicationManagement.pdf`
   - 通信管理软件规范
 
 ### 实施报告
@@ -179,7 +179,7 @@ Franca IDL → AUTOSAR API + DDS IDL
 ### 如果你是架构审查者
 
 1. **架构对比**: 阅读 `V3.1_ARCHITECTURE_UPDATE_SUMMARY.md` §核心架构更新
-2. **标准符合**: 对照 AUTOSAR R24-11 标准文档
+2. **标准符合**: 对照 AUTOSAR R25-11 标准文档
 3. **设计细节**: 查看 `../architecture/SERVICE_DISCOVERY_ARCHITECTURE.md`
 
 ---

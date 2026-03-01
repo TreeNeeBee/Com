@@ -689,7 +689,7 @@ target_link_libraries(lap_com_binding_manager
 1. **ARCHITECTURE_SUMMARY.md** - §7 Binding Manager 架构设计
 2. **IMPLEMENTATION_ROADMAP_DETAILED.md** - Phase 2 实施计划
 3. **BINDING_ARCHITECTURE_COMPLIANCE_REPORT.md** - 架构符合性检查
-4. **AUTOSAR R24-11 SWS_CM** - 通信管理规范
+4. **AUTOSAR R25-11 SWS_CM** - 通信管理规范
 5. **ITransportBinding.hpp** - 插件接口定义
 6. **BindingTypes.hpp** - 公共类型定义
 
