@@ -34,6 +34,7 @@ set ( REGISTRY_HEADERS
     ${REGISTRY_INC_DIR}/CRegistryServer.hpp
     ${REGISTRY_INC_DIR}/CRegistryDispatcher.hpp
     ${REGISTRY_INC_DIR}/CRegistryProxy.hpp
+    ${REGISTRY_INC_DIR}/CSDProxyService.hpp
 )
 
 set ( REGISTRY_SOURCES
@@ -41,6 +42,7 @@ set ( REGISTRY_SOURCES
     ${REGISTRY_SRC_DIR}/CRegistryServer.cpp
     ${REGISTRY_SRC_DIR}/CRegistryDispatcher.cpp
     ${REGISTRY_SRC_DIR}/CRegistryProxy.cpp
+    ${REGISTRY_SRC_DIR}/CSDProxyService.cpp
 )
 
 # ==============================================================================
@@ -127,3 +129,32 @@ message ( STATUS "[Registry] Tool target:   rctrl" )
 message ( STATUS "[Registry] Sources: ${REGISTRY_SRC_DIR}" )
 message ( STATUS "[Registry] Headers: ${REGISTRY_INC_DIR}" )
 message ( STATUS "[Registry] Tools:   ${REGISTRY_TOOLS_DIR}" )
+
+# ==============================================================================
+# SD-Proxy Unit Test (test_sd_proxy)
+# ==============================================================================
+
+if ( BUILD_TESTING )
+    add_executable ( test_sd_proxy
+        ${REGISTRY_DIR}/test/test_sd_proxy.cpp
+        ${REGISTRY_SRC_DIR}/CSDProxyService.cpp
+        ${REGISTRY_SRC_DIR}/CServiceRegistry.cpp
+    )
+
+    target_include_directories ( test_sd_proxy PRIVATE
+        ${REGISTRY_INC_DIR}
+        ${MODULE_SOURCE_DIR}/inc
+        ${CMAKE_BINARY_DIR}/include
+    )
+
+    target_link_libraries ( test_sd_proxy PRIVATE
+        lap_core
+        lap_log
+        pthread
+        GTest::GTest
+        GTest::Main
+    )
+
+    add_test ( NAME test_sd_proxy COMMAND test_sd_proxy )
+    message ( STATUS "[Registry] Test target:  test_sd_proxy" )
+endif ()

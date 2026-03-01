@@ -56,6 +56,7 @@
 
 // ==================== Standard Library Headers ====================
 #include <atomic>
+#include <functional>
 #include <mutex>
 #include <unordered_map>
 
@@ -189,6 +190,35 @@ namespace binding
          */
         DiscoveryServerStats GetDiscoveryStats() const noexcept;
 
+        // ================================================================
+        // SD-Proxy Bridge (cross-binding metadata aggregation)
+        // ================================================================
+
+        /**
+         * @brief   Callback type for SD-Proxy bridge
+         * @param   serviceId   Service ID that changed
+         * @param   instances   Current set of available instance IDs
+         * @param   isAvailable true if service has instances, false if all removed
+         *
+         * @details Called from OnDiscoveryChange() after notifying FindService
+         *          subscribers.  The bridge forwards DDS-layer discovery events
+         *          to the registry-layer SD-Proxy without creating a dependency
+         *          from binding → registry (callback-based decoupling).
+         */
+        using SDProxyBridgeFunc = ::std::function< void(
+            UInt64 serviceId,
+            const Vector< UInt64 >& instances,
+            Bool isAvailable ) >;
+
+        /**
+         * @brief   Set the SD-Proxy bridge callback
+         * @param   bridge  Callback function (nullptr to disable)
+         *
+         * @note    Call after Initialize() but before any service discovery.
+         *          Thread-safe (guarded by m_mutex).
+         */
+        void SetSDProxyBridge( SDProxyBridgeFunc bridge ) noexcept;
+
     protected:
         // ================================================================
         // NVI Do* Overrides (type-erased virtual implementations)
@@ -295,6 +325,12 @@ namespace binding
         // ================================================================
 
         UniqueHandle< CDdsDiscoveryServerMonitor >  m_pDiscoveryMonitor;
+
+        // ================================================================
+        // SD-Proxy Bridge
+        // ================================================================
+
+        SDProxyBridgeFunc  m_sdProxyBridge;     ///< Bridge callback to registry-layer SD-Proxy
 
         // ================================================================
         // Internal Helpers

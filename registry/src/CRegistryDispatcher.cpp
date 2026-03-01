@@ -150,6 +150,22 @@ namespace registry
         LAP_COM_LOG_INFO << "Registry service: Created response publisher on "
                          << kResponseChannelPath;
 
+        // Step 6: Initialize SD-Proxy service (auto-register in Slot 1 and 512)
+        auto sdProxyResult = m_sdProxy.Initialize( m_qmRegistry );
+        if ( !sdProxyResult.HasValue() )
+        {
+            LAP_COM_LOG_WARN << "Registry service: SD-Proxy initialization failed (non-fatal)";
+            // Non-fatal: registry can operate without SD-Proxy
+        }
+        else
+        {
+            auto startResult = m_sdProxy.Start();
+            if ( !startResult.HasValue() )
+            {
+                LAP_COM_LOG_WARN << "Registry service: SD-Proxy start failed (non-fatal)";
+            }
+        }
+
         return Result< void >::FromValue();
     }
 
@@ -163,6 +179,9 @@ namespace registry
         }
 
         LAP_COM_LOG_INFO << "Registry service: Shutting down...";
+
+        // Stop SD-Proxy background threads first
+        m_sdProxy.Stop();
 
         // Disconnect subscriber to unblock Receive()
         if ( m_requestSubscriber.has_value() )
@@ -502,6 +521,7 @@ namespace registry
 
     RegistryResponse CRegistryDispatcher::handleQueryService( const RegistryRequest& request ) noexcept
     {
+        // Step 1: Local registry lookup (< 500ns)
         RegistryType regType = SelectRegistry( request.m_serviceId );
 
         CServiceRegistry* pTargetRegistry = ( regType == RegistryType::kASIL )
@@ -509,23 +529,61 @@ namespace registry
                                           : &m_qmRegistry;
 
         auto slotResult = pTargetRegistry->FindService( request.m_serviceId );
-        if ( !slotResult || !slotResult->IsActive() )
+        if ( slotResult && slotResult->IsActive() )
         {
-            return RegistryResponse::CreateError(
+            return RegistryResponse::CreateQuerySuccess(
                 request.m_requestId,
-                request.m_opType,
                 request.m_serviceId,
-                RegistryResultCode::kServiceNotFound,
-                "Service not found in registry"
+                static_cast< UInt32 > ( slotResult->m_instanceId ),
+                CalculateSlot( request.m_serviceId ),
+                slotResult->m_endpoint
             );
         }
 
-        return RegistryResponse::CreateQuerySuccess(
+        // Step 2: Fallback to SD-Proxy remote cache (< 1ms)
+        if ( m_sdProxy.IsInitialized() )
+        {
+            auto remoteSlot = m_sdProxy.FindRemoteService( request.m_serviceId );
+            if ( remoteSlot && remoteSlot->IsActive() )
+            {
+                LAP_COM_LOG_DEBUG << "Query service 0x"
+                                   << request.m_serviceId
+                                   << " resolved via SD-Proxy cache";
+
+                return RegistryResponse::CreateQuerySuccess(
+                    request.m_requestId,
+                    request.m_serviceId,
+                    static_cast< UInt32 > ( remoteSlot->m_instanceId ),
+                    0,  // No local slot (remote service)
+                    remoteSlot->m_endpoint
+                );
+            }
+
+            // Step 3: Active query via DDS binding → Discovery Server (< 100ms)
+            auto activeResult = m_sdProxy.ActiveQueryService( request.m_serviceId );
+            if ( activeResult && activeResult->IsActive() )
+            {
+                LAP_COM_LOG_DEBUG << "Query service 0x"
+                                   << request.m_serviceId
+                                   << " resolved via SD-Proxy active DS query";
+
+                return RegistryResponse::CreateQuerySuccess(
+                    request.m_requestId,
+                    request.m_serviceId,
+                    static_cast< UInt32 > ( activeResult->m_instanceId ),
+                    0,  // No local slot (remote service)
+                    activeResult->m_endpoint
+                );
+            }
+        }
+
+        // Not found in local registry, SD-Proxy cache, or active DS query
+        return RegistryResponse::CreateError(
             request.m_requestId,
+            request.m_opType,
             request.m_serviceId,
-            static_cast< UInt32 > ( slotResult->m_instanceId ),
-            CalculateSlot( request.m_serviceId ),
-            slotResult->m_endpoint
+            RegistryResultCode::kServiceNotFound,
+            "Service not found in registry or SD-Proxy cache"
         );
     }
 
@@ -551,6 +609,46 @@ namespace registry
         {
             return RegistryType::kQM;  // Fallback
         }
+    }
+
+    // ==================== SD-Proxy Bridge Factory ====================
+
+    std::function< void( UInt64, const std::vector< UInt64 >&, Bool ) >
+    CRegistryDispatcher::GetSDProxyBridgeFunc() noexcept
+    {
+        if ( !m_sdProxy.IsInitialized() )
+        {
+            return nullptr;
+        }
+
+        // Return a lambda that bridges DDS discovery events → SD-Proxy.
+        // Captures `this` pointer — caller must ensure CRegistryDispatcher
+        // outlives DdsBinding (guaranteed by startup/shutdown ordering).
+        return [this](
+            UInt64 serviceId,
+            const std::vector< UInt64 >& instances,
+            Bool isAvailable )
+        {
+            if ( isAvailable )
+            {
+                // For each discovered instance, bridge into SD-Proxy
+                for ( auto instanceId : instances )
+                {
+                    m_sdProxy.OnRemoteServiceDiscovered(
+                        serviceId,
+                        instanceId,
+                        "dds",       // binding type
+                        "",          // endpoint (DDS topic resolved internally)
+                        "dds_edp"    // source ECU (from EDP discovery)
+                    );
+                }
+            }
+            else
+            {
+                // All instances removed
+                m_sdProxy.OnRemoteServiceRemoved( serviceId, 0 );
+            }
+        };
     }
 
 } // namespace registry

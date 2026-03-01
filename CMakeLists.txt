@@ -270,6 +270,7 @@ if( ENABLE_COREIPC_BINDING )
         ${MODULE_ROOT_DIR}/registry/src/CRegistryServer.cpp
         ${MODULE_ROOT_DIR}/registry/src/CRegistryDispatcher.cpp
         ${MODULE_ROOT_DIR}/registry/src/CServiceRegistry.cpp
+        ${MODULE_ROOT_DIR}/registry/src/CSDProxyService.cpp
     )
 
     target_include_directories( lap_com_binding_coreipc PRIVATE

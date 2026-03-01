@@ -29,6 +29,7 @@
 
 // ==================== Project-Internal Headers ====================
 #include "CServiceRegistry.hpp"
+#include "CSDProxyService.hpp"
 #include "RegistryIpcMessage.hpp"
 
 // ==================== Cross-Module Headers ====================
@@ -41,10 +42,12 @@
 
 // ==================== Standard Library Headers ====================
 #include <atomic>
+#include <functional>
 #include <thread>
 #include <unordered_map>
 #include <mutex>
 #include <optional>
+#include <vector>
 
 namespace lap
 {
@@ -158,6 +161,39 @@ namespace registry
             return m_asilRegistry;
         }
 
+        /**
+         * @brief Get SD-Proxy service (for remote service discovery)
+         * @return Reference to SD-Proxy service
+         * @note Thread-safe after Initialize()
+         */
+        [[nodiscard]] CSDProxyService& GetSDProxy() noexcept
+        {
+            return m_sdProxy;
+        }
+
+        /**
+         * @brief Get SD-Proxy service (const, for statistics/monitoring)
+         * @return Const reference to SD-Proxy service
+         * @note Thread-safe
+         */
+        [[nodiscard]] const CSDProxyService& GetSDProxy() const noexcept
+        {
+            return m_sdProxy;
+        }
+
+        /**
+         * @brief Create a bridge callback for DDS binding → SD-Proxy forwarding
+         * @return std::function that can be passed to DdsBinding::SetSDProxyBridge()
+         *
+         * @details The returned lambda captures a pointer to m_sdProxy and calls
+         *          OnRemoteServiceDiscovered/Removed for each discovery event.
+         *          This decouples the binding layer from the registry layer.
+         *
+         * @note Call after Initialize() (m_sdProxy must be initialized)
+         */
+        std::function< void( UInt64, const std::vector< UInt64 >&, Bool ) >
+        GetSDProxyBridgeFunc() noexcept;
+
     private:
         /**
          * @brief Process a single registry request
@@ -216,6 +252,9 @@ namespace registry
         // Registry storage (single-writer access)
         CServiceRegistry              m_qmRegistry;        ///< QM registry (QM + ASIL-A/B)
         CServiceRegistry              m_asilRegistry;      ///< ASIL registry (ASIL-C/D)
+
+        // SD-Proxy service (cross-ECU service discovery cache)
+        CSDProxyService               m_sdProxy;           ///< SD-Proxy service (auto-registered)
 
         // Core IPC shared memory segments (must outlive Publisher/Subscriber)
         UniqueHandle< SharedMemoryManager > m_pRequestShm;   ///< SHM for MPSC request channel

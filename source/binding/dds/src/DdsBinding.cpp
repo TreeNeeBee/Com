@@ -994,6 +994,29 @@ namespace binding
                 }
             }
         }
+
+        // Bridge: forward discovery events to SD-Proxy (registry layer)
+        if ( m_sdProxyBridge ) {
+            try {
+                Bool isAvailable = !instances.empty();
+                m_sdProxyBridge( serviceId, instances, isAvailable );
+            } catch ( const ::std::exception& e ) {
+                LAP_COM_LOG_WARN << "SD-Proxy bridge callback threw: "
+                                 << e.what();
+            } catch ( ... ) {
+                LAP_COM_LOG_WARN << "SD-Proxy bridge callback threw unknown "
+                                    "exception";
+            }
+        }
+    }
+
+    void DdsBinding::SetSDProxyBridge( SDProxyBridgeFunc bridge ) noexcept
+    {
+        LockGuard lock( m_mutex );
+        m_sdProxyBridge = std::move( bridge );
+
+        LAP_COM_LOG_INFO << "SD-Proxy bridge "
+                         << ( m_sdProxyBridge ? "set" : "cleared" );
     }
 
 } // namespace binding
