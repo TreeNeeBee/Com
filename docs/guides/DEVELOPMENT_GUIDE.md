@@ -557,7 +557,33 @@ myservice::dds_adapter::RegisterMyServiceDdsAdapters(
 - `CreateSample()`: 应用层 struct → DDS PubSubType
 - `ExtractData()`: DDS PubSubType → 应用层 struct
 
-### 7.4 双 binding 架构
+### 7.4 DDS Discovery Server 配置
+
+跨 ECU 部署时，推荐使用 Fast-DDS Discovery Server 集中发现，并启用自动退化:
+
+```yaml
+# config/bindings.yaml
+dds:
+  discovery_server: "tcp://192.168.1.10:42100"  # Discovery Server 地址
+  ds_health_check_interval_ms: 5000             # 健康检查间隔 (ms)
+  ds_max_failures: 3                            # 连续失败N次后退化至PDP/EDP
+  ds_reconnect_interval_ms: 10000               # 退化后重连探测间隔 (ms)
+  ds_enable_fallback: true                      # 启用自动退化
+  ds_enable_reconnect: true                     # 启用自动恢复
+```
+
+运行时查询发现状态:
+
+```cpp
+auto mode = ddsBinding->GetDiscoveryMode();
+// kDiscoveryServer → SUPER_CLIENT (DS集中发现)
+// kSimplePdp       → SIMPLE PDP/EDP (标准组播发现)
+// kDisconnected    → 未初始化
+```
+
+若不配置 `discovery_server`，DDS binding 默认使用标准 PDP/EDP 组播发现。
+
+### 7.5 双 binding 架构
 
 ```
 ┌──────────────────────────────────────────────────────┐

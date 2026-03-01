@@ -4341,6 +4341,79 @@ private:
 };
 ```
 
+##### ✅ 已实现: CDdsDiscoveryServerMonitor (v1.0)
+
+> **实现日期**: 2026/03/01  
+> **源码**: `source/binding/dds/inc/CDdsDiscoveryServerMonitor.hpp` + `src/CDdsDiscoveryServerMonitor.cpp`  
+> **测试**: `test/test_ds_monitor.cpp` (16/16 PASSED)
+
+**实际架构** — 已集成到 DdsBinding 的 Discovery Server 健康监测与自动退化：
+
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                        DdsBinding                                     │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │  Initialize()                                                   │  │
+│  │    1. 配置 Discovery Server (SUPER_CLIENT)                      │  │
+│  │    2. 创建 DomainParticipant                                    │  │
+│  │    3. 创建 CDdsDiscoveryServerMonitor                           │  │
+│  │    4. 注册 OnDiscoveryModeChanged 回调                          │  │
+│  │    5. 启动后台监测线程                                           │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+│                                                                       │
+│  ┌──────────────────────────────┐    ┌────────────────────────────┐  │
+│  │ CDdsDiscoveryServerMonitor    │    │ DdsBinding 回调处理         │  │
+│  │                               │    │                             │  │
+│  │ MonitorThreadFunc():          │    │ OnDiscoveryModeChanged():   │  │
+│  │  ┌─ DS模式: CheckHealth()    │──→ │  DS→PDP: RecreateParticipant│  │
+│  │  │  连续N次失败 → kSimplePdp  │    │  PDP→DS: RecreateParticipant│  │
+│  │  │                            │    │                             │  │
+│  │  └─ PDP模式: ProbeDS()       │    │ RecreateParticipant():      │  │
+│  │     DS恢复 → kDiscoveryServer │    │  1. Shutdown managers       │  │
+│  │                               │    │  2. Delete DDS entities     │  │
+│  │ 配置参数:                      │    │  3. Rebuild with new QoS    │  │
+│  │  health_check: 5000ms         │    │  4. Restart managers        │  │
+│  │  max_failures: 3              │    │  5. Restart monitor         │  │
+│  │  reconnect_interval: 10000ms  │    │                             │  │
+│  └──────────────────────────────┘    └────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**发现模式枚举 (DiscoveryMode)**:
+
+| 枚举值 | 协议模式 | 说明 |
+|--------|----------|------|
+| `kDiscoveryServer` | SUPER_CLIENT | 通过 Discovery Server 集中发现 (<1ms) |
+| `kSimplePdp` | SIMPLE | 标准 PDP/EDP 组播发现 (5-100ms) |
+| `kDisconnected` | — | 未连接 / 未初始化 |
+
+**配置参数 (`bindings.yaml`)**:
+
+```yaml
+dds:
+  discovery_server: "tcp://192.168.1.10:42100"  # DS 地址
+  ds_health_check_interval_ms: 5000             # 健康检查间隔
+  ds_max_failures: 3                            # 最大连续失败次数
+  ds_reconnect_interval_ms: 10000               # PDP模式下重连探测间隔
+  ds_enable_fallback: true                      # 启用DS→PDP退化
+  ds_enable_reconnect: true                     # 启用PDP→DS恢复
+```
+
+**运行时 API**:
+
+```cpp
+// 查询当前发现模式
+DiscoveryMode mode = ddsBinding->GetDiscoveryMode();
+
+// 获取统计信息
+DiscoveryServerStats stats = ddsBinding->GetDiscoveryStats();
+std::cout << "Mode: " << static_cast<int>(stats.m_eCurrentMode)
+          << ", Health checks: " << stats.m_iTotalHealthChecks
+          << ", Failures: " << stats.m_iConsecutiveFailures
+          << ", Fallbacks: " << stats.m_iTotalFallbacks
+          << ", Reconnects: " << stats.m_iTotalReconnects << std::endl;
+```
+
 #### 5.2.4 SD Proxy 主进程实现
 
 ```cpp
@@ -6266,9 +6339,15 @@ TEST(ServiceDiscoveryPerformanceTest, FindServiceLatency) {
 
 ### Week 11-12: 跨节点服务发现 + CI/CD 集成
 
-- 📋 **Fast DDS Discovery Server 集成**
+- ✅ **Fast DDS Discovery Server 集成** (2026/03/01 已完成)
+  - CDdsDiscoveryServerMonitor 健康监测 + 自动退化
+  - DdsBinding::RecreateParticipant() 运行时模式切换
+  - bindings.yaml 配置 (discovery_server, ds_*)
+  - 16/16 单元测试 PASSED (test_ds_monitor.cpp)
+
+- 📋 **SD Proxy 跨 ECU 发现** (待实现)
   - Discovery Server 部署（systemd service）
-  - Discovery Client 集成到 Runtime
+  - SD Proxy 进程实现
   - 远程服务缓存（LRU Cache + TTL）
   - 性能测试（首次发现 < 100ms，缓存命中 < 10ms）
 

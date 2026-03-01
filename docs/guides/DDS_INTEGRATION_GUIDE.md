@@ -464,6 +464,89 @@ fastddsgen -replace VehicleSpeed.idl
 
 ---
 
+## 5.5 Discovery Server 退化链路
+
+> **v1.0** — 2026/03/01 实现
+
+DDS binding 支持使用 Fast-DDS Discovery Server 作为集中式服务发现注册中心。
+当 Discovery Server 不可达时，自动退化到标准 PDP/EDP 组播发现。
+
+### 5.5.1 发现链路架构
+
+```text
+优先链路               退化链路               恢复链路
+┌──────────┐        ┌──────────┐        ┌──────────┐
+│DS Server │──失败──→│PDP/EDP   │──DS恢复→│DS Server │
+│SUPER_CLI │  N次    │SIMPLE    │  探测    │SUPER_CLI │
+│< 1ms     │        │5-100ms   │  成功    │< 1ms     │
+└──────────┘        └──────────┘        └──────────┘
+```
+
+### 5.5.2 配置
+
+在 `config/bindings.yaml` 的 DDS 段添加:
+
+```yaml
+dds:
+  discovery_server: "tcp://192.168.1.10:42100"   # DS 地址 (tcp:// 或 udp://)
+  ds_health_check_interval_ms: 5000              # 健康检查周期
+  ds_max_failures: 3                             # 连续失败N次后退化
+  ds_reconnect_interval_ms: 10000                # 退化后每N ms尝试重连
+  ds_enable_fallback: true                       # 允许 DS→PDP 退化
+  ds_enable_reconnect: true                      # 允许 PDP→DS 恢复
+```
+
+**地址格式**: `[tcp://|udp://]<host>:<port>`
+- `tcp://192.168.1.10:42100` — TCP 传输 (推荐跨ECU)
+- `udp://192.168.1.10:42100` — UDP 传输 (局域网)
+- `192.168.1.10:42100` — 默认 TCP
+- `192.168.1.10` — 默认 TCP + 默认端口 11811
+
+### 5.5.3 运行时 API
+
+```cpp
+// 初始化前设置 DS 地址 (可选, 也可通过 bindings.yaml)
+binding->SetDiscoveryServer("tcp://192.168.1.10:42100");
+
+// 查询当前发现模式
+DiscoveryMode mode = binding->GetDiscoveryMode();
+switch (mode) {
+    case DiscoveryMode::kDiscoveryServer:
+        // SUPER_CLIENT — 通过 DS 发现
+        break;
+    case DiscoveryMode::kSimplePdp:
+        // SIMPLE — 标准组播发现 (退化模式)
+        break;
+    case DiscoveryMode::kDisconnected:
+        // 未初始化
+        break;
+}
+
+// 获取健康监测统计
+DiscoveryServerStats stats = binding->GetDiscoveryStats();
+```
+
+### 5.5.4 核心类
+
+| 类 | 文件 | 职责 |
+|----|------|------|
+| `CDdsDiscoveryServerMonitor` | `CDdsDiscoveryServerMonitor.hpp/cpp` | 后台健康监测、模式切换 |
+| `DdsBinding::RecreateParticipant()` | `DdsBinding.cpp` | DDS 实体重建 (QoS 切换) |
+| `DiscoveryMode` | `CDdsDiscoveryServerMonitor.hpp` | 发现模式枚举 |
+| `DiscoveryServerStats` | `CDdsDiscoveryServerMonitor.hpp` | 运行时统计 |
+| `DiscoveryServerMonitorConfig` | `CDdsDiscoveryServerMonitor.hpp` | 监测配置 |
+
+### 5.5.5 故障排查
+
+| 症状 | 原因 | 解决方案 |
+|------|------|----------|
+| 启动即退化到 PDP | DS 地址不可达 | 检查 `discovery_server` 地址和端口 |
+| 频繁退化/恢复 | DS 网络不稳定 | 增大 `ds_max_failures` |
+| 退化后不恢复 | `ds_enable_reconnect: false` | 设为 `true` |
+| 退化延迟过长 | 检查间隔太大 | 减小 `ds_health_check_interval_ms` |
+
+---
+
 ## 6. 使用示例
 
 ### 6.1 服务端 (Skeleton) - 发布 Event
