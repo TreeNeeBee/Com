@@ -259,14 +259,14 @@ if( DDS_FOUND )
     endif()
 
     # =============================================================================
-    # HelloWorld2 Example — Standard DDS workflow (ENABLE_BUILD_EXAMPLES)
+    # HelloWorld2 Example — Dual-Binding (CoreIPC + DDS)
     #
-    #   Standard AUTOSAR AP development flow:
+    #   Standard AUTOSAR AP R25-11 development flow:
     #   1. HelloWorld2.fidl              (service interface definition)
     #   2. gen/                          (generated: Types, Proxy, Skeleton,
-    #                                    DdsAdapter, IDL, QoS XML)
-    #   3. helloworld2_server.cpp        (server using generated Skeleton + DDS)
-    #   4. helloworld2_client.cpp        (client using generated Proxy + DDS)
+    #                                    DdsAdapter, IDL, QoS XML, PubSubTypes)
+    #   3. helloworld2_server.cpp        (server: dual-binding Skeleton)
+    #   4. helloworld2_client.cpp        (client: dual-binding Proxy)
     #   5. helloworld2_test.cpp          (single-process integration test)
     #
     # Regenerate from FIDL:
@@ -274,6 +274,8 @@ if( DDS_FOUND )
     #       --input  examples/helloworld2/HelloWorld2.fidl \
     #       --output examples/helloworld2/gen \
     #       --author Aii --all
+    #   fastddsgen examples/helloworld2/gen/HelloWorld2Service.idl \
+    #       -d examples/helloworld2/gen -replace
     # Or via CMake:
     #   cmake --build . --target helloworld2_generate
     # =============================================================================
@@ -316,18 +318,23 @@ if( DDS_FOUND )
             ${HELLOWORLD2_GEN_DIR}/HelloWorld2ServiceTypeObjectSupport.cxx
         )
 
+        # Dual-binding include dirs: CoreIPC + DDS + runtime + binding manager
         set( HELLOWORLD2_INCLUDE_DIRS
             ${MODULE_ROOT_DIR}/examples/helloworld2/gen
             ${MODULE_ROOT_DIR}/examples/helloworld2
             ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${MODULE_ROOT_DIR}/source/binding/coreipc/inc
             ${MODULE_ROOT_DIR}/source/binding/dds/inc
             ${MODULE_ROOT_DIR}/source/binding/manager/inc
             ${MODULE_ROOT_DIR}/source/binding/common
             ${MODULE_ROOT_DIR}/source
+            ${MODULE_ROOT_DIR}/registry/inc
             ${CMAKE_CURRENT_BINARY_DIR}/include
         )
 
+        # Dual-binding link libs: CoreIPC + DDS + core framework
         set( HELLOWORLD2_LINK_LIBS
+            lap_com_binding_coreipc
             lap_com_binding_dds
             lap_com
             lap_core
@@ -336,7 +343,7 @@ if( DDS_FOUND )
             pthread
         )
 
-        # HelloWorld2 Server
+        # HelloWorld2 Server (dual-binding)
         add_executable( helloworld2_server
             ${MODULE_ROOT_DIR}/examples/helloworld2/helloworld2_server.cpp
             ${HELLOWORLD2_FASTDDS_SOURCES}
@@ -344,7 +351,7 @@ if( DDS_FOUND )
         target_include_directories( helloworld2_server PRIVATE ${HELLOWORLD2_INCLUDE_DIRS} )
         target_link_libraries( helloworld2_server PRIVATE ${HELLOWORLD2_LINK_LIBS} )
 
-        # HelloWorld2 Client
+        # HelloWorld2 Client (dual-binding)
         add_executable( helloworld2_client
             ${MODULE_ROOT_DIR}/examples/helloworld2/helloworld2_client.cpp
             ${HELLOWORLD2_FASTDDS_SOURCES}
@@ -352,7 +359,7 @@ if( DDS_FOUND )
         target_include_directories( helloworld2_client PRIVATE ${HELLOWORLD2_INCLUDE_DIRS} )
         target_link_libraries( helloworld2_client PRIVATE ${HELLOWORLD2_LINK_LIBS} )
 
-        # HelloWorld2 Test Client (requires orchestration by shell script)
+        # HelloWorld2 Integration Test (single-process, dual-binding, CTest)
         add_executable( helloworld2_test
             ${MODULE_ROOT_DIR}/examples/helloworld2/helloworld2_test.cpp
             ${HELLOWORLD2_FASTDDS_SOURCES}
@@ -360,25 +367,15 @@ if( DDS_FOUND )
         target_include_directories( helloworld2_test PRIVATE ${HELLOWORLD2_INCLUDE_DIRS} )
         target_link_libraries( helloworld2_test PRIVATE ${HELLOWORLD2_LINK_LIBS} )
 
-        # Copy test orchestration script to build dir
-        configure_file(
-            ${MODULE_ROOT_DIR}/examples/helloworld2/run_helloworld2_test.sh
-            ${CMAKE_CURRENT_BINARY_DIR}/run_helloworld2_test.sh
-            COPYONLY
-        )
-
         if( ENABLE_BUILD_TESTS )
-            add_test( NAME HelloWorld2Test
-                COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run_helloworld2_test.sh
-                        ${CMAKE_CURRENT_BINARY_DIR}
-            )
-            set_tests_properties( HelloWorld2Test PROPERTIES
+            add_test( NAME HelloWorld2DualBindingTest COMMAND helloworld2_test )
+            set_tests_properties( HelloWorld2DualBindingTest PROPERTIES
                 TIMEOUT 60
-                LABELS "example;generated"
+                LABELS "example;generated;dual-binding"
             )
         endif()
 
-        message( STATUS "HelloWorld2 DDS example configured: server, client, test" )
+        message( STATUS "HelloWorld2 dual-binding example configured: server, client, test (CoreIPC + DDS)" )
     endif()
     
 else()

@@ -1,13 +1,17 @@
 /**
  * @file    HelloWorld2.fidl
- * @brief   HelloWorld2 service interface definition (DDS transport)
- * @version 1.1
- * @date    2026-02-25
+ * @brief   HelloWorld2 service interface definition (dual-binding: CoreIPC + DDS)
+ * @version 2.0
+ * @date    2026-03-01
  *
- * Same communication patterns as HelloWorld (CoreIPC) but transported via DDS,
- * demonstrating cross-process communication over a shared network domain.
+ * Demonstrates the full AUTOSAR AP R25-11 standard development flow with
+ * dual-binding support: CoreIPC (local shared-memory IPC) + DDS (network).
  *
- * Field notifications are fully supported through the DDS binding.
+ * BindingManager selects the best transport based on priority:
+ *   CoreIPC (priority=100) for local communication
+ *   DDS     (priority=80)  for cross-network communication
+ *
+ * Field notifications are fully supported through both bindings.
  * The server calls SkeletonField::Update() to push value changes to subscribers.
  */
 package lap.examples.helloworld2

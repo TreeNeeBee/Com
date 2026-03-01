@@ -1,39 +1,34 @@
 /**
  * @file        helloworld2_client.cpp
  * @author      Aii
- * @brief       HelloWorld2 Client — standard-flow refactor using generated Proxy
- * @date        2026-02-23
- * @details     Development workflow (standard AUTOSAR AP flow):
- *
- *                Step 1.  Define service interface in HelloWorld2.fidl
- *
- *                Step 2.  Run generator (or: cmake --build . --target helloworld2_generate):
- *                         lap_sidl_gen \
- *                             --input HelloWorld2.fidl --output gen/ --author Aii --all
- *
+ * @brief       HelloWorld2 Client — dual-binding (DDS + CoreIPC)
+ * @date        2026-03-01
+ * @details     Standard AUTOSAR AP R25-11 development flow:
+ *                Step 1.  Define service in HelloWorld2.fidl
+ *                Step 2.  Generate framework code:
+ *                         lap_sidl_gen --input HelloWorld2.fidl --output gen/ --all
+ *                         fastddsgen gen/HelloWorld2Service.idl -d gen/ -replace
  *                Step 3.  Implement client (this file):
- *                         - Initialize DdsBinding
- *                         - Discover service -> Create HelloWorld2ServiceProxy
+ *                         - Register BOTH CoreIPC and DDS bindings
+ *                         - Discover service via BindingManager
+ *                         - Create HelloWorld2ServiceProxy
  *                         - Subscribe to events
- *                         - Call methods
- *                         - Read / write fields
+ *                         - Call methods, read/write fields
  *
- *              All serialization is handled transparently by the generated
- *              proxy and the CoreIPC binding — callers work with typed values.
- *
- *              Communication patterns demonstrated:
- *                Methods : SayHello, Add, NotifyLog (F&F), ComputeHash
- *                Events  : Greeting, StatusChanged, DataStream
- *                Fields  : VisitorCount (ro), ServerName (rw), Temperature (rw)
+ *              Dual-binding architecture:
+ *                CoreIPC   — local IPC via shared memory (BindingPriority::kIceoryx2)
+ *                DDS       — network transport via FastDDS  (BindingPriority::kDds)
+ *                BindingManager selects the highest-priority available binding.
  *
  * @copyright   Copyright (c) 2026
  */
 
-// ==================== Generated Headers (DO NOT EDIT) ====================
-#include "gen/HelloWorld2ServiceProxy.hpp"
-#include "gen/HelloWorld2ServiceDdsAdapter.hpp"
+// ==================== Generated Headers ====================
+#include "HelloWorld2ServiceProxy.hpp"
+#include "HelloWorld2ServiceDdsAdapter.hpp"
 
 // ==================== Binding / Infrastructure ====================
+#include "CoreIPCBinding.hpp"
 #include "DdsBinding.hpp"
 #include "BindingManager.hpp"
 
@@ -59,12 +54,12 @@ void signalHandler( int ) { g_running.store( false ); }
 // ========================================================================
 // main
 // ========================================================================
-int main()
+int main( int /* argc */, char* /* argv */[] )
 {
     std::signal( SIGINT, signalHandler );
     std::signal( SIGTERM, signalHandler );
 
-    std::cout << "=== HelloWorld2 Client (Generated Proxy) ===" << std::endl;
+    std::cout << "=== HelloWorld2 Client (Dual-Binding: CoreIPC + DDS) ===" << std::endl;
     std::cout << "Service : " << HelloWorld2ServiceProxy::kServiceName
               << "  ID=0x" << std::hex << HelloWorld2ServiceProxy::kServiceId
               << std::dec << std::endl;
@@ -72,69 +67,136 @@ int main()
     // ================================================================
     // Phase 1 — Initialize CoreIPC Binding
     // ================================================================
-    auto pBinding = MakeShared< DdsBinding >();
-    auto initR = pBinding->Initialize();
-    if ( !initR )
+    auto pCoreIpcBinding = MakeShared< CoreIPCBinding >();
+    auto ipcInitR = pCoreIpcBinding->Initialize();
+    if ( !ipcInitR )
     {
-        std::cerr << "[ERROR] Binding init: "
-                  << initR.Error().Message() << std::endl;
+        std::cerr << "[ERROR] CoreIPC binding init: "
+                  << ipcInitR.Error().Message() << std::endl;
         return 1;
     }
-    std::this_thread::sleep_for( std::chrono::milliseconds( 500 ) );
+    std::this_thread::sleep_for( std::chrono::milliseconds( 200 ) );
+    std::cout << "[Client] CoreIPC binding initialized." << std::endl;
 
+    // ================================================================
+    // Phase 2 — Initialize DDS Binding
+    // ================================================================
+    auto pDdsBinding = MakeShared< DdsBinding >();
+    auto ddsInitR = pDdsBinding->Initialize();
+    if ( !ddsInitR )
+    {
+        std::cerr << "[WARN] DDS binding init failed: "
+                  << ddsInitR.Error().Message()
+                  << " — running CoreIPC-only mode" << std::endl;
+        pDdsBinding.reset();
+    }
+    else
+    {
+        std::cout << "[Client] DDS binding initialized." << std::endl;
+    }
+
+    // ================================================================
+    // Phase 3 — Register Bindings with BindingManager
+    // ================================================================
     auto& bindingMgr = BindingManager::GetInstance();
+
+    // CoreIPC: highest priority for local IPC
+    {
+        BindingConfig config;
+        config.name     = "coreipc-client";
+        config.priority = BindingPriority::kIceoryx2;
+        config.enabled  = true;
+        auto regR = bindingMgr.RegisterBinding( config, pCoreIpcBinding );
+        if ( !regR.HasValue() )
+        {
+            std::cerr << "[ERROR] RegisterBinding(CoreIPC) failed." << std::endl;
+            pCoreIpcBinding->Shutdown();
+            return 1;
+        }
+    }
+    std::cout << "[Client] CoreIPC binding registered (priority="
+              << static_cast< UInt32 >( BindingPriority::kIceoryx2 ) << ")." << std::endl;
+
+    // DDS: network transport
+    if ( pDdsBinding )
     {
         BindingConfig config;
         config.name     = "dds-client";
         config.priority = BindingPriority::kDds;
         config.enabled  = true;
-        auto regR = bindingMgr.RegisterBinding( config, pBinding );
+        auto regR = bindingMgr.RegisterBinding( config, pDdsBinding );
         if ( !regR.HasValue() )
         {
-            std::cerr << "[ERROR] RegisterBinding failed." << std::endl;
-            pBinding->Shutdown();
-            return 1;
+            std::cerr << "[WARN] RegisterBinding(DDS) failed — DDS unavailable." << std::endl;
+            pDdsBinding->Shutdown();
+            pDdsBinding.reset();
+        }
+        else
+        {
+            std::cout << "[Client] DDS binding registered (priority="
+                      << static_cast< UInt32 >( BindingPriority::kDds ) << ")." << std::endl;
         }
     }
-    // Register DDS type adapters (must match server's adapter registration)
-    helloworld2::dds_adapter::RegisterHelloWorld2ServiceDdsAdapters(
-        HelloWorld2ServiceProxy::kServiceId );
-    std::cout << "[Client] DDS type adapters registered." << std::endl;
-    std::cout << "[Client] DDS binding registered." << std::endl;
 
     // ================================================================
-    // Phase 2 — Service Discovery
+    // Phase 4 — Register DDS Type Adapters
+    // ================================================================
+    if ( pDdsBinding )
+    {
+        dds_adapter::RegisterHelloWorld2ServiceDdsAdapters(
+            HelloWorld2ServiceProxy::kServiceId );
+        std::cout << "[Client] DDS type adapters registered." << std::endl;
+    }
+
+    // ================================================================
+    // Phase 5 — Service Discovery
     // ================================================================
     std::cout << "[Client] Discovering service (0x" << std::hex
               << HelloWorld2ServiceProxy::kServiceId << std::dec
               << ") ..." << std::endl;
 
     bool found = false;
-    for ( int attempt = 0; attempt < 30 && !found && g_running.load(); ++attempt )
+    for ( int attempt = 0; attempt < 30 && !found && g_running.load();
+          ++attempt )
     {
-        auto result = pBinding->FindService(
+        // Try CoreIPC first (higher priority), then DDS
+        auto result = pCoreIpcBinding->FindService(
             HelloWorld2ServiceProxy::kServiceId );
         if ( result.HasValue() && !result.Value().empty() )
         {
-            std::cout << "[Client] Service found!" << std::endl;
+            std::cout << "[Client] Service found via CoreIPC!" << std::endl;
             found = true;
         }
-        else
+        else if ( pDdsBinding )
         {
-            std::this_thread::sleep_for( std::chrono::milliseconds( 200 ) );
+            auto ddsResult = pDdsBinding->FindService(
+                HelloWorld2ServiceProxy::kServiceId );
+            if ( ddsResult.HasValue() && !ddsResult.Value().empty() )
+            {
+                std::cout << "[Client] Service found via DDS!" << std::endl;
+                found = true;
+            }
+        }
+
+        if ( !found )
+        {
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds( 200 ) );
         }
     }
 
     if ( !found )
     {
-        std::cerr << "[ERROR] Service not found.  Is the server running?" << std::endl;
-        pBinding->Shutdown();
+        std::cerr << "[ERROR] Service not found.  "
+                  << "Is the server running?" << std::endl;
+        pCoreIpcBinding->Shutdown();
+        if ( pDdsBinding ) { pDdsBinding->Shutdown(); }
         bindingMgr.Shutdown();
         return 1;
     }
 
     // ================================================================
-    // Phase 3 — Create Proxy
+    // Phase 6 — Create Proxy
     // ================================================================
     using HandleType = HelloWorld2ServiceProxy::HandleType;
     HandleType handle( static_cast< InstanceIdentifierType >(
@@ -144,7 +206,8 @@ int main()
     if ( !proxyResult.HasValue() )
     {
         std::cerr << "[ERROR] Proxy::Create failed." << std::endl;
-        pBinding->Shutdown();
+        pCoreIpcBinding->Shutdown();
+        if ( pDdsBinding ) { pDdsBinding->Shutdown(); }
         bindingMgr.Shutdown();
         return 1;
     }
@@ -156,13 +219,13 @@ int main()
     std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 
     // ================================================================
-    // Phase 4 — Subscribe to Events
+    // Phase 7 — Subscribe to Events
     // ================================================================
     std::atomic< UInt32 > greetingCount{ 0 };
     std::atomic< UInt32 > statusCount{ 0 };
     std::atomic< UInt32 > dataStreamCount{ 0 };
 
-    // -- Greeting event : { String text } --
+    // -- Greeting event --
     proxy.greeting.Subscribe();
     proxy.greeting.SetReceiveHandler( [&] {
         auto sample = proxy.greeting.GetNextSample();
@@ -174,33 +237,35 @@ int main()
         }
     } );
 
-    // -- StatusChanged event : { ServerStatus status } --
+    // -- StatusChanged event --
     proxy.statusChanged.Subscribe();
     proxy.statusChanged.SetReceiveHandler( [&] {
         auto sample = proxy.statusChanged.GetNextSample();
         if ( sample.HasValue() && sample.Value() )
         {
             statusCount.fetch_add( 1 );
-            static const char* names[] = {
+            const char* names[] = {
                 "STARTING", "RUNNING", "BUSY", "STOPPING"
             };
             int idx = static_cast< int >( sample.Value()->status );
             const char* name =
                 ( idx >= 0 && idx <= 3 ) ? names[idx] : "UNKNOWN";
-            std::cout << "[Client] StatusChanged -> " << name << std::endl;
+            std::cout << "[Client] StatusChanged -> " << name
+                      << std::endl;
         }
     } );
 
-    // -- DataStream event : { DataChunk chunk } --
+    // -- DataStream event --
     proxy.dataStream.Subscribe();
     proxy.dataStream.SetReceiveHandler( [&] {
         auto sample = proxy.dataStream.GetNextSample();
         if ( sample.HasValue() && sample.Value() )
         {
             dataStreamCount.fetch_add( 1 );
-            const auto& c = sample.Value()->chunk;
-            std::cout << "[Client] DataStream chunk #" << c.sequenceNo
-                      << "  size=" << c.payload.size() << std::endl;
+            std::cout << "[Client] DataStream #"
+                      << sample.Value()->chunk.sequenceNo
+                      << " (" << sample.Value()->chunk.payload.size()
+                      << " bytes)" << std::endl;
         }
     } );
 
@@ -208,7 +273,7 @@ int main()
     std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 
     // ================================================================
-    // Phase 5 — Method Calls
+    // Phase 8 — Method Calls
     // ================================================================
     std::cout << "\n--- Method Calls ---" << std::endl;
 
@@ -222,8 +287,7 @@ int main()
         }
         else
         {
-            std::cerr << "[Client] SayHello failed: "
-                      << r.Error().Message() << std::endl;
+            std::cerr << "[Client] SayHello failed." << std::endl;
         }
     }
 
@@ -237,29 +301,32 @@ int main()
         }
     }
 
-    // NotifyLog (fire-and-forget — void, no result to check)
+    // NotifyLog (fire-and-forget)
     {
-        proxy.notifyLog( String( "Client started successfully." ) );
-        std::cout << "[Client] NotifyLog sent (fire-and-forget)." << std::endl;
+        proxy.notifyLog( String( "Client started (dual-binding mode)!" ) );
+        std::cout << "[Client] NotifyLog sent (fire-and-forget)."
+                  << std::endl;
     }
 
     // ComputeHash (request/response)
     {
-        ByteArray payload = { 0x48, 0x65, 0x6C, 0x6C, 0x6F };  // "Hello"
+        ::std::vector< UInt8 > payload = {
+            0x48, 0x65, 0x6C, 0x6C, 0x6F  // "Hello"
+        };
         auto r = proxy.computeHash( payload );
         if ( r.HasValue() )
         {
-            std::cout << "[Client] ComputeHash(\"Hello\") = 0x"
-                      << std::hex << r.Value() << std::dec << std::endl;
+            std::cout << "[Client] ComputeHash = 0x" << std::hex
+                      << r.Value() << std::dec << std::endl;
         }
     }
 
     // ================================================================
-    // Phase 6 — Field Access
+    // Phase 9 — Field Operations
     // ================================================================
-    std::cout << "\n--- Field Access ---" << std::endl;
+    std::cout << "\n--- Field Operations ---" << std::endl;
 
-    // VisitorCount — readonly getter
+    // VisitorCount (readonly)
     {
         auto r = proxy.visitorCount.Get();
         if ( r.HasValue() )
@@ -269,65 +336,86 @@ int main()
         }
     }
 
-    // ServerName — getter
+    // ServerName (read-write)
     {
         auto r = proxy.serverName.Get();
         if ( r.HasValue() )
         {
-            std::cout << "[Client] ServerName = \""
+            std::cout << "[Client] ServerName (before) = \""
                       << r.Value() << "\"" << std::endl;
         }
-    }
 
-    // ServerName — setter
-    {
-        auto r = proxy.serverName.Set( String( "LightAP-Client-Rename" ) );
-        if ( r.HasValue() )
+        proxy.serverName.Set( String( "MyDualBindingServer" ) );
+
+        auto r2 = proxy.serverName.Get();
+        if ( r2.HasValue() )
         {
-            std::cout << "[Client] ServerName SET successfully." << std::endl;
+            std::cout << "[Client] ServerName (after)  = \""
+                      << r2.Value() << "\"" << std::endl;
         }
     }
 
-    // Temperature — getter
+    // Temperature (read-write + notification)
     {
         auto r = proxy.temperature.Get();
         if ( r.HasValue() )
         {
-            std::cout << "[Client] Temperature = "
+            std::cout << "[Client] Temperature (before) = "
                       << r.Value() << " C" << std::endl;
         }
-    }
 
-    // Temperature — setter
-    {
-        auto r = proxy.temperature.Set( Double( 37.5 ) );
-        if ( r.HasValue() )
+        // Subscribe to field change notifications
+        proxy.temperature.Subscribe();
+        proxy.temperature.SetReceiveHandler( [&] {
+            auto sample = proxy.temperature.GetNextSample();
+            if ( sample.HasValue() && sample.Value() )
+            {
+                std::cout << "[Client] Temperature notification -> "
+                          << *sample.Value() << " C" << std::endl;
+            }
+        } );
+
+        proxy.temperature.Set( 36.5 );
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds( 200 ) );
+
+        auto r2 = proxy.temperature.Get();
+        if ( r2.HasValue() )
         {
-            std::cout << "[Client] Temperature SET -> 37.5 C" << std::endl;
+            std::cout << "[Client] Temperature (after)  = "
+                      << r2.Value() << " C" << std::endl;
         }
     }
 
     // ================================================================
-    // Phase 7 — Event observation loop (3 seconds)
+    // Phase 10 — Listen for Events
     // ================================================================
-    std::cout << "\n--- Observing events for 3 s ---" << std::endl;
-    std::this_thread::sleep_for( std::chrono::seconds( 3 ) );
+    std::cout << "\n[Client] Listening for events for 5 seconds ..."
+              << std::endl;
 
-    std::cout << "\n--- Summary ---" << std::endl;
-    std::cout << "  Greeting events   : " << greetingCount.load() << std::endl;
-    std::cout << "  StatusChanged     : " << statusCount.load()   << std::endl;
-    std::cout << "  DataStream chunks : " << dataStreamCount.load() << std::endl;
+    for ( int i = 0; i < 50 && g_running.load(); ++i )
+    {
+        std::this_thread::sleep_for(
+            std::chrono::milliseconds( 100 ) );
+    }
 
     // ================================================================
-    // Phase 8 — Cleanup
+    // Cleanup
     // ================================================================
+    std::cout << "\n[Client] Shutting down ..." << std::endl;
     proxy.greeting.Unsubscribe();
     proxy.statusChanged.Unsubscribe();
     proxy.dataStream.Unsubscribe();
-
-    pBinding->Shutdown();
+    proxy.temperature.Unsubscribe();
+    pCoreIpcBinding->Shutdown();
+    if ( pDdsBinding ) { pDdsBinding->Shutdown(); }
     bindingMgr.Shutdown();
 
-    std::cout << "[Client] Shutdown complete." << std::endl;
+    std::cout << "[Client] Summary: greetings="
+              << greetingCount.load()
+              << ", status=" << statusCount.load()
+              << ", dataStream=" << dataStreamCount.load()
+              << std::endl;
+    std::cout << "[Client] Goodbye." << std::endl;
     return 0;
 }

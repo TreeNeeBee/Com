@@ -59,15 +59,6 @@ constexpr uint32_t lap_examples_helloworld2_GreetingMessage_max_key_cdr_typesize
 constexpr uint32_t lap_examples_helloworld2_DataChunk_max_cdr_typesize {16UL};
 constexpr uint32_t lap_examples_helloworld2_DataChunk_max_key_cdr_typesize {0UL};
 
-constexpr uint32_t lap_examples_helloworld2_ServerNameNotify_max_cdr_typesize {264UL};
-constexpr uint32_t lap_examples_helloworld2_ServerNameNotify_max_key_cdr_typesize {0UL};
-
-constexpr uint32_t lap_examples_helloworld2_TemperatureNotify_max_cdr_typesize {16UL};
-constexpr uint32_t lap_examples_helloworld2_TemperatureNotify_max_key_cdr_typesize {0UL};
-
-constexpr uint32_t lap_examples_helloworld2_VisitorCountNotify_max_cdr_typesize {8UL};
-constexpr uint32_t lap_examples_helloworld2_VisitorCountNotify_max_key_cdr_typesize {0UL};
-
 constexpr uint32_t lap_examples_helloworld2_AddRequest_max_cdr_typesize {32UL};
 constexpr uint32_t lap_examples_helloworld2_AddRequest_max_key_cdr_typesize {8UL};
 
@@ -97,18 +88,6 @@ eProsima_user_DllExport void serialize_key(
 eProsima_user_DllExport void serialize_key(
         eprosima::fastcdr::Cdr& scdr,
         const lap::examples::helloworld2::DataStreamEvent& data);
-
-eProsima_user_DllExport void serialize_key(
-        eprosima::fastcdr::Cdr& scdr,
-        const lap::examples::helloworld2::VisitorCountNotify& data);
-
-eProsima_user_DllExport void serialize_key(
-        eprosima::fastcdr::Cdr& scdr,
-        const lap::examples::helloworld2::ServerNameNotify& data);
-
-eProsima_user_DllExport void serialize_key(
-        eprosima::fastcdr::Cdr& scdr,
-        const lap::examples::helloworld2::TemperatureNotify& data);
 
 eProsima_user_DllExport void serialize_key(
         eprosima::fastcdr::Cdr& scdr,
