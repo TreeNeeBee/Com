@@ -909,7 +909,7 @@ CTest (13 Com module test suites):
   HelloWorldIPCTest           ✅ PASSED
   DdsBindingTest              ✅ PASSED (label: infra)
   DdsDiscoveryTest            ✅ PASSED (label: infra)
-  HelloWorld2Test             ✅ PASSED
+  HelloWorld2DualBindingTest  ✅ PASSED (54/54, CoreIPC + DDS 双 binding)
   SomeIpBindingTest           ✅ PASSED (label: binding)
   DbusBindingTest             ✅ PASSED (label: binding)
   SocketBindingTest           ✅ PASSED (label: binding)
