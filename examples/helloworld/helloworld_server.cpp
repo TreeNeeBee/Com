@@ -133,7 +133,7 @@ int main()
     {
         BindingConfig config;
         config.name     = "coreipc-server";
-        config.priority = BindingPriority::kIceoryx2;
+        config.priority = BindingPriority::kCoreIpc;
         config.enabled  = true;
         auto regR = bindingMgr.RegisterBinding( config, pBinding );
         if ( !regR.HasValue() )

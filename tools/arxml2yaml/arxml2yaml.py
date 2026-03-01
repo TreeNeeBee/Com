@@ -60,7 +60,7 @@ class ServiceDefinition:
         self.instance_id: int = 0
         self.major_version: int = 1
         self.minor_version: int = 0
-        self.binding_type: str = "iceoryx2"
+        self.binding_type: str = "coreipc"
         self.endpoint: str = ""
         self.safety_level: str = "QM"
         self.category: str = "dynamic"
@@ -214,7 +214,7 @@ class ARXMLParser:
                 svc_def.service_name = service_ref or f"UnknownService_{len(result)}"
             
             svc_def.instance_id = instance.get('instance_id', len(result))
-            svc_def.binding_type = instance.get('binding', 'iceoryx2')
+            svc_def.binding_type = instance.get('binding', 'coreipc')
             svc_def.endpoint = instance.get('endpoint', f"/lap/{svc_def.service_name}")
             
             # Compute service ID

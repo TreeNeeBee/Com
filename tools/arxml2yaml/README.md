@@ -71,7 +71,7 @@ pip install PyYAML
           <SERVICE-INTERFACE-REF>/Services/PerceptionService</SERVICE-INTERFACE-REF>
           <INSTANCE-ID>1</INSTANCE-ID>
           <COMMUNICATION-CONNECTOR>
-            <TYPE>ICEORYX2</TYPE>
+            <TYPE>COREIPC</TYPE>
             <ENDPOINT>/lap/perception</ENDPOINT>
           </COMMUNICATION-CONNECTOR>
         </PROVIDED-SERVICE-INSTANCE>
@@ -100,7 +100,7 @@ slot_mapping:
       service_id: '0x12345678'
       instance_id: 1
       version: '1.0'
-      binding: iceoryx2
+      binding: coreipc
       endpoint: /lap/perception
       safety_level: QM
       description: Sensor fusion and object detection

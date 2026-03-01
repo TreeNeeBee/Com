@@ -128,9 +128,9 @@ LightAP Com 是符合 **AUTOSAR 自适应平台 R25-11** 标准（向前兼容 R
 
 绑定管理器（YAML驱动）：
   读取 binding_config.yaml
-  → dlopen("binding_iceoryx2.so") 优先级 100
+  → dlopen("binding_coreipc.so") 优先级 100
   → dlopen("binding_dds.so") 优先级 50
-  → 为服务选择最佳绑定（本地→iceoryx2，远程→DDS）
+  → 为服务选择最佳绑定（本地→CoreIPC，远程→DDS）
 ```
 
 **ITransportBinding 接口：**
@@ -156,7 +156,7 @@ extern "C" {
 
 ## 传输绑定
 
-### 1. iceoryx2 绑定 ✅ 完成（阶段3）
+### 1. CoreIPC 绑定 ✅ 完成（阶段3）
 
 **性能：** <1µs 延迟，>10GB/s 吞吐量  
 **状态：** 100%（3/3测试通过，总计414ms）
@@ -177,8 +177,8 @@ extern "C" {
 **配置：**
 ```yaml
 bindings:
-  - type: iceoryx2
-    library: /usr/lib/lap/com/binding_iceoryx2.so
+  - type: coreipc
+    library: /usr/lib/lap/com/binding_coreipc.so
     priority: 100
     enabled: true
     config:
@@ -240,7 +240,7 @@ bindings:
 
 **阶段1：** 固定槽位注册表（memfd、seqlock、心跳）  
 **阶段2：** 绑定管理器（ITransportBinding、dlopen、YAML）  
-**阶段3：** iceoryx2（C FFI、零拷贝、<1µs已验证）  
+**阶段3：** CoreIPC（共享内存、零拷贝、<1µs已验证）  
 **阶段4：** DDS + AF_XDP（FastDDS ✅，AF_XDP ⏳）  
 **阶段5：** 自定义 + 遗留绑定
 
@@ -255,9 +255,7 @@ bindings:
 sudo apt install build-essential cmake \
     libboost-all-dev nlohmann-json3-dev libyaml-cpp-dev
 
-# iceoryx2
-cargo install iceoryx2-cli
-
+# CoreIPC（内置，无外部依赖）
 # FastDDS 2.9.1
 sudo apt install libfastrtps-dev fastddsgen
 ```
@@ -306,7 +304,7 @@ int main() {
 **配置（binding_config.yaml）：**
 ```yaml
 bindings:
-  - type: iceoryx2
+  - type: coreipc
     priority: 100
     enabled: true
   - type: dds
@@ -345,7 +343,7 @@ bindings:
 ### 指南
 
 - **[BINDING_SELECTION_GUIDE.md](doc/guides/BINDING_SELECTION_GUIDE.md)**
-- **[ICEORYX2_INTEGRATION_GUIDE.md](doc/guides/ICEORYX2_INTEGRATION_GUIDE.md)**
+- **[COREIPC_INTEGRATION_GUIDE.md](doc/guides/COREIPC_INTEGRATION_GUIDE.md)**
 - **[DDS_INTEGRATION_GUIDE.md](doc/guides/DDS_INTEGRATION_GUIDE.md)**
 - **[AUTOSAR_QUICK_REFERENCE.md](doc/guides/AUTOSAR_QUICK_REFERENCE.md)**
 
@@ -373,7 +371,7 @@ bindings:
 ## 致谢
 
 - AUTOSAR Consortium（AP R25-11）
-- Eclipse iceoryx2（零守护进程 IPC）
+- CoreIPC（零守护进程共享内存 IPC）
 - eProsima FastDDS（DDS-RTPS）
 - COVESA（vsomeip）
 

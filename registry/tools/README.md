@@ -83,7 +83,7 @@ lap-registry-ctl list --all
 | INST\_ID | 实例 ID (64-bit hex, 编码 ASIL/域/实例号) |
 | VER | 主版本.子版本 |
 | ASIL | 安全等级 (QM/A/B/C/D) |
-| BINDING | 绑定类型 (iceoryx2/dds/someip) |
+| BINDING | 绑定类型 (coreipc/dds/someip) |
 | ENDPOINT | 网络端点地址 |
 | PID | 拥有者进程 ID (绿色=存活, 红色=僵尸) |
 | HEARTBEAT | 最后心跳时间 |
@@ -126,7 +126,7 @@ lap-registry-ctl register 0x100A \
 |------|--------|------|
 | `--instance=<id>` | 0 | 实例 ID |
 | `--version=<M.m>` | 1.0 | 版本号 |
-| `--binding=<type>` | iceoryx2 | 绑定类型 |
+| `--binding=<type>` | coreipc | 绑定类型 |
 | `--endpoint=<ep>` | 空 | 端点地址 |
 | `--timeout=<ms>` | 5000 | IPC 超时 (仅标准流程) |
 

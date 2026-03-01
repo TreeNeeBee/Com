@@ -99,7 +99,7 @@ namespace registry
         UInt32              m_majorVersion;        ///< Major version
         UInt32              m_minorVersion;        ///< Minor version
 
-        char                m_bindingType[16];     ///< Binding type ("iceoryx2", "dds", etc.)
+        char                m_bindingType[16];     ///< Binding type ("coreipc", "dds", etc.)
         char                m_endpoint[80];        ///< Endpoint address
 
         UInt64              m_timestampNs;         ///< Timestamp (for heartbeat updates)

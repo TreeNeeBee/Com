@@ -263,7 +263,7 @@ namespace discovery
      * static_endpoints:
      *   - service_name: "RadarService"
      *     instance_id: 0x0010
-     *     binding_type: "iceoryx2"
+     *     binding_type: "coreipc"
      *     endpoint: "shm://radar_service"
      *     transport_config:
      *       reliability: "reliable"

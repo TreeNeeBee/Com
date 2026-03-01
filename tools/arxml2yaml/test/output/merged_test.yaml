@@ -12,7 +12,7 @@ slot_mapping:
     service_id: '0x6D020E9F'
     instance_id: 0
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_0
     safety_level: QM
     description: ''
@@ -21,7 +21,7 @@ slot_mapping:
     service_id: '0x6C020D0C'
     instance_id: 1
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_1
     safety_level: QM
     description: ''
@@ -30,7 +30,7 @@ slot_mapping:
     service_id: '0x6F0211C5'
     instance_id: 2
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_2
     safety_level: QM
     description: ''
@@ -39,7 +39,7 @@ slot_mapping:
     service_id: '0x6E021032'
     instance_id: 3
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_3
     safety_level: QM
     description: ''
@@ -48,7 +48,7 @@ slot_mapping:
     service_id: '0x6D020E9F'
     instance_id: 0
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_0
     safety_level: QM
     description: ''
@@ -57,7 +57,7 @@ slot_mapping:
     service_id: '0x6C020D0C'
     instance_id: 1
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_1
     safety_level: QM
     description: ''
@@ -66,7 +66,7 @@ slot_mapping:
     service_id: '0x6F0211C5'
     instance_id: 2
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_2
     safety_level: QM
     description: ''
@@ -75,7 +75,7 @@ slot_mapping:
     service_id: '0x6E021032'
     instance_id: 3
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_3
     safety_level: QM
     description: ''
@@ -84,7 +84,7 @@ slot_mapping:
     service_id: '0x6D020E9F'
     instance_id: 0
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_0
     safety_level: QM
     description: ''
@@ -93,7 +93,7 @@ slot_mapping:
     service_id: '0x6C020D0C'
     instance_id: 1
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_1
     safety_level: QM
     description: ''
@@ -102,7 +102,7 @@ slot_mapping:
     service_id: '0x6F0211C5'
     instance_id: 2
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_2
     safety_level: QM
     description: ''
@@ -111,7 +111,7 @@ slot_mapping:
     service_id: '0x6E021032'
     instance_id: 3
     version: '1.0'
-    binding: iceoryx2
+    binding: coreipc
     endpoint: /lap/UnknownService_3
     safety_level: QM
     description: ''

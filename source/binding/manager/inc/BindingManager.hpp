@@ -3,7 +3,7 @@
  * @author      LightAP Development Team
  * @brief       Dynamic binding manager for ara::com transport layer
  * @date        2025-11-21
- * @details     Manages multiple transport bindings (iceoryx2, DDS, SOME/IP, Socket, D-Bus)
+ * @details     Manages multiple transport bindings (CoreIPC, DDS, SOME/IP, Socket, D-Bus)
  *              with dynamic loading and priority-based selection.
  *              Supports YAML configuration for binding priority and static mapping.
  * @copyright   Copyright (c) 2025
@@ -62,7 +62,7 @@ namespace binding
     /**
      * @brief Binding priority enumeration (higher value = higher priority)
      * @note Default priority order (IMPLEMENTATION_PLAN_UPDATED.md):
-     *       1. iceoryx2 (priority 100) - lowest latency for IPC
+     *       1. CoreIPC (priority 100) - lowest latency for IPC
      *       2. DDS (priority 80) - network communication
      *       3. SOME/IP (priority 60) - automotive standard
      *       4. Socket (priority 40) - fallback for testing
@@ -70,8 +70,8 @@ namespace binding
      */
     enum class BindingPriority : UInt32
     {
-        kIceoryx2 = 100,  ///< iceoryx2 zero-copy IPC (< 1µs latency)
-        kDds      = 80,   ///< DDS over AF_XDP (< 15µs latency)
+        kCoreIpc  = 100,  ///< CoreIPC zero-copy shared-memory IPC (< 1µs latency)
+        kDds      = 80,   ///< DDS via FastDDS (< 15µs latency)
         kSomeip   = 60,   ///< SOME/IP automotive binding
         kSocket   = 40,   ///< Socket-based fallback
         kDbus     = 20,   ///< D-Bus legacy binding
@@ -84,9 +84,9 @@ namespace binding
      */
     struct BindingConfig
     {
-        String name;                ///< Binding name ("iceoryx2", "dds", "someip", etc.)
+        String name;                ///< Binding name ("coreipc", "dds", "someip", etc.)
         BindingPriority priority;   ///< Selection priority
-        String libraryPath;         ///< Shared library path (e.g., "liblap_binding_iceoryx2.so")
+        String libraryPath;         ///< Shared library path (e.g., "liblap_binding_coreipc.so")
         Bool enabled;               ///< Enable/disable flag
         Map< String, String > parameters;  ///< Binding-specific parameters
 
@@ -158,9 +158,9 @@ namespace binding
          * 
          * @note YAML format example:
          *       bindings:
-         *         - name: iceoryx2
+         *         - name: coreipc
          *           priority: 100
-         *           library: /usr/lib/lap/com/liblap_binding_iceoryx2.so
+         *           library: /usr/lib/lap/com/liblap_binding_coreipc.so
          *           enabled: true
          *         - name: dds
          *           priority: 80
@@ -168,7 +168,7 @@ namespace binding
          *           enabled: true
          *       static_mappings:
          *         - serviceId: 0xF001
-         *           binding: iceoryx2  # Force ASIL-D to use iceoryx2
+         *           binding: coreipc  # Force ASIL-D to use CoreIPC
          */
         Result< void > LoadConfiguration( const String& configPath ) noexcept;
 
@@ -280,7 +280,7 @@ namespace binding
         /**
          * @brief Check if a binding supports zero-copy communication
          * @param name Binding name
-         * @return bool True if supports zero-copy (e.g., iceoryx2)
+         * @return bool True if supports zero-copy (e.g., CoreIPC)
          */
         Bool SupportsZeroCopy( const String& name ) const noexcept;
 

@@ -758,7 +758,7 @@ static void PrintUsage( const char* prog )
                  Clr( kCyan ), Clr( kReset ) );
     std::printf( "    --instance=<id>  Instance ID (default: 0)\n" );
     std::printf( "    --version=<M.m>  Version (default: 1.0)\n" );
-    std::printf( "    --binding=<type> Binding type (default: iceoryx2)\n" );
+    std::printf( "    --binding=<type> Binding type (default: coreipc)\n" );
     std::printf( "    --endpoint=<ep>  Endpoint address\n" );
     std::printf( "  %sunregister%s <svc_id>                          Unregister via Core IPC\n",
                  Clr( kCyan ), Clr( kReset ) );
@@ -799,7 +799,7 @@ int main( int argc, char* argv[] )
     UInt64      regInstId     = 0;
     UInt32      regMajor      = 1;
     UInt32      regMinor      = 0;
-    std::string regBinding    = "iceoryx2";
+    std::string regBinding    = "coreipc";
     std::string regEndpoint;
 
     // unregister args

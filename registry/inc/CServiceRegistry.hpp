@@ -229,7 +229,7 @@ namespace registry
          * @param instanceId Service instance ID
          * @param majorVersion Service major version
          * @param minorVersion Service minor version
-         * @param bindingType Transport binding type ("iceoryx2", "dds", etc.)
+         * @param bindingType Transport binding type ("coreipc", "dds", etc.)
          * @param endpoint Transport-specific endpoint address
          * @return Result< void > Success or error code
          *

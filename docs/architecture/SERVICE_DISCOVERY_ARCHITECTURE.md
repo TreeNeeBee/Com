@@ -2722,7 +2722,7 @@ public:
 #### 4.2.1 OfferService 实现
 
 ```cpp
-class Iceoryx2Binding : public ITransportBinding {
+class CoreIPCBinding : public ITransportBinding {
 public:
     Result<void> OfferService(
         const InstanceIdentifier& instance_id,
@@ -2832,7 +2832,7 @@ private:
 #### 4.2.2 FindService 实现（零拷贝访问）
 
 ```cpp
-Result<std::vector<ServiceInstanceInfo>> Iceoryx2Binding::FindService(
+Result<std::vector<ServiceInstanceInfo>> CoreIPCBinding::FindService(
     const InstanceIdentifier& instance_filter
 ) {
     std::vector<ServiceInstanceInfo> results;
@@ -2877,7 +2877,7 @@ Result<std::vector<ServiceInstanceInfo>> Iceoryx2Binding::FindService(
         .service_name = GetServiceName(snapshot.service_id),
         .major_version = snapshot.major_version,
         .minor_version = snapshot.minor_version,
-        .binding_type = TransportBindingType::kIceoryx2,
+        .binding_type = TransportBindingType::kCoreIpc,
         .endpoint_ptr = publisher,  // 零拷贝！直接返回指针
         .qos = {
             .reliability = (reliability == 1 ? Reliability::Reliable : Reliability::BestEffort),
@@ -5322,7 +5322,7 @@ struct ServiceEntry {
     std::string endpoint;  //  / "someip://192.168.1.10:30500"
     
     // 统一绑定类型
-    TransportBindingType binding_type;  // kIceoryx2 / kSomeip / kDDS
+    TransportBindingType binding_type;  // kCoreIpc / kSomeip / kDDS
     
     // 统一元数据
     std::map<std::string, std::string> metadata;

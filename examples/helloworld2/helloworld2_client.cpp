@@ -16,7 +16,7 @@
  *                         - Call methods, read/write fields
  *
  *              Dual-binding architecture:
- *                CoreIPC   — local IPC via shared memory (BindingPriority::kIceoryx2)
+ *                CoreIPC   — local IPC via shared memory (BindingPriority::kCoreIpc)
  *                DDS       — network transport via FastDDS  (BindingPriority::kDds)
  *                BindingManager selects the highest-priority available binding.
  *
@@ -104,7 +104,7 @@ int main( int /* argc */, char* /* argv */[] )
     {
         BindingConfig config;
         config.name     = "coreipc-client";
-        config.priority = BindingPriority::kIceoryx2;
+        config.priority = BindingPriority::kCoreIpc;
         config.enabled  = true;
         auto regR = bindingMgr.RegisterBinding( config, pCoreIpcBinding );
         if ( !regR.HasValue() )
@@ -115,7 +115,7 @@ int main( int /* argc */, char* /* argv */[] )
         }
     }
     std::cout << "[Client] CoreIPC binding registered (priority="
-              << static_cast< UInt32 >( BindingPriority::kIceoryx2 ) << ")." << std::endl;
+              << static_cast< UInt32 >( BindingPriority::kCoreIpc ) << ")." << std::endl;
 
     // DDS: network transport
     if ( pDdsBinding )

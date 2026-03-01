@@ -172,7 +172,7 @@ system:
   slot_size_bytes: 256
   registry_size_bytes: 262144  # 256KB = 1024 slots × 256 bytes
   
-  # 内存配置 (iceoryx2 底层)
+  # 内存配置 (CoreIPC 底层)
   memory:
     # HugePage 配置
     use_hugepages: true

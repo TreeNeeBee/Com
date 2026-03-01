@@ -2,7 +2,7 @@
 
 ## 📁 新目录结构 (2025-11-20 重组)
 
-基于AUTOSAR Adaptive Platform R24-11标准和开源项目最佳实践（vsomeip, Fast-DDS, iceoryx2）重新设计。
+基于AUTOSAR Adaptive Platform R24-11标准和开源项目最佳实践（vsomeip, Fast-DDS, CoreIPC）重新设计。
 
 ### 核心原则
 
@@ -110,16 +110,16 @@ binding/
 │   ├── ITransportBinding.hpp     # 插件接口定义 (纯虚基类)
 │   └── BindingTypes.hpp          # Binding通用类型
 │
-├── iceoryx2/                     # iceoryx2 Binding (priority: 100)
+├── coreipc/                     # CoreIPC Binding (priority: 100)
 │   ├── inc/
-│   │   ├── Iceoryx2Binding.hpp
-│   │   ├── Iceoryx2Publisher.hpp
-│   │   └── Iceoryx2Subscriber.hpp
+│   │   ├── CoreIPCBinding.hpp
+│   │   ├── CoreIPCPublisher.hpp
+│   │   └── CoreIPCSubscriber.hpp
 │   └── src/
-│       ├── Iceoryx2Binding.cpp
-│       ├── Iceoryx2Publisher.cpp
-│       └── Iceoryx2Subscriber.cpp
-│   # 编译为: binding_iceoryx2.so
+│       ├── CoreIPCBinding.cpp
+│       ├── CoreIPCPublisher.cpp
+│       └── CoreIPCSubscriber.cpp
+│   # 编译为: binding_coreipc.so
 │   # 特性: 零拷贝, 无守护进程, <1μs延迟, >10GB/s吞吐
 │
 ├── dds/                          # DDS Binding (priority: 50)
@@ -175,7 +175,7 @@ binding/
 ```
 
 **Binding优先级 (自动选择)**:
-1. **iceoryx2** (100): 本地零拷贝，性能最优
+1. **CoreIPC** (100): 本地零拷贝，性能最优
 2. **DDS** (50): 跨ECU通信
 3. **Socket** (30): UDS通用本地IPC
 4. **D-Bus** (20): 遗留兼容
@@ -264,7 +264,7 @@ install(DIRECTORY ${MODULE_SOURCE_DIR}/api/
         FILES_MATCHING PATTERN "*.hpp")
 
 # Binding插件独立编译
-add_subdirectory(binding/iceoryx2)
+add_subdirectory(binding/coreipc)
 add_subdirectory(binding/dds)
 add_subdirectory(binding/socket)
 add_subdirectory(binding/dbus)
@@ -300,7 +300,7 @@ add_subdirectory(binding/someip)
 2. **开源项目参考**:
    - [vsomeip](https://github.com/COVESA/vsomeip) - SOME/IP实现
    - [Fast-DDS](https://github.com/eProsima/Fast-DDS) - DDS实现
-   - [iceoryx2](https://github.com/eclipse-iceoryx/iceoryx2) - 零拷贝IPC
+   - CoreIPC - 零拷贝IPC
 
 3. **内部文档**:
    - `doc/ARCHITECTURE_SUMMARY.md` - 架构总览

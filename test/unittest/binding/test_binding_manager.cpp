@@ -128,7 +128,7 @@ TEST_F(BindingManagerTest, ManualBindingRegistration)
     // Register binding
     BindingConfig config;
     config.name = "mock_binding";
-    config.priority = BindingPriority::kIceoryx2;
+    config.priority = BindingPriority::kCoreIpc;
     config.enabled = true;
     
     auto result = manager.RegisterBinding(config, mock_binding);
@@ -197,7 +197,7 @@ TEST_F(BindingManagerTest, PriorityBasedSelection)
     
     BindingConfig high_config;
     high_config.name = "high_priority";
-    high_config.priority = BindingPriority::kIceoryx2;  // 100
+    high_config.priority = BindingPriority::kCoreIpc;  // 100
     manager.RegisterBinding(high_config, high_priority);
     
     BindingConfig low_config;
@@ -285,7 +285,7 @@ TEST_F(BindingManagerTest, StaticMappingOverridesPriority)
     
     BindingConfig high_config;
     high_config.name = "high_priority";
-    high_config.priority = BindingPriority::kIceoryx2;
+    high_config.priority = BindingPriority::kCoreIpc;
     manager.RegisterBinding(high_config, high_priority);
     
     BindingConfig specific_config;
@@ -353,7 +353,7 @@ TEST_F(BindingManagerTest, ShutdownWithMultipleBindings)
     EXPECT_CALL(*binding2, Shutdown()).WillOnce(::testing::Return(Result< void >::Ok()));
     EXPECT_CALL(*binding3, Shutdown()).WillOnce(::testing::Return(Result< void >::Ok()));
     
-    BindingConfig config1{"binding1", BindingPriority::kIceoryx2, "", true, {}};
+    BindingConfig config1{"binding1", BindingPriority::kCoreIpc, "", true, {}};
     BindingConfig config2{"binding2", BindingPriority::kDds, "", true, {}};
     BindingConfig config3{"binding3", BindingPriority::kSocket, "", true, {}};
     
@@ -380,7 +380,7 @@ TEST_F(BindingManagerTest, ConcurrentBindingSelection)
     
     BindingConfig config;
     config.name = "test";
-    config.priority = BindingPriority::kIceoryx2;
+    config.priority = BindingPriority::kCoreIpc;
     manager.RegisterBinding(config, binding);
     
     // Launch multiple threads selecting bindings

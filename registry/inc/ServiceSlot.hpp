@@ -119,7 +119,7 @@ namespace registry
 
         /**
          * @brief Transport binding type identifier
-         * @note  Valid values: "iceoryx2", "dds", "someip", "custom"
+         * @note  Valid values: "coreipc", "dds", "someip", "custom"
          *        Aligned with AUTOSAR binding specification SWS_CM_00401
          */
         char            m_bindingType[16];
@@ -127,7 +127,7 @@ namespace registry
         /**
          * @brief Transport-specific endpoint address
          * @details Format depends on m_bindingType:
-         *          - iceoryx2: "shm://service_name/instance_1"
+         *          - coreipc: "shm://service_name/instance_1"
          *          - dds:      "topic://domain_0/service_topic"
          *          - someip:   "tcp://192.168.1.10:30509"
          *          - custom:   "uds:///var/run/lap_service.sock"

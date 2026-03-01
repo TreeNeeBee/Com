@@ -255,7 +255,7 @@ int main()
     {
         BindingConfig config;
         config.name     = "coreipc-client";
-        config.priority = BindingPriority::kIceoryx2;  // higher
+        config.priority = BindingPriority::kCoreIpc;  // higher
         config.enabled  = true;
         auto regResult = bindingMgr.RegisterBinding(
             config, pClientBinding );

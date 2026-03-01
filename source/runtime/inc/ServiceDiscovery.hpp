@@ -80,7 +80,7 @@ namespace discovery
         UInt32              m_iMinorVersion{ 0 };
 
         // Binding information
-        String              m_strBindingType;            ///< "iceoryx2", "dds", "someip"
+        String              m_strBindingType;            ///< "coreipc", "dds", "someip"
         String              m_strNetworkEndpoint;        ///< IP:Port / Topic / Service Name
 
         // Lifecycle

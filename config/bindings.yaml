@@ -6,17 +6,17 @@
 # communication. Bindings are selected based on priority (higher = preferred).
 #
 # Default priority order (IMPLEMENTATION_PLAN_UPDATED.md Phase 2):
-#   1. iceoryx2 (100) - Zero-copy IPC, < 1µs latency
+#   1. coreipc (100) - Zero-copy IPC, < 1µs latency
 #   2. DDS (80)       - Network communication with AF_XDP, < 15µs latency
 #   3. SOME/IP (60)   - AUTOSAR standard automotive protocol
 #   4. Socket (40)    - Fallback for testing and development
 #   5. D-Bus (20)     - Legacy integration
 
 bindings:
-  # iceoryx2 Zero-Copy IPC Binding
-  - name: iceoryx2
+  # coreipc Zero-Copy IPC Binding
+  - name: coreipc
     priority: 100
-    library: /usr/lib/lap/com/liblap_binding_iceoryx2.so
+    library: /usr/lib/lap/com/liblap_binding_coreipc.so
     enabled: true
     parameters:
       domain_id: 0
@@ -66,14 +66,14 @@ bindings:
 # Static Service-to-Binding Mappings
 # Override default priority-based selection for specific services
 static_mappings:
-  # Force ASIL-D services to use iceoryx2 (guaranteed < 1µs latency)
+  # Force ASIL-D services to use coreipc (guaranteed < 1µs latency)
   - service_id: 0xF001  # ASIL-D brake control
     instance_id: 0x0001
-    binding: iceoryx2
+    binding: coreipc
 
   - service_id: 0xF002  # ASIL-D steering control
     instance_id: 0x0001
-    binding: iceoryx2
+    binding: coreipc
 
   # Force inter-ECU diagnostics to use SOME/IP
   - service_id: 0x0301  # Diagnostic service

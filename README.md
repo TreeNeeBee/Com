@@ -128,9 +128,9 @@ Application (Pure AUTOSAR ara::com):
 
 Binding Manager (YAML-Driven):
   Read binding_config.yaml
-  → dlopen("binding_iceoryx2.so") priority 100
+  → dlopen("binding_coreipc.so") priority 100
   → dlopen("binding_dds.so") priority 50
-  → Select best for service (local→iceoryx2, remote→DDS)
+  → Select best for service (local→CoreIPC, remote→DDS)
 ```
 
 **ITransportBinding Interface:**
@@ -156,7 +156,7 @@ extern "C" {
 
 ## Transport Bindings
 
-### 1. iceoryx2 Binding ✅ Complete (Phase 3)
+### 1. CoreIPC Binding ✅ Complete (Phase 3)
 
 **Performance:** <1µs latency, >10GB/s throughput  
 **Status:** 100% (3/3 tests passed, 414ms total)
@@ -177,8 +177,8 @@ extern "C" {
 **Config:**
 ```yaml
 bindings:
-  - type: iceoryx2
-    library: /usr/lib/lap/com/binding_iceoryx2.so
+  - type: coreipc
+    library: /usr/lib/lap/com/binding_coreipc.so
     priority: 100
     enabled: true
     config:
@@ -240,7 +240,7 @@ bindings:
 
 **Phase 1:** Fixed slot registry (memfd, seqlock, heartbeat)  
 **Phase 2:** Binding Manager (ITransportBinding, dlopen, YAML)  
-**Phase 3:** iceoryx2 (C FFI, zero-copy, <1µs verified)  
+**Phase 3:** CoreIPC (shared memory, zero-copy, <1µs verified)  
 **Phase 4:** DDS + AF_XDP (FastDDS ✅, AF_XDP ⏳)  
 **Phase 5:** Custom + Legacy bindings
 
@@ -255,9 +255,7 @@ bindings:
 sudo apt install build-essential cmake \
     libboost-all-dev nlohmann-json3-dev libyaml-cpp-dev
 
-# iceoryx2
-cargo install iceoryx2-cli
-
+# CoreIPC (built-in, no external dependency)
 # FastDDS 2.9.1
 sudo apt install libfastrtps-dev fastddsgen
 ```
@@ -306,7 +304,7 @@ int main() {
 **Config (binding_config.yaml):**
 ```yaml
 bindings:
-  - type: iceoryx2
+  - type: coreipc
     priority: 100
     enabled: true
   - type: dds
@@ -345,7 +343,7 @@ Application code **never changes** - pure configuration-driven.
 ### Guides
 
 - **[BINDING_SELECTION_GUIDE.md](doc/guides/BINDING_SELECTION_GUIDE.md)**
-- **[ICEORYX2_INTEGRATION_GUIDE.md](doc/guides/ICEORYX2_INTEGRATION_GUIDE.md)**
+- **[COREIPC_INTEGRATION_GUIDE.md](doc/guides/COREIPC_INTEGRATION_GUIDE.md)**
 - **[DDS_INTEGRATION_GUIDE.md](doc/guides/DDS_INTEGRATION_GUIDE.md)**
 - **[AUTOSAR_QUICK_REFERENCE.md](doc/guides/AUTOSAR_QUICK_REFERENCE.md)**
 
@@ -373,7 +371,7 @@ For commercial licensing: <https://github.com/TreeNeeBee/LightAP>
 ## Acknowledgments
 
 - AUTOSAR Consortium (AP R25-11)
-- Eclipse iceoryx2 (zero-daemon IPC)
+- CoreIPC (zero-daemon shared memory IPC)
 - eProsima FastDDS (DDS-RTPS)
 - COVESA (vsomeip)
 

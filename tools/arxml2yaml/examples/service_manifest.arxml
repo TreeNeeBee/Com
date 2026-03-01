@@ -116,7 +116,7 @@
                         </INITIAL-OFFER-BEHAVIOR>
                     </SD-SERVER-CONFIG>
                     <COMMUNICATION-CONNECTOR>
-                        <TYPE>ICEORYX2</TYPE>
+                        <TYPE>COREIPC</TYPE>
                         <ENDPOINT>/lap/perception/objects</ENDPOINT>
                     </COMMUNICATION-CONNECTOR>
                 </PROVIDED-SERVICE-INSTANCE>
@@ -127,7 +127,7 @@
                     <SERVICE-INTERFACE-REF DEST="SERVICE-INTERFACE">/ServiceInterfaces/PlanningService</SERVICE-INTERFACE-REF>
                     <INSTANCE-ID>0x0001</INSTANCE-ID>
                     <COMMUNICATION-CONNECTOR>
-                        <TYPE>ICEORYX2</TYPE>
+                        <TYPE>COREIPC</TYPE>
                         <ENDPOINT>/lap/planning/trajectory</ENDPOINT>
                     </COMMUNICATION-CONNECTOR>
                 </PROVIDED-SERVICE-INSTANCE>
@@ -139,7 +139,7 @@
                     <INSTANCE-ID>0x0001</INSTANCE-ID>
                     <SAFETY-LEVEL>ASIL-D</SAFETY-LEVEL>
                     <COMMUNICATION-CONNECTOR>
-                        <TYPE>ICEORYX2</TYPE>
+                        <TYPE>COREIPC</TYPE>
                         <ENDPOINT>/lap/control/vehicle</ENDPOINT>
                     </COMMUNICATION-CONNECTOR>
                 </PROVIDED-SERVICE-INSTANCE>
@@ -150,7 +150,7 @@
                     <SERVICE-INTERFACE-REF DEST="SERVICE-INTERFACE">/ServiceInterfaces/StateManagerService</SERVICE-INTERFACE-REF>
                     <INSTANCE-ID>0x0001</INSTANCE-ID>
                     <COMMUNICATION-CONNECTOR>
-                        <TYPE>ICEORYX2</TYPE>
+                        <TYPE>COREIPC</TYPE>
                         <ENDPOINT>/lap/system/state</ENDPOINT>
                     </COMMUNICATION-CONNECTOR>
                 </PROVIDED-SERVICE-INSTANCE>

@@ -294,7 +294,7 @@ pBinding->Initialize();
 auto& bindingMgr = BindingManager::GetInstance();
 BindingConfig config;
 config.name     = "coreipc";
-config.priority = BindingPriority::kIceoryx2;  // 100
+config.priority = BindingPriority::kCoreIpc;  // 100
 config.enabled  = true;
 bindingMgr.RegisterBinding(config, pBinding);
 ```
@@ -308,7 +308,7 @@ pCoreIpc->Initialize();
 {
     BindingConfig config;
     config.name     = "coreipc";
-    config.priority = BindingPriority::kIceoryx2;  // 100
+    config.priority = BindingPriority::kCoreIpc;  // 100
     config.enabled  = true;
     bindingMgr.RegisterBinding(config, pCoreIpc);
 }
@@ -426,7 +426,7 @@ pBinding->Initialize();
 auto& bindingMgr = BindingManager::GetInstance();
 BindingConfig config;
 config.name     = "coreipc";
-config.priority = BindingPriority::kIceoryx2;
+config.priority = BindingPriority::kCoreIpc;
 config.enabled  = true;
 bindingMgr.RegisterBinding(config, pBinding);
 ```
@@ -519,7 +519,7 @@ BindingManager 根据已注册 binding 的优先级自动选择最佳传输方�
 
 | 优先级 | Binding | 枚举值 | 典型场景 |
 |--------|---------|--------|---------|
-| 100 | CoreIPC | `kIceoryx2` | 本地零拷贝 IPC，< 1µs |
+| 100 | CoreIPC | `kCoreIpc` | 本地零拷贝 IPC，< 1µs |
 | 80 | DDS | `kDds` | 跨网络 FastDDS，< 15µs |
 | 60 | SOME/IP | `kSomeip` | 车载 SOME/IP 协议 |
 | 40 | Socket | `kSocket` | Unix/TCP 回退方案 |
@@ -735,7 +735,7 @@ bindingMgr.RegisterBinding({.name="server", .priority=kCustom}, pServerBinding);
 
 // ... 创建 skeleton, offer, 注册 handlers ...
 
-bindingMgr.RegisterBinding({.name="client", .priority=kIceoryx2}, pClientBinding);
+bindingMgr.RegisterBinding({.name="client", .priority=kCoreIpc}, pClientBinding);
 
 // ... 创建 proxy, 测试方法/事件/字段 ...
 ```
