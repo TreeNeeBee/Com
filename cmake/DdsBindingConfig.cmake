@@ -239,7 +239,38 @@ if( DDS_FOUND )
             LABELS "infra"
         )
 
-        message( STATUS "DDS Binding tests configured (test_discovery, test_dds_cross_process, test_dds_full, test_ds_monitor)" )
+        # Cross-ECU DDS Discovery simulation test (PDP + DS modes)
+        add_executable( test_cross_ecu_dds
+            ${MODULE_ROOT_DIR}/test/test_cross_ecu_dds.cpp
+        )
+
+        target_include_directories( test_cross_ecu_dds PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/dds/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${MODULE_ROOT_DIR}/registry/inc
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+            ${GTEST_INCLUDE_DIRS}
+        )
+
+        target_link_libraries( test_cross_ecu_dds PRIVATE
+            lap_com_binding_dds
+            lap_com_binding_coreipc
+            lap_com
+            lap_core
+            lap_log
+            ${DDS_LIBRARIES}
+            ${GTEST_BOTH_LIBRARIES}
+            pthread
+        )
+
+        add_test( NAME CrossEcuDdsDiscoveryTest COMMAND test_cross_ecu_dds )
+        set_tests_properties( CrossEcuDdsDiscoveryTest PROPERTIES
+            TIMEOUT 120
+            LABELS "infra;cross-ecu;dds"
+        )
+
+        message( STATUS "DDS Binding tests configured (test_discovery, test_dds_cross_process, test_dds_full, test_ds_monitor, test_cross_ecu_dds)" )
         
         # DDS Publisher/Subscriber examples
         message( STATUS "Configuring DDS examples" )
@@ -399,7 +430,7 @@ if( DDS_FOUND )
         if( ENABLE_BUILD_TESTS )
             add_test( NAME HelloWorld2DualBindingTest COMMAND helloworld2_test )
             set_tests_properties( HelloWorld2DualBindingTest PROPERTIES
-                TIMEOUT 60
+                TIMEOUT 90
                 LABELS "example;generated;dual-binding"
             )
         endif()

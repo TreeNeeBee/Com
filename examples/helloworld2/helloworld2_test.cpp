@@ -740,6 +740,87 @@ int main()
     }
 
     // ================================================================
+    // 9. Real DDS PDP/EDP Cross-ECU Discovery
+    //    Create a SECOND DdsBinding instance simulating a remote ECU.
+    //    Remote ECU offers a service → FastDDS PDP discovers the
+    //    participant, EDP discovers the DataWriter → local DdsBinding's
+    //    DdsDiscoveryListener fires on_data_writer_discovery() →
+    //    OnDiscoveryChange() → SD-Proxy bridge → SD-Proxy cache.
+    //    Client FindService resolves through the full registry chain.
+    //
+    //    This exercises the REAL DDS discovery path (no manual injection).
+    //
+    //    Flow:
+    //      Remote ECU: OfferService() → creates DataWriter on lap/com/...
+    //      FastDDS PDP: participant discovery (SHM/multicast, < 500ms)
+    //      FastDDS EDP: endpoint (writer) discovery (< 2s)
+    //      Local binding: DdsDiscoveryListener → OnDiscoveryChange()
+    //        → m_sdProxyBridge() → OnRemoteServiceDiscovered()
+    //        → SD-Proxy cache updated
+    //      Client: CoreIPC FindService → registry (miss)
+    //        → SD-Proxy cache (HIT) — resolved via real DDS PDP/EDP
+    // ================================================================
+    std::cout << "\n--- Real DDS PDP/EDP Cross-ECU Discovery ---" << std::endl;
+
+    if ( pDdsBinding )
+    {
+        const UInt64 kRemotePdpServiceId  = 0x8000;
+        const UInt64 kRemotePdpInstanceId = 0x80000001;
+
+        // Create a second DDS participant simulating a remote ECU
+        auto pRemoteEcu = MakeShared< DdsBinding >();
+        auto remoteInit = pRemoteEcu->Initialize();
+        CHECK( remoteInit.HasValue(),
+               "Remote ECU DdsBinding.Initialize()" );
+
+        if ( remoteInit.HasValue() )
+        {
+            // Remote ECU offers a service (creates DataWriter)
+            auto offerR = pRemoteEcu->OfferService(
+                kRemotePdpServiceId, kRemotePdpInstanceId );
+            CHECK( offerR.HasValue(),
+                   "Remote ECU OfferService(0x8000)" );
+
+            // Wait for FastDDS PDP + EDP discovery propagation
+            std::cout << "  Waiting for DDS PDP/EDP discovery (~3s)..."
+                      << std::endl;
+            std::this_thread::sleep_for( std::chrono::seconds( 3 ) );
+
+            // Verify: local DDS binding discovered the remote service
+            auto localFind = pDdsBinding->FindService( kRemotePdpServiceId );
+            CHECK( localFind.HasValue() && !localFind.Value().empty(),
+                   "Local DDS discovered remote 0x8000 via PDP/EDP" );
+
+            // Verify: SD-Proxy cache updated via DDS → bridge (real path)
+            auto cached = dispatcher.GetSDProxy().FindRemoteService(
+                kRemotePdpServiceId );
+            CHECK( cached.has_value() && cached->IsActive(),
+                   "SD-Proxy cache updated via real DDS→bridge" );
+
+            // Verify: full 3-step chain — CoreIPC → registry → SD-Proxy
+            auto chainR = pClientBinding->FindService( kRemotePdpServiceId );
+            CHECK( chainR.HasValue() && !chainR.Value().empty(),
+                   "CoreIPC FindService → registry → SD-Proxy (real DDS)" );
+
+            // Remote ECU stops offering → EDP REMOVED_WRITER → bridge → invalidate
+            pRemoteEcu->StopOfferService(
+                kRemotePdpServiceId, kRemotePdpInstanceId );
+            std::this_thread::sleep_for( std::chrono::seconds( 2 ) );
+
+            auto afterStop = dispatcher.GetSDProxy().FindRemoteService(
+                kRemotePdpServiceId );
+            CHECK( !afterStop.has_value(),
+                   "SD-Proxy invalidated after remote StopOffer (real DDS)" );
+
+            pRemoteEcu->Shutdown();
+        }
+    }
+    else
+    {
+        std::cout << "  (Skipped — DDS not available)" << std::endl;
+    }
+
+    // ================================================================
     // Cleanup
     // ================================================================
     std::cout << "\n--- Cleanup ---" << std::endl;
