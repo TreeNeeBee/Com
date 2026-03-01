@@ -53,6 +53,7 @@ if( DDS_FOUND )
         ${MODULE_ROOT_DIR}/source/binding/dds/src/CDdsServiceManager.cpp
         ${MODULE_ROOT_DIR}/source/binding/dds/src/DdsDiscoveryListener.cpp
         ${MODULE_ROOT_DIR}/source/binding/dds/src/DdsReaderListener.cpp
+        ${MODULE_ROOT_DIR}/source/binding/dds/src/CDdsDiscoveryServerMonitor.cpp
     )
     
     target_include_directories( lap_com_binding_dds PRIVATE
@@ -210,7 +211,35 @@ if( DDS_FOUND )
             pthread
         )
         
-        message( STATUS "DDS Binding tests configured (test_discovery, test_dds_cross_process, test_dds_full)" )
+        # Discovery Server Monitor test
+        add_executable( test_ds_monitor
+            ${MODULE_ROOT_DIR}/source/binding/dds/test/test_ds_monitor.cpp
+        )
+
+        target_include_directories( test_ds_monitor PRIVATE
+            ${MODULE_ROOT_DIR}/source/binding/dds/inc
+            ${MODULE_ROOT_DIR}/source/binding/common
+            ${MODULE_ROOT_DIR}/source/runtime/inc
+            ${CMAKE_CURRENT_BINARY_DIR}/include
+            ${GTEST_INCLUDE_DIRS}
+        )
+
+        target_link_libraries( test_ds_monitor PRIVATE
+            lap_com_binding_dds
+            lap_core
+            lap_log
+            ${DDS_LIBRARIES}
+            ${GTEST_BOTH_LIBRARIES}
+            pthread
+        )
+
+        add_test( NAME DdsDiscoveryServerMonitorTest COMMAND test_ds_monitor )
+        set_tests_properties( DdsDiscoveryServerMonitorTest PROPERTIES
+            TIMEOUT 30
+            LABELS "infra"
+        )
+
+        message( STATUS "DDS Binding tests configured (test_discovery, test_dds_cross_process, test_dds_full, test_ds_monitor)" )
         
         # DDS Publisher/Subscriber examples
         message( STATUS "Configuring DDS examples" )

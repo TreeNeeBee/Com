@@ -34,6 +34,14 @@ bindings:
       qos_profile: automotive
       transport: af_xdp
       interface: eth0
+      # Discovery Server (optional, fallback to standard PDP/EDP if unreachable)
+      # Supported protocols: tcp://host:port, udp://host:port
+      discovery_server: ""           # e.g. "tcp://192.168.1.1:42100"
+      ds_health_check_interval_ms: 5000
+      ds_max_failures: 3
+      ds_reconnect_interval_ms: 10000
+      ds_enable_fallback: true
+      ds_enable_reconnect: true
 
   # SOME/IP Automotive Binding
   - name: someip

@@ -36,6 +36,7 @@
 #include "CDdsServiceManager.hpp"
 #include "CDdsEventManager.hpp"
 #include "CDdsMethodManager.hpp"
+#include "CDdsDiscoveryServerMonitor.hpp"
 #include "ITransportBinding.hpp"
 
 // ==================== Cross-Module Headers ====================
@@ -178,6 +179,16 @@ namespace binding
          */
         void SetDiscoveryServer( const String& address ) noexcept;
 
+        /**
+         * @brief   Get current discovery mode (DiscoveryServer / SimplePdp / Disconnected)
+         */
+        DiscoveryMode GetDiscoveryMode() const noexcept;
+
+        /**
+         * @brief   Get Discovery Server monitoring statistics
+         */
+        DiscoveryServerStats GetDiscoveryStats() const noexcept;
+
     protected:
         // ================================================================
         // NVI Do* Overrides (type-erased virtual implementations)
@@ -232,6 +243,7 @@ namespace binding
         // ================================================================
 
         DdsConfig           m_config;               ///< Binding configuration
+        DiscoveryServerMonitorConfig m_dsMonitorConfig;  ///< DS monitor configuration
         mutable Mutex       m_mutex;                ///< Main serialisation lock
 
         /// DDS core entities
@@ -279,6 +291,12 @@ namespace binding
         CDdsMethodManager   m_methodManager;        ///< Method/Field RPC
 
         // ================================================================
+        // Discovery Server Monitor
+        // ================================================================
+
+        UniqueHandle< CDdsDiscoveryServerMonitor >  m_pDiscoveryMonitor;
+
+        // ================================================================
         // Internal Helpers
         // ================================================================
 
@@ -289,6 +307,26 @@ namespace binding
          */
         void OnDiscoveryChange(
             UInt64 serviceId, Vector< UInt64 > instances ) noexcept;
+
+        /**
+         * @brief   Called from CDdsDiscoveryServerMonitor when discovery mode changes
+         * @param   oldMode   Previous discovery mode
+         * @param   newMode   New discovery mode
+         */
+        void OnDiscoveryModeChanged(
+            DiscoveryMode oldMode, DiscoveryMode newMode ) noexcept;
+
+        /**
+         * @brief   Recreate DDS participant with specified discovery mode
+         * @param   targetMode  kDiscoveryServer → SUPER_CLIENT, kSimplePdp → SIMPLE
+         * @return  Success or failure
+         *
+         * @details Tears down existing participant, publisher, subscriber (keeps
+         *          managers alive — they hold no DDS entity pointers after shutdown)
+         *          and recreates them with the target discovery protocol.
+         *          Existing service offers and event subscriptions are re-established.
+         */
+        Result< void > RecreateParticipant( DiscoveryMode targetMode ) noexcept;
     };
 
 } // namespace binding

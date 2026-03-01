@@ -123,6 +123,30 @@ namespace binding
                 LAP_COM_LOG_WARN << "Invalid max_payload_size: " << *val;
             }
         }
+        if ( const auto* val = tryGet( "ds_health_check_interval_ms" ) ) {
+            try {
+                m_dsMonitorConfig.m_healthCheckInterval =
+                    std::chrono::milliseconds( ::std::stoul( *val ) );
+            } catch ( const ::std::exception& ) { /* ignore */ }
+        }
+        if ( const auto* val = tryGet( "ds_max_failures" ) ) {
+            try {
+                m_dsMonitorConfig.m_iMaxFailuresBeforeFallback =
+                    static_cast< UInt32 >( ::std::stoul( *val ) );
+            } catch ( const ::std::exception& ) { /* ignore */ }
+        }
+        if ( const auto* val = tryGet( "ds_reconnect_interval_ms" ) ) {
+            try {
+                m_dsMonitorConfig.m_reconnectInterval =
+                    std::chrono::milliseconds( ::std::stoul( *val ) );
+            } catch ( const ::std::exception& ) { /* ignore */ }
+        }
+        if ( const auto* val = tryGet( "ds_enable_fallback" ) ) {
+            m_dsMonitorConfig.m_bEnableFallback = ( *val == "true" || *val == "1" );
+        }
+        if ( const auto* val = tryGet( "ds_enable_reconnect" ) ) {
+            m_dsMonitorConfig.m_bEnableReconnect = ( *val == "true" || *val == "1" );
+        }
 
         LAP_COM_LOG_INFO << "DdsBinding configured with "
                          << params.size() << " parameter(s)";
@@ -322,6 +346,31 @@ namespace binding
                          << ( m_config.m_bUseSharedMemory ? "true" : "false" );
         LAP_COM_LOG_INFO << "  Data Sharing: "
                          << ( m_config.m_bDataSharingEnabled ? "true" : "false" );
+        LAP_COM_LOG_INFO << "  Discovery Server: "
+                         << ( m_config.m_strDiscoveryServer.empty()
+                              ? "(none — standard PDP/EDP)"
+                              : m_config.m_strDiscoveryServer );
+
+        // ── Start Discovery Server Monitor ──
+        if ( !m_config.m_strDiscoveryServer.empty() )
+        {
+            m_dsMonitorConfig.m_strServerAddress = m_config.m_strDiscoveryServer;
+
+            m_pDiscoveryMonitor = MakeUnique< CDdsDiscoveryServerMonitor >(
+                m_dsMonitorConfig );
+
+            m_pDiscoveryMonitor->SetModeChangeCallback(
+                [this]( DiscoveryMode oldMode, DiscoveryMode newMode ) {
+                    OnDiscoveryModeChanged( oldMode, newMode );
+                } );
+
+            const auto initialMode = m_pDiscoveryMonitor->Start( m_pParticipant );
+
+            LAP_COM_LOG_INFO << "  Discovery mode: "
+                             << ( initialMode == DiscoveryMode::kDiscoveryServer
+                                  ? "DISCOVERY_SERVER (SUPER_CLIENT)"
+                                  : "SIMPLE_PDP (fallback)" );
+        }
 
         return Result< void >::FromValue();
     }
@@ -335,6 +384,13 @@ namespace binding
         }
 
         LAP_COM_LOG_INFO << "Shutting down DDS Binding";
+
+        // Stop discovery monitor FIRST (it references the participant)
+        if ( m_pDiscoveryMonitor )
+        {
+            m_pDiscoveryMonitor->Stop();
+            m_pDiscoveryMonitor.reset();
+        }
 
         // Clear push-discovery subscriptions
         m_mapFindSubscriptions.clear();
@@ -677,6 +733,237 @@ namespace binding
             return;
         }
         m_config.m_strDiscoveryServer = address;
+    }
+
+    DiscoveryMode DdsBinding::GetDiscoveryMode() const noexcept
+    {
+        if ( m_pDiscoveryMonitor ) {
+            return m_pDiscoveryMonitor->GetCurrentMode();
+        }
+        // No monitor → we're using standard PDP/EDP (no DS configured)
+        return ( m_pParticipant != nullptr )
+            ? DiscoveryMode::kSimplePdp
+            : DiscoveryMode::kDisconnected;
+    }
+
+    DiscoveryServerStats DdsBinding::GetDiscoveryStats() const noexcept
+    {
+        if ( m_pDiscoveryMonitor ) {
+            return m_pDiscoveryMonitor->GetStats();
+        }
+        DiscoveryServerStats empty;
+        empty.m_eCurrentMode = GetDiscoveryMode();
+        return empty;
+    }
+
+    // ====================================================================
+    // Discovery Server Fallback — mode change handler
+    // ====================================================================
+
+    void DdsBinding::OnDiscoveryModeChanged(
+        DiscoveryMode oldMode, DiscoveryMode newMode ) noexcept
+    {
+        LAP_COM_LOG_INFO << "DdsBinding: Discovery mode changed "
+                         << static_cast< int >( oldMode ) << " → "
+                         << static_cast< int >( newMode );
+
+        if ( newMode == DiscoveryMode::kSimplePdp &&
+             oldMode == DiscoveryMode::kDiscoveryServer )
+        {
+            // DS went down → recreate participant in SIMPLE mode
+            LAP_COM_LOG_WARN << "DdsBinding: Discovery Server lost, "
+                             << "recreating participant with SIMPLE PDP/EDP";
+            auto result = RecreateParticipant( DiscoveryMode::kSimplePdp );
+            if ( !result.HasValue() ) {
+                LAP_COM_LOG_ERROR << "DdsBinding: Failed to recreate participant ";
+            }
+        }
+        else if ( newMode == DiscoveryMode::kDiscoveryServer &&
+                  oldMode == DiscoveryMode::kSimplePdp )
+        {
+            // DS recovered → recreate participant in SUPER_CLIENT mode
+            LAP_COM_LOG_INFO << "DdsBinding: Discovery Server recovered, "
+                             << "recreating participant with SUPER_CLIENT";
+            auto result = RecreateParticipant( DiscoveryMode::kDiscoveryServer );
+            if ( !result.HasValue() ) {
+                LAP_COM_LOG_ERROR << "DdsBinding: Failed to recreate participant "
+                                  << "for DS mode, staying in PDP/EDP";
+            }
+        }
+    }
+
+    Result< void > DdsBinding::RecreateParticipant(
+        DiscoveryMode targetMode ) noexcept
+    {
+        LockGuard lock( m_mutex );
+
+        if ( m_pParticipant == nullptr ) {
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kNotInitialized ) );
+        }
+
+        LAP_COM_LOG_INFO << "DdsBinding::RecreateParticipant → mode "
+                         << static_cast< int >( targetMode );
+
+        // 1. Shutdown managers (they close their own DDS entities)
+        m_methodManager.Shutdown();
+        m_eventManager.Shutdown();
+        m_serviceManager.Shutdown();
+
+        // 2. Detach discovery listener callback
+        if ( m_pDiscoveryListener != nullptr ) {
+            m_pDiscoveryListener->SetDiscoveryChangeCallback( nullptr );
+        }
+
+        // 3. Delete old DDS entities
+        if ( m_pSubscriber != nullptr ) {
+            m_pParticipant->delete_subscriber( m_pSubscriber );
+            m_pSubscriber = nullptr;
+        }
+        if ( m_pPublisher != nullptr ) {
+            m_pParticipant->delete_publisher( m_pPublisher );
+            m_pPublisher = nullptr;
+        }
+        DomainParticipantFactory::get_instance()->delete_participant( m_pParticipant );
+        m_pParticipant = nullptr;
+        m_pDiscoveryListener = nullptr;
+        m_pOwnedDiscoveryListener.reset();
+
+        // 4. Recreate discovery listener
+        auto pDiscListener = MakeUnique< DdsDiscoveryListener >( this );
+        m_pDiscoveryListener = pDiscListener.get();
+
+        // 5. Configure participant QoS for target mode
+        DomainParticipantQos pqos;
+        pqos.name( "LightAP_DDS_Participant" );
+
+        Bool bNeedTcp = false;
+
+        if ( targetMode == DiscoveryMode::kDiscoveryServer &&
+             !m_config.m_strDiscoveryServer.empty() )
+        {
+            // Parse DS address and configure SUPER_CLIENT
+            String host;
+            UInt32 port = 0;
+            Int32 kind  = 0;
+            if ( m_pDiscoveryMonitor &&
+                 m_pDiscoveryMonitor->ParseServerAddress( host, port, kind ) )
+            {
+                eprosima::fastdds::rtps::Locator_t serverLocator;
+                serverLocator.kind = kind;
+                serverLocator.port = port;
+                eprosima::fastdds::rtps::IPLocator::setIPv4( serverLocator, host );
+
+                pqos.wire_protocol().builtin.discovery_config.discoveryProtocol =
+                    eprosima::fastdds::rtps::DiscoveryProtocol::SUPER_CLIENT;
+                pqos.wire_protocol().builtin.discovery_config
+                    .use_SIMPLE_EndpointDiscoveryProtocol = true;
+                pqos.wire_protocol().builtin.discovery_config
+                    .use_STATIC_EndpointDiscoveryProtocol = false;
+                pqos.wire_protocol().builtin.discovery_config.m_DiscoveryServers.clear();
+                pqos.wire_protocol().builtin.discovery_config.m_DiscoveryServers
+                    .push_back( serverLocator );
+
+                bNeedTcp = ( kind == LOCATOR_KIND_TCPv4 );
+            }
+            else
+            {
+                // Fallback to SIMPLE if address parse fails
+                pqos.wire_protocol().builtin.discovery_config.discoveryProtocol =
+                    eprosima::fastdds::rtps::DiscoveryProtocol::SIMPLE;
+                pqos.wire_protocol().builtin.discovery_config
+                    .use_SIMPLE_EndpointDiscoveryProtocol = true;
+                pqos.wire_protocol().builtin.discovery_config
+                    .use_STATIC_EndpointDiscoveryProtocol = false;
+            }
+        }
+        else
+        {
+            // SIMPLE PDP/EDP
+            pqos.wire_protocol().builtin.discovery_config.discoveryProtocol =
+                eprosima::fastdds::rtps::DiscoveryProtocol::SIMPLE;
+            pqos.wire_protocol().builtin.discovery_config
+                .use_SIMPLE_EndpointDiscoveryProtocol = true;
+            pqos.wire_protocol().builtin.discovery_config
+                .use_STATIC_EndpointDiscoveryProtocol = false;
+            pqos.wire_protocol().builtin.discovery_config.m_DiscoveryServers.clear();
+        }
+
+        // 6. Configure transports
+        if ( bNeedTcp || m_config.m_bUseTcpTransport ) {
+            pqos.transport().use_builtin_transports = false;
+            auto pTcp = ::std::make_shared<
+                eprosima::fastdds::rtps::TCPv4TransportDescriptor >();
+            pTcp->add_listener_port( 0 );
+            pTcp->sendBufferSize   = m_config.m_iUdpSendBufferSize;
+            pTcp->receiveBufferSize = m_config.m_iUdpRecvBufferSize;
+            pqos.transport().user_transports.push_back( pTcp );
+        }
+        if ( m_config.m_bUseSharedMemory ) {
+            pqos.transport().use_builtin_transports = true;
+            auto pShm = ::std::make_shared<
+                eprosima::fastdds::rtps::SharedMemTransportDescriptor >();
+            pShm->segment_size( m_config.m_iMaxPayloadSize * 2 );
+            pqos.transport().user_transports.push_back( pShm );
+        }
+
+        // 7. Create new participant
+        const auto kDiscoveryMask = StatusMask::none();
+        m_pParticipant = DomainParticipantFactory::get_instance()->create_participant(
+            m_config.m_iDomainId, pqos, m_pDiscoveryListener, kDiscoveryMask );
+
+        if ( m_pParticipant == nullptr ) {
+            LAP_COM_LOG_ERROR << "RecreateParticipant: Failed to create participant";
+            m_pDiscoveryListener = nullptr;
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kNotInitialized ) );
+        }
+
+        m_pOwnedDiscoveryListener = ::std::move( pDiscListener );
+        m_pDiscoveryListener->SetDiscoveryChangeCallback(
+            [this]( UInt64 svcId, Vector< UInt64 > instances ) {
+                OnDiscoveryChange( svcId, ::std::move( instances ) );
+            } );
+
+        // 8. Register type and recreate publisher/subscriber
+        m_typeSupport.register_type( m_pParticipant );
+
+        PublisherQos pubQos;
+        m_pPublisher = m_pParticipant->create_publisher( pubQos );
+        if ( m_pPublisher == nullptr ) {
+            LAP_COM_LOG_ERROR << "RecreateParticipant: Failed to create publisher";
+            DomainParticipantFactory::get_instance()->delete_participant( m_pParticipant );
+            m_pParticipant = nullptr;
+            m_pDiscoveryListener = nullptr;
+            m_pOwnedDiscoveryListener.reset();
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kNotInitialized ) );
+        }
+
+        SubscriberQos subQos;
+        m_pSubscriber = m_pParticipant->create_subscriber( subQos );
+        if ( m_pSubscriber == nullptr ) {
+            LAP_COM_LOG_ERROR << "RecreateParticipant: Failed to create subscriber";
+            m_pParticipant->delete_publisher( m_pPublisher );
+            m_pPublisher = nullptr;
+            DomainParticipantFactory::get_instance()->delete_participant( m_pParticipant );
+            m_pParticipant = nullptr;
+            m_pDiscoveryListener = nullptr;
+            m_pOwnedDiscoveryListener.reset();
+            return Result< void >::FromError(
+                MakeErrorCode( ComErrc::kNotInitialized ) );
+        }
+
+        // 9. Update monitor with new participant
+        if ( m_pDiscoveryMonitor ) {
+            m_pDiscoveryMonitor->Stop();
+            m_pDiscoveryMonitor->Start( m_pParticipant );
+        }
+
+        LAP_COM_LOG_INFO << "RecreateParticipant: Success ("
+                         << ( targetMode == DiscoveryMode::kDiscoveryServer
+                              ? "SUPER_CLIENT" : "SIMPLE" ) << ")";
+        return Result< void >::FromValue();
     }
 
     // ====================================================================

@@ -73,6 +73,7 @@ add_library( lap_com_binding_dds SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CDdsServiceManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CDdsEventManager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CDdsMethodManager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CDdsDiscoveryServerMonitor.cpp
 )
 
 target_link_libraries( lap_com_binding_dds
@@ -123,6 +124,33 @@ target_include_directories( dds_discovery_test PRIVATE
 )
 
 message( STATUS "DDS binding configured successfully" )
+
+# Discovery Server Monitor tests (GTest)
+add_executable( dds_ds_monitor_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_ds_monitor.cpp
+)
+
+target_link_libraries( dds_ds_monitor_test
+    lap_com_binding_dds
+    lap_core
+    lap_log
+    fastdds
+    fastcdr
+    GTest::gtest
+    GTest::gtest_main
+    pthread
+    rt
+    dl
+)
+
+target_include_directories( dds_ds_monitor_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/inc
+    ${COM_ROOT}/source/binding/common
+    ${COM_ROOT}/source/runtime/inc
+    ${CMAKE_CURRENT_BINARY_DIR}/include
+    ${CORE_ROOT}/source/inc
+    ${LOG_ROOT}/source/inc
+)
 
 # Integration test (Event + Method + Field)
 # NOTE: test_dds_integration.cpp does not exist yet — uncomment when created.
