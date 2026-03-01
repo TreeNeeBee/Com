@@ -4,16 +4,16 @@
 
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![AUTOSAR](https://img.shields.io/badge/AUTOSAR-AP%20R24--11-green.svg)](https://www.autosar.org/)
-[![Status](https://img.shields.io/badge/Status-Phase%204%20Active-yellow.svg)](#implementation-status)
+[![AUTOSAR](https://img.shields.io/badge/AUTOSAR-AP%20R25--11-green.svg)](https://www.autosar.org/)
+[![Status](https://img.shields.io/badge/Status-5%20Bindings%20Complete-brightgreen.svg)](#implementation-status)
 
-> **AUTOSAR Adaptive Platform R24-11 Compliant Communication Middleware**  
+> **AUTOSAR Adaptive Platform R25-11 Compliant Communication Middleware** (backward compatible with R24-11)  
 > Zero-daemon service-oriented architecture with plugin-based transport bindings
 
-**Version:** 3.1.0  
-**Last Updated:** 2025-11-24  
-**Architecture:** Zero-Daemon + Fixed Slot + Dual Registry + Plugin Bindings  
-**Status:** Phase 3 Complete (Core IPC), Phase 4 Active (DDS + AF_XDP 70%)
+**Version:** 4.0.0  
+**Last Updated:** 2026-03-01  
+**Architecture:** Zero-Daemon + Fixed Slot + Dual Registry + 5 Plugin Bindings  
+**Status:** All 5 transport bindings implemented, 13 CTest suites passing
 
 ---
 
@@ -31,7 +31,7 @@
 
 ## Overview
 
-LightAP Com is an **AUTOSAR Adaptive Platform R24-11** compliant communication module implementing a revolutionary **zero-daemon, plugin-based architecture**.
+LightAP Com is an **AUTOSAR Adaptive Platform R25-11** compliant communication module implementing a revolutionary **zero-daemon, plugin-based architecture**.
 
 ### Core Innovations
 
@@ -326,7 +326,7 @@ Application code **never changes** - pure configuration-driven.
   Zero-daemon, fixed slot, dual registry, seqlock, heartbeat
 
 - **[ARCHITECTURE_SUMMARY.md](doc/architecture/ARCHITECTURE_SUMMARY.md)** (3547 lines)  
-  Complete architecture, 4-binding design, AUTOSAR R24-11
+  Complete architecture, 5-binding design, AUTOSAR R25-11
 
 - **[TRANSPORT_MATRIX.md](doc/architecture/TRANSPORT_MATRIX.md)**  
   Binding selection guide
@@ -372,7 +372,7 @@ For commercial licensing: <https://github.com/TreeNeeBee/LightAP>
 
 ## Acknowledgments
 
-- AUTOSAR Consortium (AP R24-11)
+- AUTOSAR Consortium (AP R25-11)
 - Eclipse iceoryx2 (zero-daemon IPC)
 - eProsima FastDDS (DDS-RTPS)
 - COVESA (vsomeip)
@@ -380,6 +380,6 @@ For commercial licensing: <https://github.com/TreeNeeBee/LightAP>
 ---
 
 <p align="center">
-  <strong>Zero-Daemon • Plugin-Based • AUTOSAR R24-11</strong><br>
+  <strong>Zero-Daemon • Plugin-Based • AUTOSAR R25-11</strong><br>
   <sub>Built for the Adaptive Platform community • CC BY-NC 4.0</sub>
 </p>

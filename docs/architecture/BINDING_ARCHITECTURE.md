@@ -57,16 +57,17 @@ bindings:
       domain: 0
       discovery_server: "192.168.1.100:34567"
       transport: shm
-      af_xdp_enabled: true
-      af_xdp_config:
-        interface: eth0
-        queue_ids: [0, 1, 2, 3]
-        umem_shared_with_coreipc: true
-        zero_copy: true
-        xdp_mode: drv
+      # AF_XDP: 优化升级项，独立处理（当前未实现）
+      # af_xdp_enabled: false
+      # af_xdp_config:
+      #   interface: eth0
+      #   queue_ids: [0, 1, 2, 3]
+      #   umem_shared_with_coreipc: true
+      #   zero_copy: true
+      #   xdp_mode: drv
       payload_routing:
         large_payload_threshold: 65536
-        large_payload_transport: af_xdp
+        large_payload_transport: shm  # 当前默认 SHM，AF_XDP 作为未来优化项
         small_payload_transport: shm
 
   - type: custom_protocol
@@ -1344,10 +1345,11 @@ struct DdsConfig
     UInt32  m_iDomainId              = 0;
     String  m_strDiscoveryServer;              // e.g. "tcp://192.168.1.1:42100"
     Bool    m_bUseSharedMemory       = true;
-    Bool    m_bAfXdpEnabled          = false;
-    String  m_strAfXdpInterface      = "eth0";
-    Vector<UInt32> m_vecAfXdpQueues  = {0, 1};
-    UInt32  m_iLargePayloadThreshold = 65536;   // >64KB → AF_XDP
+    // AF_XDP: 优化升级项，独立处理（当前未实现）
+    // Bool    m_bAfXdpEnabled       = false;
+    // String  m_strAfXdpInterface   = "eth0";
+    // Vector<UInt32> m_vecAfXdpQueues = {0, 1};
+    UInt32  m_iLargePayloadThreshold = 65536;   // >64KB → SHM (未来: AF_XDP)
     UInt32  m_iMaxPayloadSize        = 10485760; // 10MB
     Bool    m_bReliable              = true;
     Bool    m_bTransientLocal        = false;

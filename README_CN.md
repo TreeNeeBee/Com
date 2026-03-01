@@ -4,16 +4,16 @@
 
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
-[![AUTOSAR](https://img.shields.io/badge/AUTOSAR-AP%20R24--11-green.svg)](https://www.autosar.org/)
-[![Status](https://img.shields.io/badge/Status-阶段4进行中-yellow.svg)](#实现状态)
+[![AUTOSAR](https://img.shields.io/badge/AUTOSAR-AP%20R25--11-green.svg)](https://www.autosar.org/)
+[![Status](https://img.shields.io/badge/Status-5绑定已完成-brightgreen.svg)](#实现状态)
 
-> **AUTOSAR 自适应平台 R24-11 兼容通信中间件**  
+> **AUTOSAR 自适应平台 R25-11 兼容通信中间件**（向前兼容 R24-11）  
 > 零守护进程面向服务架构 + 插件化传输绑定
 
-**版本：** 3.1.0  
-**最后更新：** 2025-11-24  
-**架构：** 零守护进程 + 固定槽位 + 双注册表 + 插件绑定  
-**状态：** 阶段3完成（Core IPC），阶段4进行中（DDS + AF_XDP 70%）
+**版本：** 4.0.0  
+**最后更新：** 2026-03-01  
+**架构：** 零守护进程 + 固定槽位 + 双注册表 + 5 绑定插件  
+**状态：** 5 个传输绑定全部实现，13 个 CTest 测试套件通过
 
 ---
 
@@ -31,7 +31,7 @@
 
 ## 概述
 
-LightAP Com 是符合 **AUTOSAR 自适应平台 R24-11** 标准的通信模块，实现了革命性的**零守护进程、插件化架构**。
+LightAP Com 是符合 **AUTOSAR 自适应平台 R25-11** 标准（向前兼容 R24-11）的通信模块，实现了革命性的**零守护进程、插件化架构**。
 
 ### 核心创新
 
@@ -326,7 +326,7 @@ bindings:
   零守护进程、固定槽位、双注册表、seqlock、心跳
 
 - **[ARCHITECTURE_SUMMARY.md](doc/architecture/ARCHITECTURE_SUMMARY.md)**（3547行）  
-  完整架构、4绑定设计、AUTOSAR R24-11
+  完整架构、5 绑定设计、AUTOSAR R25-11
 
 - **[TRANSPORT_MATRIX.md](doc/architecture/TRANSPORT_MATRIX.md)**  
   绑定选择指南
@@ -372,7 +372,7 @@ bindings:
 
 ## 致谢
 
-- AUTOSAR Consortium（AP R24-11）
+- AUTOSAR Consortium（AP R25-11）
 - Eclipse iceoryx2（零守护进程 IPC）
 - eProsima FastDDS（DDS-RTPS）
 - COVESA（vsomeip）
@@ -380,6 +380,6 @@ bindings:
 ---
 
 <p align="center">
-  <strong>零守护进程 • 插件化 • AUTOSAR R24-11</strong><br>
+  <strong>零守护进程 • 插件化 • AUTOSAR R25-11</strong><br>
   <sub>为自适应平台社区而生 • CC BY-NC 4.0</sub>
 </p>
