@@ -149,33 +149,31 @@ int main( int /* argc */, char* /* argv */[] )
     }
 
     // ================================================================
-    // Phase 5 — Service Discovery
+    // Phase 5 — Service Discovery (Registry → SD-Proxy → Binding)
     // ================================================================
+    //   CoreIPC FindService chain (unified 3-step flow):
+    //     1. Local registry SHM lookup (< 500ns)
+    //     2. IPC fallback → CRegistryDispatcher::handleQueryService
+    //        2a. Local registry (dispatcher-side)
+    //        2b. SD-Proxy remote cache (cross-ECU services, < 1ms)
+    //        2c. SD-Proxy active query → DDS binding FindService (< 100ms)
+    //   No need to call DDS binding directly — the registry+SD-Proxy
+    //   chain covers both local and cross-ECU discovery.
     std::cout << "[Client] Discovering service (0x" << std::hex
               << HelloWorld2ServiceProxy::kServiceId << std::dec
-              << ") ..." << std::endl;
+              << ") via registry ..." << std::endl;
 
     bool found = false;
     for ( int attempt = 0; attempt < 30 && !found && g_running.load();
           ++attempt )
     {
-        // Try CoreIPC first (higher priority), then DDS
+        // Unified discovery: registry → SD-Proxy cache → active DDS query
         auto result = pCoreIpcBinding->FindService(
             HelloWorld2ServiceProxy::kServiceId );
         if ( result.HasValue() && !result.Value().empty() )
         {
-            std::cout << "[Client] Service found via CoreIPC!" << std::endl;
+            std::cout << "[Client] Service found via registry!" << std::endl;
             found = true;
-        }
-        else if ( pDdsBinding )
-        {
-            auto ddsResult = pDdsBinding->FindService(
-                HelloWorld2ServiceProxy::kServiceId );
-            if ( ddsResult.HasValue() && !ddsResult.Value().empty() )
-            {
-                std::cout << "[Client] Service found via DDS!" << std::endl;
-                found = true;
-            }
         }
 
         if ( !found )

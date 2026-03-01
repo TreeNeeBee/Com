@@ -156,6 +156,36 @@ int main( int /* argc */, char* /* argv */[] )
     }
 
     // ================================================================
+    // Phase 3.5 — Wire DDS binding ↔ SD-Proxy bridge
+    //   Push: DDS discovery events → SD-Proxy cache
+    //   Pull: SD-Proxy active query → DDS binding FindService
+    // ================================================================
+    if ( pDdsBinding )
+    {
+        // Push bridge: DDS OnDiscoveryChange() → SD-Proxy cache
+        auto bridge = dispatcher.GetSDProxyBridgeFunc();
+        if ( bridge )
+        {
+            pDdsBinding->SetSDProxyBridge( bridge );
+            std::cout << "[Server] SD-Proxy push bridge wired (DDS → cache)." << std::endl;
+        }
+
+        // Pull bridge: SD-Proxy active query → DDS binding FindService
+        auto pDds = pDdsBinding;  // shared_ptr capture for lambda
+        dispatcher.GetSDProxy().SetActiveQueryCallback(
+            [pDds]( uint64_t serviceId ) -> std::vector< uint64_t >
+            {
+                auto result = pDds->FindService( serviceId );
+                if ( result.HasValue() )
+                {
+                    return result.Value();
+                }
+                return {};
+            } );
+        std::cout << "[Server] SD-Proxy active query wired (cache → DDS)." << std::endl;
+    }
+
+    // ================================================================
     // Phase 4 — Register Bindings with BindingManager
     // ================================================================
     auto& bindingMgr = BindingManager::GetInstance();

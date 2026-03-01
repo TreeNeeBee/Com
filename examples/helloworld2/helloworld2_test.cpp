@@ -161,6 +161,30 @@ int main()
         pDdsBinding.reset();
     }
 
+    // Wire DDS binding ↔ SD-Proxy bridge for cross-ECU discovery
+    if ( pDdsBinding )
+    {
+        // Push bridge: DDS discovery → SD-Proxy cache
+        auto bridge = dispatcher.GetSDProxyBridgeFunc();
+        if ( bridge )
+        {
+            pDdsBinding->SetSDProxyBridge( bridge );
+        }
+        CHECK( bridge != nullptr,
+               "SD-Proxy push bridge wired (DDS → cache)" );
+
+        // Pull bridge: SD-Proxy active query → DDS FindService
+        auto pDds = pDdsBinding;  // shared_ptr capture
+        dispatcher.GetSDProxy().SetActiveQueryCallback(
+            [pDds]( uint64_t serviceId ) -> std::vector< uint64_t >
+            {
+                auto r = pDds->FindService( serviceId );
+                return r.HasValue() ? r.Value()
+                                    : std::vector< uint64_t >{};
+            } );
+        CHECK( true, "SD-Proxy active query wired (cache → DDS)" );
+    }
+
     // Register server binding (low priority) for skeleton
     auto& bindingMgr = BindingManager::GetInstance();
     {
@@ -668,6 +692,52 @@ int main()
     CHECK( true, "CoreIPC binding operational (all tests above)" );
     CHECK( true, std::string( "DDS binding status: " )
                  + ( ddsAvailable ? "registered (coexisting)" : "skipped (not available)" ) );
+
+    // ================================================================
+    // 8. Cross-ECU SD-Proxy Discovery Test
+    //    Simulate a remote service discovered via DDS (not in local
+    //    registry SHM), verify that the unified 3-step discovery flow
+    //    finds it through SD-Proxy cache.
+    //
+    //    Flow: CoreIPC FindService → CRegistryProxy → local SHM (miss)
+    //          → IPC to dispatcher → handleQueryService:
+    //            Step 1: local registry (miss)
+    //            Step 2: SD-Proxy cache (HIT — we injected it)
+    // ================================================================
+    std::cout << "\n--- Cross-ECU SD-Proxy Discovery ---" << std::endl;
+
+    {
+        // Inject a fake remote service via SD-Proxy bridge API
+        // (simulates: remote ECU offered 0x7000 → DDS EDP discovered it
+        //  → bridge callback → SD-Proxy cache)
+        const UInt64 kRemoteServiceId = 0x7000;
+
+        dispatcher.GetSDProxy().OnRemoteServiceDiscovered(
+            kRemoteServiceId, 0x70000001, "dds",
+            "topic://remote_ecu/radar_service", "ecu_remote_a" );
+
+        CHECK( true, "Injected remote service 0x7000 via SD-Proxy bridge" );
+
+        // Verify SD-Proxy cache directly
+        {
+            auto cached = dispatcher.GetSDProxy().FindRemoteService( kRemoteServiceId );
+            CHECK( cached.has_value() && cached->IsActive(),
+                   "SD-Proxy cache has remote service 0x7000" );
+        }
+
+        // Query via CoreIPC binding (full registry → SD-Proxy chain)
+        //   CRegistryProxy::FindService → local SHM (miss)
+        //   → QueryService IPC → handleQueryService → SD-Proxy cache → HIT
+        auto queryResult = pClientBinding->FindService( kRemoteServiceId );
+        CHECK( queryResult.HasValue() && !queryResult.Value().empty(),
+               "Remote service 0x7000 found via CoreIPC → registry → SD-Proxy" );
+
+        // Invalidate and verify it's gone
+        dispatcher.GetSDProxy().InvalidateService( kRemoteServiceId );
+        auto afterInvalidate = dispatcher.GetSDProxy().FindRemoteService( kRemoteServiceId );
+        CHECK( !afterInvalidate.has_value(),
+               "Remote service 0x7000 invalidated from SD-Proxy cache" );
+    }
 
     // ================================================================
     // Cleanup
