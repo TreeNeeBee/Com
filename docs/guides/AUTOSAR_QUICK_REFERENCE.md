@@ -2,7 +2,7 @@
 
 ## 文档概览
 
-本参考指南基于以下 AUTOSAR AP R23-11 文档：
+本参考指南基于以下 AUTOSAR AP R25-11 文档：
 - ✅ AUTOSAR_AP_SWS_CommunicationManagement.pdf (已扫描)
 - ✅ AUTOSAR_AP_SWS_NetworkManagement.pdf (已扫描)
 
@@ -23,11 +23,13 @@
 └──────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────┬────────────────────────────────────┐
-│  D-Bus Binding      │     SOME/IP Binding                │
-│  (System IPC)       │     (Automotive Ethernet)          │
-│  - 自动序列化       │     - IDL驱动                       │
-│  - sdbus-c++        │     - vsomeip + CommonAPI          │
-└─────────────────────┴────────────────────────────────────┘
+│  CoreIPC Binding ✅ │     DDS Binding ✅                 │
+│  (零拷贝本地 IPC)   │     (跨 ECU 分布式通信)             │
+│  - 共享内存直接访问 │     - eProsima Fast-DDS 3.x        │
+│  - < 1µs 延迟       │     - < 10µs (SHM) / < 30µs (UDP) │
+├─────────────────────┴────────────────────────────────────┤
+│  SOME/IP ⚠️待实现 | Socket ⚠️待实现 | D-Bus ⚠️待实现    │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## 关键 AUTOSAR 需求映射
@@ -67,31 +69,35 @@
 
 ## 传输层绑定
 
-### D-Bus Binding
+### CoreIPC Binding ✅ 已实现
 
-**文件位置**: `source/binding/dbus/`
+**文件位置**: `source/binding/coreipc/`
 
-| 组件 | 功能 | 代码量 |
-|------|------|--------|
-| DBusConnectionManager | 连接管理 | 200行 |
-| DBusMethodBinding | 方法绑定 | 250行 |
-| DBusEventBinding | 事件绑定 | 200行 |
-| DBusFieldBinding | 字段绑定 | 300行 |
+| 组件 | 功能 | 说明 |
+|------|------|------|
+| CoreIpcConnectionManager | 连接管理 | 共享内存槽位分配 |
+| CoreIpcMethodBinding | 方法绑定 | Request/Response via SHM |
+| CoreIpcEventBinding | 事件绑定 | Zero-copy SHM 广播 |
+| CoreIpcFieldBinding | 字段绑定 | 字段读写 |
 
-**序列化**: sdbus-c++ 自动处理
+**延迟**: < 1µs (64B), < 10µs (1MB) | **吞吐量**: > 10 GB/s
 
-### SOME/IP Binding
+### DDS Binding ✅ 已实现
 
-**文件位置**: `source/binding/someip/`
+**文件位置**: `source/binding/dds/`
 
-| 组件 | AUTOSAR 需求 | 功能 | 代码量 |
-|------|--------------|------|--------|
-| SomeIpConnectionManager | SWS_CM_10289-10291 | vsomeip管理 | 270行 |
-| SomeIpMethodBinding | SWS_CM_10293-10295 | 请求/响应 | 450行 |
-| SomeIpEventBinding | SWS_CM_10300-10304 | 事件/订阅 | 380行 |
-| SomeIpFieldBinding | SWS_CM_10320-10323 | 字段访问 | 490行 |
+| 组件 | AUTOSAR 需求 | 功能 | 说明 |
+|------|--------------|------|------|
+| DdsConnectionManager | SWS_CM_10289-10291 | Fast-DDS 管理 | Discovery Server 支持 |
+| DdsMethodBinding | SWS_CM_10293-10295 | 请求/响应 | Publisher/Subscriber |
+| DdsEventBinding | SWS_CM_10300-10304 | 事件/订阅 | QoS Reliability/Durability |
+| DdsFieldBinding | SWS_CM_10320-10323 | 字段访问 | 字段读写 |
 
-**序列化**: CommonAPI 代码生成
+**延迟**: < 10µs (SHM, 同 ECU) / < 30µs (UDP, 跨 ECU)
+
+### SOME/IP / Socket / D-Bus ⚠️ 待实现
+
+`source/binding/someip/`, `source/binding/socket/`, `source/binding/dbus/` 目录下目前仅有骨架文件，核心逻辑尚未实现。替代方案：**SOME/IP → DDS**，**Socket/D-Bus → CoreIPC**。
 
 ## 使用示例
 
@@ -184,8 +190,10 @@ ctest --verbose
 
 | 传输层 | 延迟 | 吞吐量 | 适用场景 |
 |--------|------|--------|----------|
-| D-Bus | 1-5ms | 中 | 系统级IPC |
-| SOME/IP | <100μs | 高 | 车载网络 |
+| CoreIPC | < 1µs | > 10 GB/s | 同 ECU 高性能 IPC |
+| DDS (SHM) | < 10µs | > 1 GB/s | 同 ECU，有 QoS 需求 |
+| DDS (UDP) | < 30µs | ~900 MB/s | 跨 ECU 分布式通信 |
+| SOME/IP | ⚠️ 待实现 | — | AUTOSAR CP 互通 |
 
 ## 合规性总结
 
@@ -197,8 +205,8 @@ ctest --verbose
 | Method | 5 | 6 | 83% |
 | Event | 8 | 8 | 100% |
 | Field | 6 | 6 | 100% |
-| D-Bus | 12 | 12 | 100% |
-| SOME/IP | 15 | 15 | 100% |
+| CoreIPC | 12 | 12 | 100% |
+| DDS | 15 | 15 | 100% |
 | **总计** | **74** | **75** | **98.7%** |
 
 ## 文档索引
@@ -209,27 +217,20 @@ ctest --verbose
 | 需求追溯 | `doc/AUTOSAR_REQUIREMENTS_TRACEABILITY.md` | 需求映射矩阵 |
 | 合规检查脚本 | `tools/autosar_compliance_check.sh` | 自动化检查 |
 | API 头文件 | `source/inc/*.hpp` | 公共接口定义 |
-| D-Bus 绑定 | `source/binding/dbus/` | D-Bus 实现 |
-| SOME/IP 绑定 | `source/binding/someip/` | SOME/IP 实现 |
+| CoreIPC 绑定 | `source/binding/coreipc/` | CoreIPC 实现 ✅ |
+| DDS 绑定 | `source/binding/dds/` | DDS (Fast-DDS 3.x) 实现 ✅ |
 
 ## 常见问题
 
 ### Q: 如何添加新的传输绑定？
 
-A: 实现以下接口：
-1. ConnectionManager (连接管理)
-2. MethodBinding (方法绑定)
-3. EventBinding (事件绑定)
-4. FieldBinding (字段绑定)
-
-参考 `source/binding/dbus/` 或 `source/binding/someip/` 实现。
+A: 实现 `ITransportBinding` NVI 接口，参考 `source/binding/coreipc/` 或 `source/binding/dds/` 实现。详见 [../architecture/BINDING_ARCHITECTURE.md](../architecture/BINDING_ARCHITECTURE.md)。
 
 ### Q: 序列化如何处理？
 
 A:
-- **D-Bus**: sdbus-c++ 自动处理，使用 `operator<<` / `operator>>`
-- **SOME/IP**: CommonAPI 从 Franca IDL 生成序列化代码
-- **自定义**: 实现 `Serialization.hpp` 接口（未来扩展）
+- **CoreIPC**: 零拷贝共享内存，无额外序列化开销
+- **DDS**: fastddsgen 从 IDL 自动生成序列化代码（由 `lap-sidl-gen` 自动调用）
 
 ### Q: 如何验证 AUTOSAR 合规性？
 
@@ -238,24 +239,16 @@ A: 运行 `tools/autosar_compliance_check.sh` 脚本，检查所有需求实现�
 ### Q: 性能如何优化？
 
 A:
-- 使用 SOME/IP 替代 D-Bus（低延迟场景）
-- 调整事件缓存大小
-- 启用零拷贝传输（SOME/IP 共享内存）
-
-## 后续计划
-
-| 阶段 | 功能 | 优先级 | 状态 |
-|------|------|--------|------|
-| Phase 1 | Fire-and-forget 方法 | 中 | 📋 计划中 |
-| Phase 2 | Protobuf over Socket | 高 | 📋 计划中 |
-| Phase 3 | 自定义私有协议 | 低 | 📋 计划中 |
+- 同 ECU 场景：使用 CoreIPC（< 1µs，零拷贝）
+- 跨 ECU 场景：使用 DDS SHM（同机）或 DDS UDP（网络）
+- 调整事件缓存大小 (`max_samples`)
 
 ## 联系方式
 
 - **维护团队**: LightAP Team
-- **文档版本**: 1.0.0
-- **最后更新**: 2025-11-18
+- **文档版本**: 2.0.0
+- **最后更新**: 2026-03-02
 
 ---
 
-**注意**: 本文档基于 AUTOSAR Adaptive Platform R23-11 规范编写，确保与最新标准保持同步。
+**注意**: 本文档基于 AUTOSAR Adaptive Platform R25-11 规范编写。

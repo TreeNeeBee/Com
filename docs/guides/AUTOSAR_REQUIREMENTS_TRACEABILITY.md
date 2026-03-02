@@ -6,10 +6,10 @@
 |-------|-------|
 | **Document Title** | AUTOSAR AP Communication Management - Requirements Traceability Matrix |
 | **Module** | LightAP Com Module |
-| **AUTOSAR Version** | Adaptive Platform R23-11 |
+| **AUTOSAR Version** | Adaptive Platform R25-11 |
 | **Reference Documents** | AUTOSAR_AP_SWS_CommunicationManagement.pdf, AUTOSAR_AP_SWS_NetworkManagement.pdf |
-| **Date** | 2025-11-18 |
-| **Version** | 1.0.0 |
+| **Date** | 2026-03-02 |
+| **Version** | 2.0.0 |
 
 ## Purpose
 
@@ -29,9 +29,9 @@ This document traces AUTOSAR Adaptive Platform requirements to their implementat
 | Event Communication | 8 | 8 | 0 | 100% |
 | Field Communication | 6 | 6 | 0 | 100% |
 | Type System | 5 | 5 | 0 | 100% |
-| D-Bus Binding | 12 | 12 | 0 | 100% |
-| SOME/IP Binding | 15 | 15 | 0 | 100% |
-| **Total** | **75** | **74** | **1** | **98.7%** |
+| D-Bus Binding | 12 | 0 | 12 | 0% (待实现) |
+| SOME/IP Binding | 15 | 0 | 15 | 0% (待实现) |
+| **Total** | **75** | **47** | **28** | **62.7%** |
 
 ---
 

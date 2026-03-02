@@ -7,9 +7,9 @@
 | **文档标题** | LightAP Com模块 - DDS Network Binding 集成指南 |
 | **基于标准** | AUTOSAR AP TR DDS Security Integration |
 | **DDS 版本** | OMG DDS 1.4 + DDS Security 1.1 |
-| **实现库** | eProsima Fast-DDS 2.x |
-| **日期** | 2025-11-18 |
-| **版本** | 1.0.0 (计划) |
+| **实现库** | eProsima Fast-DDS 3.x |
+| **日期** | 2026-03-02 |
+| **版本** | 2.0.0 |
 
 ## 目录
 

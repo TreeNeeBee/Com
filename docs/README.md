@@ -27,9 +27,9 @@
 | 开发新服务 | [guides/DEVELOPMENT_GUIDE.md](guides/DEVELOPMENT_GUIDE.md) |
 | 选择传输协议 | [architecture/TRANSPORT_MATRIX.md](architecture/TRANSPORT_MATRIX.md) |
 | DDS 集成 | [guides/DDS_INTEGRATION_GUIDE.md](guides/DDS_INTEGRATION_GUIDE.md) |
-| SOME/IP 集成 | [guides/README_SOMEIP.md](guides/README_SOMEIP.md) |
+| SOME/IP 集成 | ⚠️ SOME/IP 待实现，请参考 [architecture/TRANSPORT_MATRIX.md](architecture/TRANSPORT_MATRIX.md) |
 | AUTOSAR 合规 | [guides/AUTOSAR_QUICK_REFERENCE.md](guides/AUTOSAR_QUICK_REFERENCE.md) |
-| 扩展新 Binding | [guides/EXTENSION_GUIDE.md](guides/EXTENSION_GUIDE.md) |
+| 扩展新 Binding | [architecture/BINDING_ARCHITECTURE.md](architecture/BINDING_ARCHITECTURE.md) |
 
 ---
 
@@ -45,7 +45,6 @@
 | `SERVICE_DISCOVERY_ARCHITECTURE.md` | 服务发现架构 (v3.1, Dual-layer IDL) |
 | `SECURITY_ARCHITECTURE_SUMMARY.md` | 安全架构总结 |
 | `TRANSPORT_MATRIX.md` | 传输协议状态矩阵 (CoreIPC/DDS ✓, SOME/IP+Socket+D-Bus ⚠️待实现) |
-| `ARCHITECTURE_SUMMARY.md` | 架构总结 |
 | `YAML_CONFIGURATION_SUMMARY.md` | YAML 配置设计 |
 
 ### 📖 [guides/](guides/) — 开发指南与集成文档
@@ -53,18 +52,11 @@
 | 文档 | 说明 | 优先级 |
 |------|------|--------|
 | **`DEVELOPMENT_GUIDE.md`** | **完整开发流程 (v2.0)** — Split Gen, App Framework, 3 个示例 | ⭐⭐⭐ |
-| `AUTOSAR_QUICK_REFERENCE.md` | AUTOSAR AP COM API 快速参考 | ⭐⭐⭐ |
+| `AUTOSAR_QUICK_REFERENCE.md` | AUTOSAR AP COM API 快速参考 (R25-11) | ⭐⭐⭐ |
 | `AUTOSAR_R24-11_SERVICE_DISCOVERY_REFERENCE.md` | SD 标准参考 | ⭐⭐ |
-| `AUTOSAR_REQUIREMENTS_TRACEABILITY.md` | 需求追溯矩阵 (98.7% 合规) | ⭐⭐ |
-| `BINDING_SELECTION_GUIDE.md` | Binding 选择决策树 | ⭐⭐⭐ |
-| `COM_QUICK_REFERENCE.md` | Com 模块 API 快速参考 | ⭐⭐ |
-| `DDS_INTEGRATION_GUIDE.md` | DDS (Fast-DDS) 集成指南 | ⭐⭐ |
-| `EXTENSION_GUIDE.md` | 新 Binding 扩展指南 | ⭐⭐ |
-| `README_SOMEIP.md` | SOME/IP binding 指南 ⚠️ **待实现** | ⚠️ |
-| `CUSTOM_PROTOCOL_UDP_INTEGRATION_GUIDE.md` | 自定义 UDP 协议集成 ⚠️ **待实现** | ⚠️ |
-| `PROTOBUF_SOCKET_INTEGRATION_GUIDE.md` | Protobuf + Socket 集成 ⚠️ **待实现** | ⚠️ |
-| `DBUS_DDS_BRIDGE_INTEGRATION_GUIDE.md` | D-Bus ↔ DDS 桥接 | ⭐ |
-| `SOMEIP_DDS_BRIDGE_INTEGRATION_GUIDE.md` | SOME/IP ↔ DDS 桥接 | ⭐ |
+| `AUTOSAR_REQUIREMENTS_TRACEABILITY.md` | 需求追溯矩阵 (R25-11) | ⭐⭐ |
+| `BINDING_SELECTION_GUIDE.md` | Binding 选择决策树 (CoreIPC ✅ / DDS ✅) | ⭐⭐⭐ |
+| `DDS_INTEGRATION_GUIDE.md` | DDS (Fast-DDS 3.x) 集成指南 | ⭐⭐ |
 
 ### 📊 [reports/](reports/) — 实施报告
 
@@ -88,17 +80,18 @@
 
 | 类别 | 文档数量 | 状态 |
 |------|---------|------|
-| 架构设计 | 8 | ✅ 活跃维护 |
-| 开发指南 | 13 | ✅ **DEVELOPMENT_GUIDE v2.0 更新** |
+| 架构设计 | 7 | ✅ 活跃维护 |
+| 开发指南 | 6 | ✅ **DEVELOPMENT_GUIDE v2.0 更新** |
 | 报告文档 | ~21 | 📊 持续跟踪 |
 | 规划文档 | 6 | 📋 定期更新 |
 | 检查清单 | 1 | ✅ 可用 |
-| 归档文档 | ~8 | 🗄️ 仅供参考 |
+| 归档文档 | ~15 | 🗄️ 仅供参考 |
 
 ---
 
 ## 🔄 最近更新
 
+- **2026-03-02**: guides/ 清理 — 7 个过时规划文档归档，BINDING_SELECTION_GUIDE v2.0 重写，R23-11 → R25-11 更新
 - **2026-03-02**: DEVELOPMENT_GUIDE v2.0 — Split Gen 隔离架构, App Framework, HelloWorld3 DDS-only 示例
 - **2026-03-02**: 文档索引重组 — 快速导航、按场景查阅
 - **2026-03-01**: 三个 HelloWorld 示例全部迁移至 split gen_server/gen_client 架构
