@@ -5,25 +5,27 @@
 [![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 [![AUTOSAR](https://img.shields.io/badge/AUTOSAR-AP%20R25--11-green.svg)](https://www.autosar.org/)
-[![Status](https://img.shields.io/badge/Status-5绑定已完成-brightgreen.svg)](#实现状态)
+[![Tests](https://img.shields.io/badge/CTest-26%20Suites%20Passing-brightgreen.svg)](#测试状态)
 
-> **AUTOSAR 自适应平台 R25-11 兼容通信中间件**（向前兼容 R24-11）  
+> **AUTOSAR Adaptive Platform R25-11 兼容通信中间件**  
 > 零守护进程面向服务架构 + 插件化传输绑定
 
 **版本：** 4.0.0  
-**最后更新：** 2026-03-01  
-**架构：** 零守护进程 + 固定槽位 + 双注册表 + 5 绑定插件  
-**状态：** 5 个传输绑定全部实现，13 个 CTest 测试套件通过
+**最后更新：** 2026-03-02  
+**Binding 状态：** CoreIPC ✅ | DDS ✅ | SOME/IP ⚠️ | Socket ⚠️ | D-Bus ⚠️  
+**测试：** 26 个 CTest 套件通过（211 个测试用例）
 
 ---
 
-## 📋 目录
+## 目录
 
 - [概述](#概述)
-- [革命性架构](#革命性架构)
+- [架构](#架构)
 - [传输绑定](#传输绑定)
-- [实现状态](#实现状态)
 - [快速开始](#快速开始)
+- [代码生成器](#代码生成器)
+- [示例](#示例)
+- [测试状态](#测试状态)
 - [文档](#文档)
 - [许可证](#许可证)
 
@@ -31,218 +33,78 @@
 
 ## 概述
 
-LightAP Com 是符合 **AUTOSAR 自适应平台 R25-11** 标准（向前兼容 R24-11）的通信模块，实现了革命性的**零守护进程、插件化架构**。
+LightAP Com 是符合 **AUTOSAR AP R25-11** 标准的通信模块，采用**零守护进程、插件化架构**。
 
-### 核心创新
+### 核心特性
 
-🚀 **零守护进程服务发现（<500ns）**
-- 无 RouDi、无 systemd-resolved、无后台进程
-- 固定槽位映射：`slot = service_id & 1023`（零哈希冲突）
-- 双注册表：QM+AB 注册表 + ASIL-CD 注册表（功能安全隔离）
-- 槽位0保护（错误边界），槽位1023广播（跨ASIL）
+- **零守护进程服务发现** — 无 RouDi、无后台进程。固定槽位映射 + seqlock O(1) 查找（<500ns）
+- **插件化传输绑定** — `ITransportBinding` NVI 接口，优先级自动选择，YAML 配置驱动
+- **Split Gen 代码生成** — `lap-sidl-gen` 从 Franca FIDL 生成隔离的 `gen_server/` 和 `gen_client/`
+- **双层 IDL** — Franca IDL → ara::com API + DDS IDL（由 `fastddsgen` 自动生成）
 
-🔌 **插件化绑定（运行时 .so 加载）**
-- ITransportBinding 接口（18个方法，AUTOSAR标准）
-- 基于优先级选择（100 → 50 → 20 → 10）
-- YAML 配置（零代码更改）
+### Binding 实现状态
 
-🏗️ **双层 IDL（Franca → AUTOSAR + DDS）**
-- Franca IDL 作为单一事实来源
-- PyFranca → `ara::com` API + DDS IDL 自动生成
-- Schema Hash + TypeIdentifier 强制校验
-
-### 传输绑定
-
-| 绑定 | 优先级 | 延迟 | 吞吐量 | 状态 | 使用场景 |
-|------|--------|------|--------|------|----------|
-| **Core IPC** | 100 | <5µs | >10GB/s | ✅ 完成 | 相机、激光雷达 |
-| **DDS (AF_XDP)** | 50 | ~10µs | ~1GB/s | 🔄 70% | 跨ECU实时 |
-| **自定义协议** | 20 | <10µs | ~500MB/s | 📋 计划中 | 遗留IPC |
-| **遗留网关** | 10 | ~50µs | ~100MB/s | 📋 计划中 | SOME/IP桥接 |
+| Binding | 优先级 | 延迟 | 吞吐量 | 状态 | 适用场景 |
+|---------|--------|------|--------|------|---------|
+| **CoreIPC** | 100 | < 1µs | > 10 GB/s | ✅ 已实现 | 同 ECU 零拷贝共享内存 |
+| **DDS** | 80 | < 10µs SHM / < 30µs UDP | > 1 GB/s | ✅ 已实现 | 跨 ECU、QoS、动态发现 |
+| SOME/IP | 60 | — | — | ⚠️ 待实现 | AUTOSAR CP 互通 |
+| Socket | 40 | — | — | ⚠️ 待实现 | 轻量 IPC、遗留系统集成 |
+| D-Bus | 20 | — | — | ⚠️ 待实现 | systemd 集成 |
 
 ---
 
-## 革命性架构
-
-### 零守护进程固定槽位服务发现
-
-**传统方式（iceoryx v1）：** App → RouDi守护进程 → 注册表 → SHM（1-5µs，单点故障）  
-**LightAP（Core IPC）：** App → 直接memfd → seqlock O(1)（<500ns，无单点故障）
-
-**核心机制：**
-
-1. **固定槽位映射**（零冲突）
-   ```cpp
-   uint16_t slot = service_id & 0x03FF;  // 槽位 0-1023
-   
-   // 槽位 0：禁止使用（错误检测）
-   // 槽位 1-1022：服务
-   // 槽位 1023：广播（service_id 0xFFFF）
-   ```
-
-2. **双注册表**（功能安全物理隔离）
-   ```
-   QM+AB 注册表 (/dev/shm/lap_com_registry_qm, 256KB)：
-     service_id 0x0001~0x03FE → 槽位 1~1022
-     权限：0666（所有进程可读写）
-     安全级别：QM / ASIL-A / ASIL-B
-   
-   ASIL-CD 注册表 (/dev/shm/lap_com_registry_asil, 256KB)：
-     service_id 0xF001~0xF3FE → 槽位 1~1022
-     权限：0640（受控写入）
-     安全级别：ASIL-C / ASIL-D
-   
-   广播：两个注册表均有槽位 1023 用于跨ASIL事件
-   ```
-
-3. **seqlock 无锁并发**
-   ```cpp
-   struct ServiceSlot {  // 256字节（4×缓存行）
-       atomic<uint64_t> seq_num;   // seqlock
-       uint16_t service_id;
-       uint32_t heartbeat_timestamp;
-       // ...
-   };
-   
-   // 读取（<100ns）：
-   do {
-       seq1 = slot->seq_num.load();
-       data = *slot;
-       seq2 = slot->seq_num.load();
-   } while (seq1 != seq2 || seq1 & 1);
-   
-   // 写入（原子）：
-   slot->seq_num++;  // 奇数（标记开始）
-   *slot = new_data;
-   slot->seq_num++;  // 偶数（标记结束）
-   ```
-
-4. **心跳**（服务活性检测，100ms间隔）
-
-### 插件架构
+## 架构
 
 ```
-应用程序（纯 AUTOSAR ara::com）：
-  auto proxy = MyService::Proxy::CreateProxy(handle);
-  proxy->Method(...);  // 无需知道绑定类型
-
-绑定管理器（YAML驱动）：
-  读取 binding_config.yaml
-  → dlopen("binding_coreipc.so") 优先级 100
-  → dlopen("binding_dds.so") 优先级 50
-  → 为服务选择最佳绑定（本地→CoreIPC，远程→DDS）
+┌─────────────────────────────────────────────────┐
+│           应用层                                 │
+│   (ara::com API — Proxy / Skeleton / Runtime)   │
+├─────────────────────────────────────────────────┤
+│           Binding Manager                       │
+│   (优先级选择, YAML 配置, dlopen)                │
+├──────────────────┬──────────────────────────────┤
+│  CoreIPC ✅      │  DDS (Fast-DDS 3.x) ✅      │
+│  零拷贝共享内存   │  SHM + UDP, Discovery Server│
+│  < 1µs, > 10GB/s │  < 10µs SHM / < 30µs UDP   │
+├──────────────────┼──────────────────────────────┤
+│  SOME/IP ⚠️     │  Socket ⚠️  │  D-Bus ⚠️    │
+│  (骨架)          │  (骨架)      │  (骨架)       │
+└──────────────────┴─────────────┴────────────────┘
 ```
 
-**ITransportBinding 接口：**
-```cpp
-class ITransportBinding {
-public:
-    virtual Result<void> Initialize(const YAML::Node&) = 0;
-    virtual Result<ServiceHandleContainer> FindService(...) = 0;
-    virtual Result<void> OfferService(...) = 0;
-    virtual Result<ByteBuffer> CallMethod(...) = 0;
-    virtual Result<void> SendEvent(...) = 0;
-    virtual Result<void> SubscribeEvent(...) = 0;
-    // + 其他12个方法
-};
+### 核心机制
 
-extern "C" {
-    ITransportBinding* CreateBindingInstance();
-    void DestroyBindingInstance(ITransportBinding*);
-}
-```
+- **固定槽位映射**：`slot = service_id & 0x03FF` — 1024 个槽位，零哈希冲突
+- **双注册表**：QM+AB (0666) + ASIL-CD (0640) — 功能安全物理隔离
+- **seqlock 无锁并发**：读取 < 100ns，原子写入
+- **心跳检测**：100ms 间隔服务活性检测
+
+详细架构请参见 [docs/architecture/ARCHITECTURE_SUMMARY.md](docs/architecture/ARCHITECTURE_SUMMARY.md)。
 
 ---
 
 ## 传输绑定
 
-### 1. CoreIPC 绑定 ✅ 完成（阶段3）
+### CoreIPC ✅
 
-**性能：** <1µs 延迟，>10GB/s 吞吐量  
-**状态：** 100%（3/3测试通过，总计414ms）
+零守护进程、零拷贝共享内存 IPC，适用于同 ECU 通信。
 
-**特性：**
-- 零守护进程（无RouDi），自我管理
-- 真正的零拷贝（共享内存）
-- 无锁 Rust 队列
-- 256字节槽位对齐
+- 延迟 < 1µs (64B)，< 10µs (1MB)
+- 吞吐量 > 10 GB/s
+- 无外部依赖
 
-**测试结果（2025-11-23）：**
-```
-✓ DirectBindingCreation：2ms
-✓ CompletePubSubFlow：204ms（10条消息已验证）
-✓ PerformanceMetrics：207ms（20条消息，<1µs）
-```
+### DDS ✅
 
-**配置：**
-```yaml
-bindings:
-  - type: coreipc
-    library: /usr/lib/lap/com/binding_coreipc.so
-    priority: 100
-    enabled: true
-    config:
-      domain_name: lightap_com
-      use_huge_pages: true
-```
+eProsima Fast-DDS 3.x 集成，适用于跨 ECU 分布式通信。
 
-### 2. DDS 绑定（AF_XDP）🔄 70%（阶段4）
+- 延迟 < 10µs SHM（同机），< 30µs UDP（跨机）
+- 吞吐量 > 1 GB/s
+- 支持 Discovery Server、QoS Reliability/Durability
 
-**性能：** ~10µs 延迟（目标），~1GB/s  
-**状态：** 第1/2周（FastDDS集成完成，AF_XDP待完成）
+### SOME/IP / Socket / D-Bus ⚠️ 待实现
 
-**已完成：**
-- ✅ FastDDS 2.9.1 API 封装
-- ✅ IDL 生成（LapComMessage.idl）
-- ✅ Publisher/Subscriber
-- ✅ 发现（本地 + 远程）
-
-**待完成：**
-- 🔄 编译验证
-- ⏳ 跨进程测试
-- ⏳ AF_XDP 集成（第2周）
-
-**配置（AF_XDP计划）：**
-```yaml
-bindings:
-  - type: dds
-    library: /usr/lib/lap/com/binding_dds.so
-    priority: 50
-    enabled: true
-    config:
-      domain: 0
-      af_xdp_enabled: true
-      af_xdp_interface: eth0
-      zero_copy: true
-```
-
-### 3. 自定义协议绑定 📋（阶段5）
-
-**设计：** UDS + 自定义二进制编解码器，<10µs，~500MB/s
-
-### 4. 遗留网关绑定 📋（阶段5）
-
-**设计：** SOME/IP/D-Bus 网关，~50µs，~100MB/s
-
----
-
-## 实现状态
-
-| 阶段 | 状态 | 完成度 | 日期 | 文档 |
-|------|------|--------|------|------|
-| **阶段1** | ✅ | 100% | 2025-11-20 | [IMPLEMENTATION_STATUS.md](doc/reports/IMPLEMENTATION_STATUS.md) |
-| **阶段2** | ✅ | 100% | 2025-11-21 | [PHASE2_COMPLETE_FEATURES.md](doc/reports/PHASE2_COMPLETE_FEATURES.md) |
-| **阶段3** | ✅ | 100% | 2025-11-23 | [BINDING_STANDARDIZATION_STATUS.md](doc/reports/BINDING_STANDARDIZATION_STATUS.md) |
-| **阶段4** | 🔄 | 70% | 2025-11-24+ | [PHASE4_DDS_IMPLEMENTATION_STATUS.md](doc/reports/PHASE4_DDS_IMPLEMENTATION_STATUS.md) |
-| **阶段5** | 📋 | 0% | 待定 | - |
-
-**测试：** 30/30通过（已完成阶段100%）
-
-**阶段1：** 固定槽位注册表（memfd、seqlock、心跳）  
-**阶段2：** 绑定管理器（ITransportBinding、dlopen、YAML）  
-**阶段3：** CoreIPC（共享内存、零拷贝、<1µs已验证）  
-**阶段4：** DDS + AF_XDP（FastDDS ✅，AF_XDP ⏳）  
-**阶段5：** 自定义 + 遗留绑定
+`source/binding/{someip,socket,dbus}/` 目录下仅有骨架文件，核心逻辑尚未实现。
 
 ---
 
@@ -255,97 +117,92 @@ bindings:
 sudo apt install build-essential cmake \
     libboost-all-dev nlohmann-json3-dev libyaml-cpp-dev
 
-# CoreIPC（内置，无外部依赖）
-# FastDDS 2.9.1
-sudo apt install libfastrtps-dev fastddsgen
+# DDS binding
+sudo apt install libfastdds-dev fastddsgen
 ```
 
 ### 构建
 
 ```bash
-git clone https://github.com/TreeNeeBee/LightAP.git
+git clone https://github.com/nicx-next/LightAP.git
 cd LightAP
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release
-make -j$(nproc) Com
-ctest -R Com --verbose
+cmake .. -DENABLE_BUILD_TESTS=ON -DENABLE_BUILD_EXAMPLES=ON
+cmake --build . -j$(nproc)
+ctest --verbose
 ```
 
-### 示例
+---
 
-```cpp
-#include <lap/com/ara_com.hpp>
-using namespace lap::com;
+## 代码生成器
 
-// 服务端
-class MyServiceImpl : public MyServiceSkeleton {
-public:
-    MyServiceImpl() : MyServiceSkeleton(InstanceSpecifier("/services/MyService")) {}
-    Int32 Add(Int32 a, Int32 b) override { return a + b; }
-};
+`lap-sidl-gen` 从 Franca FIDL 定义生成服务端和客户端代码，采用 **Split Gen 架构**（隔离的 `gen_server/` 和 `gen_client/` 目录）。
 
-int main() {
-    Runtime::Initialize();
-    MyServiceImpl service;
-    service.OfferService();  // 固定槽位注册
-    // 事件循环...
-}
+```bash
+# 生成服务端代码
+lap-sidl-gen -i MyService.fidl -o gen_server --server
 
-// 客户端
-int main() {
-    Runtime::Initialize();
-    auto handles = FindService<MyService>(InstanceSpecifier("/services/MyService"));
-    auto proxy = MyService::Proxy::CreateProxy(handles.Value()[0]);
-    auto result = proxy->Add(10, 20);  // 绑定自动选择
-    std::cout << result.Value() << std::endl;
-}
+# 生成客户端代码
+lap-sidl-gen -i MyService.fidl -o gen_client --client
+
+# 同时生成 + 指定 binding
+lap-sidl-gen -i MyService.fidl -o gen_server --server --binding coreipc,dds
+lap-sidl-gen -i MyService.fidl -o gen_client --client --binding coreipc,dds
 ```
 
-**配置（binding_config.yaml）：**
-```yaml
-bindings:
-  - type: coreipc
-    priority: 100
-    enabled: true
-  - type: dds
-    priority: 50
-    enabled: true
+生成器架构详见 [docs/architecture/GENERATOR.md](docs/architecture/GENERATOR.md)。
+
+---
+
+## 示例
+
+三个递进复杂度的示例展示不同 binding 场景：
+
+| 示例 | Binding | 说明 |
+|------|---------|------|
+| **helloworld** | CoreIPC | 基础 Method + Event + Field（46 个测试） |
+| **helloworld2** | CoreIPC + DDS | 双 binding 自动选择（66 个测试） |
+| **helloworld3** | DDS-only | 跨 ECU 通信模式（99 个测试） |
+
+所有示例均使用 Split Gen 架构（`gen_server/` + `gen_client/`）。
+
+```bash
+# 运行指定示例测试
+ctest -R helloworld_test --verbose
+ctest -R helloworld2_test --verbose
+ctest -R helloworld3_test --verbose
 ```
 
-应用程序代码**永不更改** - 纯配置驱动。
+---
+
+## 测试状态
+
+**26 个 CTest 套件，211 个示例测试用例 — 全部通过。**
+
+```
+helloworld_test:   46/46  ✅  (CoreIPC)
+helloworld2_test:  66/66  ✅  (CoreIPC + DDS)
+helloworld3_test:  99/99  ✅  (DDS-only)
++ 23 个单元测试套件      ✅
+```
 
 ---
 
 ## 文档
 
-### 架构
+完整文档索引：[docs/README.md](docs/README.md)（[中文版](docs/README_CN.md)）
 
-- **[SERVICE_DISCOVERY_ARCHITECTURE.md](doc/architecture/SERVICE_DISCOVERY_ARCHITECTURE.md)**（7253行）⭐  
-  零守护进程、固定槽位、双注册表、seqlock、心跳
+### 核心文档
 
-- **[ARCHITECTURE_SUMMARY.md](doc/architecture/ARCHITECTURE_SUMMARY.md)**（3547行）  
-  完整架构、5 绑定设计、AUTOSAR R25-11
-
-- **[TRANSPORT_MATRIX.md](doc/architecture/TRANSPORT_MATRIX.md)**  
-  绑定选择指南
-
-### 规划
-
-- **[IMPLEMENTATION_PLAN_UPDATED.md](doc/planning/IMPLEMENTATION_PLAN_UPDATED.md)**（911行）  
-  阶段路线图、AUTOSAR需求
-
-### 报告
-
-- **[IMPLEMENTATION_STATUS.md](doc/reports/IMPLEMENTATION_STATUS.md)** - 阶段1
-- **[PHASE4_DDS_IMPLEMENTATION_STATUS.md](doc/reports/PHASE4_DDS_IMPLEMENTATION_STATUS.md)** - 当前
-- **[BINDING_STANDARDIZATION_STATUS.md](doc/reports/BINDING_STANDARDIZATION_STATUS.md)** - 阶段3
-
-### 指南
-
-- **[BINDING_SELECTION_GUIDE.md](doc/guides/BINDING_SELECTION_GUIDE.md)**
-- **[COREIPC_INTEGRATION_GUIDE.md](doc/guides/COREIPC_INTEGRATION_GUIDE.md)**
-- **[DDS_INTEGRATION_GUIDE.md](doc/guides/DDS_INTEGRATION_GUIDE.md)**
-- **[AUTOSAR_QUICK_REFERENCE.md](doc/guides/AUTOSAR_QUICK_REFERENCE.md)**
+| 文档 | 说明 |
+|------|------|
+| [**docs/guides/DEVELOPMENT_GUIDE.md**](docs/guides/DEVELOPMENT_GUIDE.md) | 完整开发流程 (v2.0) — FIDL → Split Gen → 构建 → 测试 |
+| [docs/guides/BINDING_SELECTION_GUIDE.md](docs/guides/BINDING_SELECTION_GUIDE.md) | Binding 选择决策树 |
+| [docs/guides/DDS_INTEGRATION_GUIDE.md](docs/guides/DDS_INTEGRATION_GUIDE.md) | DDS (Fast-DDS 3.x) 集成指南 |
+| [docs/architecture/ARCHITECTURE_SUMMARY.md](docs/architecture/ARCHITECTURE_SUMMARY.md) | 模块架构总览 (v4.0) |
+| [docs/architecture/GENERATOR.md](docs/architecture/GENERATOR.md) | lap-sidl-gen 代码生成器架构 |
+| [docs/architecture/TRANSPORT_MATRIX.md](docs/architecture/TRANSPORT_MATRIX.md) | 传输协议状态矩阵 |
+| [docs/guides/AUTOSAR_QUICK_REFERENCE.md](docs/guides/AUTOSAR_QUICK_REFERENCE.md) | AUTOSAR AP R25-11 API 快速参考 |
 
 ---
 
@@ -353,31 +210,22 @@ bindings:
 
 **CC BY-NC 4.0**（知识共享 署名-非商业性使用 4.0）
 
-✅ 允许：教育、个人项目、修改（需署名）  
-❌ 禁止：商业使用、生产部署
+- ✅ 允许：教育、个人项目、修改（需署名）
+- ❌ 禁止：商业使用、生产部署
 
-商业授权联系：<https://github.com/TreeNeeBee/LightAP>
-
----
-
-## 联系方式
-
-**项目：** LightAP 通信模块  
-**仓库：** <https://github.com/TreeNeeBee/LightAP>  
-**问题：** <https://github.com/TreeNeeBee/LightAP/issues>
+商业授权：<https://github.com/nicx-next/LightAP>
 
 ---
 
 ## 致谢
 
-- AUTOSAR Consortium（AP R25-11）
-- CoreIPC（零守护进程共享内存 IPC）
-- eProsima FastDDS（DDS-RTPS）
-- COVESA（vsomeip）
+- AUTOSAR Consortium（Adaptive Platform R25-11）
+- eProsima Fast-DDS 3.x（DDS-RTPS）
+- CoreIPC（零守护进程共享内存）
 
 ---
 
 <p align="center">
-  <strong>零守护进程 • 插件化 • AUTOSAR R25-11</strong><br>
-  <sub>为自适应平台社区而生 • CC BY-NC 4.0</sub>
+  <strong>零守护进程 · 插件化 · AUTOSAR R25-11</strong><br>
+  <sub>为自适应平台社区而生 · CC BY-NC 4.0</sub>
 </p>
