@@ -1,78 +1,86 @@
 # Com 模块文档索引
 
+> **最后更新**: 2026-03-02  
+> **AUTOSAR 标准**: AP R25-11
+
 本目录包含 LightAP Com 模块的所有技术文档。
 
-> **快速开始**: 请先阅读模块根目录的 [README.md](../README.md) 或 [README_CN.md](../README_CN.md) 了解模块概览、快速开始和 API 参考。
->
-> 本文档目录包含更详细的架构设计、集成指南和开发计划。
-
-## 📁 文档组织结构
-
-### 📐 [architecture/](architecture/) - 架构设计文档
-核心架构设计和技术规范文档
-- `SERVICE_DISCOVERY_ARCHITECTURE.md` - 服务发现架构（v3.1，Dual-layer IDL 设计）⭐
-- `COM_ARCHITECTURE.md` - Com 模块总体架构
-- `SECURITY_ARCHITECTURE_SUMMARY.md` - 安全架构总结
-- `TRANSPORT_MATRIX.md` - 传输层技术选型矩阵
-- `YAML_CONFIGURATION_SUMMARY.md` - YAML 配置设计总结
-- `ARCHITECTURE_SUMMARY.md` - 架构总结
-
-### 📋 [planning/](planning/) - 规划文档
-开发计划、路线图和迁移计划
-- `COM_DEVELOPMENT_ROADMAP.md` - Com 模块开发路线图
-- `IMPLEMENTATION_ROADMAP_DETAILED.md` - 详细实施路线图
-- `NEW_ARCHITECTURE_IMPLEMENTATION_PLAN.md` - 新架构实施计划
-- `IMPLEMENTATION_PLAN_UPDATED.md` - 实施计划（更新版）
-- `EPOCH_MIGRATION_PLAN.md` - Epoch 迁移计划
-
-### 📊 [reports/](reports/) - 报告文档
-实施状态、合规性检查和阶段总结报告
-- 实施状态报告（PHASE2/3/4）
-- 绑定层合规性报告
-- 集成完成报告（DBUS, ICEORYX, DDS）
-- AUTOSAR 扫描报告
-
-### ✅ [checklist/](checklist/) - 检查清单
-集成和验证检查清单
-- `INTEGRATION_CHECKLIST.md` - 集成检查清单
-
-### 📖 [guides/](guides/) - 集成指南
-各种绑定层和协议的集成指南
-- DDS 集成指南
-- DBUS 集成指南
-- SOMEIP 集成指南
-- ProtoBuf+Socket 集成指南
-- 自定义 UDP 协议集成指南
-- 桥接集成指南（DBUS-DDS, SOMEIP-DDS）
-- AUTOSAR 快速参考
-- Com 快速参考
-- 绑定层选择指南
-- 扩展指南
-
-### 🗄️ [archive/](archive/) - 归档文档
-已废弃的设计和临时文档
-- `old_designs/` - 旧版本设计文档
-- `old_docs/` - 过时的文档
-- `summaries/` - 临时总结文档
+> **快速开始**: 请先阅读 [**开发指南 DEVELOPMENT_GUIDE.md**](guides/DEVELOPMENT_GUIDE.md) — 覆盖从 FIDL 定义到代码生成、构建、测试的完整流程。
 
 ---
 
 ## 🚀 快速导航
 
-### 新用户入门
-1. 阅读 [`architecture/SERVICE_DISCOVERY_ARCHITECTURE.md`](architecture/SERVICE_DISCOVERY_ARCHITECTURE.md) - 了解核心服务发现架构
-2. 阅读 [`guides/COM_QUICK_REFERENCE.md`](guides/COM_QUICK_REFERENCE.md) - Com 模块快速参考
-3. 查看 [`planning/COM_DEVELOPMENT_ROADMAP.md`](planning/COM_DEVELOPMENT_ROADMAP.md) - 了解开发计划
+### 新手入门 (推荐阅读顺序)
 
-### 集成开发
-1. 选择绑定层: [`guides/BINDING_SELECTION_GUIDE.md`](guides/BINDING_SELECTION_GUIDE.md)
-2. 查看集成指南: [`guides/`](guides/) 目录下对应的集成文档
-3. 参考检查清单: [`checklist/INTEGRATION_CHECKLIST.md`](checklist/INTEGRATION_CHECKLIST.md)
+| 步骤 | 文档 | 说明 |
+|------|------|------|
+| 1 | [**guides/DEVELOPMENT_GUIDE.md**](guides/DEVELOPMENT_GUIDE.md) | **开发指南** — FIDL → Split Gen → Server/Client → CMake → 测试 |
+| 2 | [architecture/ARCHITECTURE_SUMMARY.md](architecture/ARCHITECTURE_SUMMARY.md) | Com 模块架构总览 (v4.0) |
+| 3 | [guides/BINDING_SELECTION_GUIDE.md](guides/BINDING_SELECTION_GUIDE.md) | Binding 选择决策 |
+| 4 | [architecture/GENERATOR.md](architecture/GENERATOR.md) | lap-sidl-gen 生成器详细架构 |
 
-### AUTOSAR 合规性
-1. [`guides/AUTOSAR_QUICK_REFERENCE.md`](guides/AUTOSAR_QUICK_REFERENCE.md) - AUTOSAR 快速参考
-2. [`reports/AUTOSAR_R24-11_SCAN_REPORT.md`](reports/AUTOSAR_R24-11_SCAN_REPORT.md) - R24-11 扫描报告
-3. [`reports/BINDING_ARCHITECTURE_COMPLIANCE_REPORT.md`](reports/BINDING_ARCHITECTURE_COMPLIANCE_REPORT.md) - 合规性报告
+### 按场景查阅
+
+| 场景 | 文档 |
+|------|------|
+| 开发新服务 | [guides/DEVELOPMENT_GUIDE.md](guides/DEVELOPMENT_GUIDE.md) |
+| 选择传输协议 | [architecture/TRANSPORT_MATRIX.md](architecture/TRANSPORT_MATRIX.md) |
+| DDS 集成 | [guides/DDS_INTEGRATION_GUIDE.md](guides/DDS_INTEGRATION_GUIDE.md) |
+| SOME/IP 集成 | [guides/README_SOMEIP.md](guides/README_SOMEIP.md) |
+| AUTOSAR 合规 | [guides/AUTOSAR_QUICK_REFERENCE.md](guides/AUTOSAR_QUICK_REFERENCE.md) |
+| 扩展新 Binding | [guides/EXTENSION_GUIDE.md](guides/EXTENSION_GUIDE.md) |
+
+---
+
+## 📁 文档组织结构
+
+### 📐 [architecture/](architecture/) — 架构设计文档
+
+| 文档 | 说明 |
+|------|------|
+| `ARCHITECTURE_SUMMARY.md` | Com 模块架构总览 (v4.0, CoreIPC + DDS) |
+| `BINDING_ARCHITECTURE.md` | Binding 层架构设计 (CoreIPC ✓, DDS ✓, SOME/IP ⚠️待实现) |
+| `GENERATOR.md` | lap-sidl-gen 生成器架构 (v1.0, 1600+ 行) |
+| `SERVICE_DISCOVERY_ARCHITECTURE.md` | 服务发现架构 (v3.1, Dual-layer IDL) |
+| `SECURITY_ARCHITECTURE_SUMMARY.md` | 安全架构总结 |
+| `TRANSPORT_MATRIX.md` | 传输协议状态矩阵 (CoreIPC/DDS ✓, SOME/IP+Socket+D-Bus ⚠️待实现) |
+| `ARCHITECTURE_SUMMARY.md` | 架构总结 |
+| `YAML_CONFIGURATION_SUMMARY.md` | YAML 配置设计 |
+
+### 📖 [guides/](guides/) — 开发指南与集成文档
+
+| 文档 | 说明 | 优先级 |
+|------|------|--------|
+| **`DEVELOPMENT_GUIDE.md`** | **完整开发流程 (v2.0)** — Split Gen, App Framework, 3 个示例 | ⭐⭐⭐ |
+| `AUTOSAR_QUICK_REFERENCE.md` | AUTOSAR AP COM API 快速参考 | ⭐⭐⭐ |
+| `AUTOSAR_R24-11_SERVICE_DISCOVERY_REFERENCE.md` | SD 标准参考 | ⭐⭐ |
+| `AUTOSAR_REQUIREMENTS_TRACEABILITY.md` | 需求追溯矩阵 (98.7% 合规) | ⭐⭐ |
+| `BINDING_SELECTION_GUIDE.md` | Binding 选择决策树 | ⭐⭐⭐ |
+| `COM_QUICK_REFERENCE.md` | Com 模块 API 快速参考 | ⭐⭐ |
+| `DDS_INTEGRATION_GUIDE.md` | DDS (Fast-DDS) 集成指南 | ⭐⭐ |
+| `EXTENSION_GUIDE.md` | 新 Binding 扩展指南 | ⭐⭐ |
+| `README_SOMEIP.md` | SOME/IP binding 指南 ⚠️ **待实现** | ⚠️ |
+| `CUSTOM_PROTOCOL_UDP_INTEGRATION_GUIDE.md` | 自定义 UDP 协议集成 ⚠️ **待实现** | ⚠️ |
+| `PROTOBUF_SOCKET_INTEGRATION_GUIDE.md` | Protobuf + Socket 集成 ⚠️ **待实现** | ⚠️ |
+| `DBUS_DDS_BRIDGE_INTEGRATION_GUIDE.md` | D-Bus ↔ DDS 桥接 | ⭐ |
+| `SOMEIP_DDS_BRIDGE_INTEGRATION_GUIDE.md` | SOME/IP ↔ DDS 桥接 | ⭐ |
+
+### 📊 [reports/](reports/) — 实施报告
+
+实施状态、合规性检查、阶段总结报告。
+
+### 📋 [planning/](planning/) — 规划文档
+
+开发路线图、实施计划、架构更新总结。
+
+### ✅ [checklist/](checklist/) — 检查清单
+
+- `INTEGRATION_CHECKLIST.md` — 集成验证检查清单
+
+### 🗄️ [archive/](archive/) — 归档文档
+
+已废弃的设计和过时文档，仅供历史参考。
 
 ---
 
@@ -80,10 +88,10 @@
 
 | 类别 | 文档数量 | 状态 |
 |------|---------|------|
-| 架构设计 | 6 | ✅ 活跃维护 |
-| 规划文档 | 5 | ✅ 定期更新 |
-| 报告文档 | ~15 | 📊 持续跟踪 |
-| 集成指南 | ~12 | 📖 完善中 |
+| 架构设计 | 8 | ✅ 活跃维护 |
+| 开发指南 | 13 | ✅ **DEVELOPMENT_GUIDE v2.0 更新** |
+| 报告文档 | ~21 | 📊 持续跟踪 |
+| 规划文档 | 6 | 📋 定期更新 |
 | 检查清单 | 1 | ✅ 可用 |
 | 归档文档 | ~8 | 🗄️ 仅供参考 |
 
@@ -91,13 +99,12 @@
 
 ## 🔄 最近更新
 
+- **2026-03-02**: DEVELOPMENT_GUIDE v2.0 — Split Gen 隔离架构, App Framework, HelloWorld3 DDS-only 示例
+- **2026-03-02**: 文档索引重组 — 快速导航、按场景查阅
+- **2026-03-01**: 三个 HelloWorld 示例全部迁移至 split gen_server/gen_client 架构
 - **2025-11-24**: 服务发现架构升级至 v3.1（双层 IDL 设计，Franca + DDS）
-- **2025-11-24**: 文档结构重组（按类型分类）
-- 查看各文档内的版本历史获取详细更新记录
 
 ---
-
-## 📞 联系方式
 
 如有文档问题或建议，请联系 Com 模块维护团队。
 

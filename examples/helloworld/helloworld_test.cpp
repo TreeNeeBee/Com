@@ -1,38 +1,22 @@
 /**
  * @file        helloworld_test.cpp
- * @author      Aii
- * @brief       HelloWorld single-process integration test (CTest-compatible)
- * @date        2026-02-11
- * @details     Exercises the FULL generated Proxy/Skeleton API in a single
- *              process via CoreIPC shared-memory binding.
+ * @brief       HelloWorld single-process integration test (CTest, CoreIPC only)
+ * @details     Exercises the generated Proxy/Skeleton API in a single process
+ *              via CoreIPC shared-memory binding + Registry.
  *
  *              Verifies (46 checks):
- *                Infrastructure (5) : dispatcher, bindings, binding manager
- *                Methods       (8) : SayHello, Add, NotifyLog(F&F), ComputeHash
- *                Events        (7) : Greeting, StatusChanged, DataStream
- *                Fields       (14) : VisitorCount(ro), ServerName(rw),
- *                                    Temperature(rw + notification)
- *                Proxy         (1) : Create from handle
- *                Handler reg  (11) : All handlers registered successfully
- *
- *              NOTE: Same-process event testing requires TWO separate
- *              CoreIPCBinding instances: one for the skeleton (publisher) and
- *              one for the proxy (subscriber), so that publisher/subscriber
- *              shared-memory channels are connected correctly.
- *
+ *                Infrastructure (5), Methods (8), Events (7),
+ *                Fields (14), Proxy (1), Handler reg (11)
  * @copyright   Copyright (c) 2026
  */
 
-// ==================== Generated Headers ====================
 #include "HelloWorldProxy.hpp"
 #include "HelloWorldSkeleton.hpp"
 
-// ==================== Binding / Infrastructure ====================
 #include "CoreIPCBinding.hpp"
 #include "CRegistryDispatcher.hpp"
 #include "BindingManager.hpp"
 
-// ==================== Standard Library ====================
 #include <lap/core/CFuture.hpp>
 
 #include <atomic>
@@ -44,11 +28,11 @@
 #include <thread>
 
 using namespace lap::com;
-using namespace lap::com::examples;
-using namespace lap::com::examples::proxy;
-using namespace lap::com::examples::skeleton;
 using namespace lap::com::binding;
 using namespace lap::com::registry;
+using namespace examples;
+using namespace examples::proxy;
+using namespace examples::skeleton;
 
 // ========================================================================
 // Test Bookkeeping

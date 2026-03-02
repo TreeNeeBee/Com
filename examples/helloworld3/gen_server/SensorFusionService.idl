@@ -1,0 +1,149 @@
+// ============================================================
+// Auto-generated OMG IDL v4.2 from examples/helloworld3/HelloWorld3.fidl
+// Franca Schema Hash: 64e50584ec9f900e
+// Version: 1.0.0
+// Generator: lap-sidl-gen v1.0
+// DO NOT EDIT — This file is auto-generated
+// ============================================================
+
+module lap {
+    module examples {
+        module helloworld3 {
+
+            const string SCHEMA_HASH = "64e50584ec9f900e";
+
+            // ==================== Type Collection: SensorTypes ====================
+
+            enum SensorType {
+                LIDAR,
+                CAMERA,
+                RADAR,
+                ULTRASONIC,
+                IMU
+            };
+
+            enum AlertLevel {
+                NONE,
+                INFO,
+                WARNING,
+                CRITICAL
+            };
+
+            enum DeviceState {
+                OFFLINE,
+                INITIALIZING,
+                ONLINE,
+                ERROR,
+                MAINTENANCE
+            };
+
+            struct GeoPosition {
+                double latitude;
+                double longitude;
+                double altitude;
+            };
+
+            struct SensorReading {
+                unsigned long sensorId;
+                double value;
+                unsigned long long timestamp;
+                boolean valid;
+            };
+
+            struct AlertInfo {
+                AlertLevel level;
+                string source;
+                string message;
+                unsigned long long timestamp;
+            };
+
+            struct DiagnosticReport {
+                unsigned long deviceId;
+                DeviceState state;
+                unsigned long errorCount;
+                double uptime;
+                string firmwareVersion;
+            };
+
+            typedef double Angle;
+
+            typedef sequence<octet> RawPayload;
+
+            struct SensorAlertEvent {
+                AlertInfo alert;
+            };
+
+            struct PositionUpdateEvent {
+                GeoPosition position;
+                Angle heading;
+                double speed;
+            };
+
+            struct RawTelemetryEvent {
+                unsigned long channelId;
+                sequence<octet> payload;
+            };
+
+            struct GetSensorReadingRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                unsigned long sensorId;
+            };
+
+            struct GetSensorReadingResponse {
+                     unsigned long long  requestId;
+                SensorReading reading;
+            };
+
+            struct CalibrateDeviceRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                unsigned long deviceId;
+                double offset;
+            };
+
+            struct CalibrateDeviceResponse {
+                     unsigned long long  requestId;
+                boolean success;
+                string message;
+            };
+
+            struct SubmitTelemetryRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                unsigned long channelId;
+                sequence<octet> payload;
+            };
+
+            struct ComputeDigestRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                sequence<octet> data;
+                string algorithm;
+            };
+
+            struct ComputeDigestResponse {
+                     unsigned long long  requestId;
+                unsigned long long digest;
+            };
+
+            struct GetDiagnosticsRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                unsigned long deviceId;
+            };
+
+            struct GetDiagnosticsResponse {
+                     unsigned long long  requestId;
+                DiagnosticReport report;
+            };
+
+        }; // helloworld3
+    }; // examples
+}; // lap
+

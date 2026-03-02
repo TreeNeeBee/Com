@@ -3,7 +3,7 @@
  * @author      Aii
  * @brief       Auto-generated types for HelloWorld service
  * @date        2026/02/09
- * @details     Auto-generated from /workspace/LightAP/modules/Com/examples/helloworld/HelloWorld.fidl by lap-sidl-gen v1.0
+ * @details     Auto-generated from examples/helloworld/HelloWorld.fidl by lap-sidl-gen v1.0
  * @copyright   Copyright (c) 2026
  * @note        DO NOT EDIT — This file is auto-generated
  *
@@ -13,11 +13,12 @@
  * </table>
  */
 
-#ifndef LAP_COM_EXAMPLES_HELLOWORLDTYPES_HPP
-#define LAP_COM_EXAMPLES_HELLOWORLDTYPES_HPP
+#ifndef EXAMPLES_HELLOWORLDTYPES_HPP
+#define EXAMPLES_HELLOWORLDTYPES_HPP
 
 // ==================== Cross-Module Headers ====================
 #include <com/ComTypes.hpp>
+#include <core/CFuture.hpp>
 
 // ==================== Serialization Headers ====================
 #include "serialization/CSerializationTraits.hpp"
@@ -25,12 +26,30 @@
 // ==================== Standard Library Headers ====================
 #include <vector>
 
-namespace lap
-{
-namespace com
-{
 namespace examples
 {
+// ==================== LAP/COM Type Aliases ====================
+using lap::core::Result;
+using lap::core::Optional;
+using lap::core::String;
+using lap::core::StringView;
+using lap::core::Bool;
+using lap::core::Char;
+using lap::core::UInt8;
+using lap::core::UInt16;
+using lap::core::UInt32;
+using lap::core::UInt64;
+using lap::core::Int32;
+using lap::core::Int64;
+using lap::core::Float;
+using lap::core::Double;
+using ::lap::core::Future;
+using ::lap::com::MethodCallProcessingMode;
+using ::lap::com::ComErrc;
+using ::lap::com::MakeErrorCode;
+using ::lap::com::ServiceState;
+using ByteArray = ::std::vector< UInt8 >;
+
 
     // ==================== Type Collection: HelloWorldTypes ====================
 
@@ -221,7 +240,5 @@ namespace common
 } // namespace common
 
 } // namespace examples
-} // namespace com
-} // namespace lap
 
-#endif // LAP_COM_EXAMPLES_HELLOWORLDTYPES_HPP
+#endif // EXAMPLES_HELLOWORLDTYPES_HPP

@@ -176,6 +176,14 @@ namespace generator
         String ddsTypeName( const String& qualifiedName ) const noexcept;
 
         /**
+         * @brief Resolve full C++ type name on the app side, including type
+         *        collection namespace for unqualified names.
+         *        e.g., "AlertLevel" (found in SensorTypes) → "SensorTypes::AlertLevel"
+         */
+        String resolveFullAppTypeName( const String&    typeName,
+                                       const FidlModel& model ) const noexcept;
+
+        /**
          * @brief Emit one field's app → DDS mapping code
          */
         void emitAppToDdsField( CCodeWriter&     w,

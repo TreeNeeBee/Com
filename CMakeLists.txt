@@ -340,18 +340,72 @@ if( ENABLE_COREIPC_BINDING )
     if( ENABLE_BUILD_EXAMPLES )
 
         # =================================================================
-        # HelloWorld Example — Standard Workflow
+        # HelloWorld Example — Standard Workflow (split gen)
         #
-        #   1. HelloWorld.fidl          (service definition)
-        #   2. gen/                     (generated: Types, Proxy, Skeleton)
-        #   3. helloworld_server.cpp    (server using Skeleton)
-        #   4. helloworld_client.cpp    (client using Proxy)
-        #   5. helloworld_test.cpp      (single-process CI test)
+        #   1. HelloWorld.fidl              (service definition)
+        #   2. gen_server/                  (generated: Types, Skeleton, ServerApp)
+        #   3. gen_client/                  (generated: Types, Proxy, ClientApp)
+        #   4. helloworld_server.cpp        (server using Skeleton via App framework)
+        #   5. helloworld_client.cpp        (client using Proxy via App framework)
+        #   6. helloworld_test.cpp          (single-process CI test)
+        #
+        # Code generation uses split directories:
+        #   --server → gen_server/ (Types, Skeleton, ServerApp — no Proxy/ClientApp)
+        #   --client → gen_client/ (Types, Proxy, ClientApp — no Skeleton/ServerApp)
+        #
+        # Regenerate from FIDL:
+        #   # Server-only:
+        #   lap_sidl_gen -i HelloWorld.fidl -o gen_server --server
+        #   # Client-only:
+        #   lap_sidl_gen -i HelloWorld.fidl -o gen_client --client
+        #   # Both (--all):
+        #   cmake --build . --target helloworld_generate
         # =================================================================
 
-        # -- Generated code include path + runtime / binding headers ------
-        set( HELLOWORLD_INCLUDE_DIRS
-            ${MODULE_ROOT_DIR}/examples/helloworld/gen
+        set( HELLOWORLD_FIDL_FILE
+            ${MODULE_ROOT_DIR}/examples/helloworld/HelloWorld.fidl )
+        set( HELLOWORLD_GEN_SERVER_DIR
+            ${MODULE_ROOT_DIR}/examples/helloworld/gen_server )
+        set( HELLOWORLD_GEN_CLIENT_DIR
+            ${MODULE_ROOT_DIR}/examples/helloworld/gen_client )
+        set( HELLOWORLD_GENERATOR
+            ${MODULE_ROOT_DIR}/generator/build/lap_sidl_gen )
+
+        # ------------------------------------------------------------------
+        # Generation targets
+        # ------------------------------------------------------------------
+
+        # Generate server-side code only (Types + Skeleton + ServerApp)
+        add_custom_target( helloworld_generate_server
+            COMMAND ${HELLOWORLD_GENERATOR}
+                --input  ${HELLOWORLD_FIDL_FILE}
+                --output ${HELLOWORLD_GEN_SERVER_DIR}
+                --author Aii --server
+            COMMENT "HelloWorld: FIDL → gen_server/ (--server)"
+            WORKING_DIRECTORY ${MODULE_ROOT_DIR}
+        )
+
+        # Generate client-side code only (Types + Proxy + ClientApp)
+        add_custom_target( helloworld_generate_client
+            COMMAND ${HELLOWORLD_GENERATOR}
+                --input  ${HELLOWORLD_FIDL_FILE}
+                --output ${HELLOWORLD_GEN_CLIENT_DIR}
+                --author Aii --client
+            COMMENT "HelloWorld: FIDL → gen_client/ (--client)"
+            WORKING_DIRECTORY ${MODULE_ROOT_DIR}
+        )
+
+        # Generate both server + client (--all convenience)
+        add_custom_target( helloworld_generate
+            DEPENDS helloworld_generate_server helloworld_generate_client
+            COMMENT "HelloWorld: FIDL → gen_server/ + gen_client/ (--all)"
+        )
+
+        # ------------------------------------------------------------------
+        # Common settings
+        # ------------------------------------------------------------------
+        set( HELLOWORLD_COMMON_INCLUDE_DIRS
+            ${MODULE_ROOT_DIR}/examples/helloworld
             ${MODULE_ROOT_DIR}/source/runtime/inc
             ${MODULE_ROOT_DIR}/source/binding/coreipc/inc
             ${MODULE_ROOT_DIR}/source/binding/manager/inc
@@ -369,30 +423,45 @@ if( ENABLE_COREIPC_BINDING )
             pthread
         )
 
-        # -- Server (Skeleton-based) -------------------------------------
+        # ------------------------------------------------------------------
+        # Server executable (gen_server/ only — no Proxy/ClientApp)
+        # ------------------------------------------------------------------
         add_executable( helloworld_server
             ${MODULE_ROOT_DIR}/examples/helloworld/helloworld_server.cpp
         )
         target_include_directories( helloworld_server PRIVATE
-            ${HELLOWORLD_INCLUDE_DIRS} )
+            ${HELLOWORLD_GEN_SERVER_DIR}
+            ${HELLOWORLD_COMMON_INCLUDE_DIRS}
+        )
         target_link_libraries( helloworld_server PRIVATE
             ${HELLOWORLD_LINK_LIBS} )
 
-        # -- Client (Proxy-based) -----------------------------------------
+        # ------------------------------------------------------------------
+        # Client executable (gen_client/ only — no Skeleton/ServerApp)
+        # ------------------------------------------------------------------
         add_executable( helloworld_client
             ${MODULE_ROOT_DIR}/examples/helloworld/helloworld_client.cpp
         )
         target_include_directories( helloworld_client PRIVATE
-            ${HELLOWORLD_INCLUDE_DIRS} )
+            ${HELLOWORLD_GEN_CLIENT_DIR}
+            ${HELLOWORLD_COMMON_INCLUDE_DIRS}
+        )
         target_link_libraries( helloworld_client PRIVATE
             ${HELLOWORLD_LINK_LIBS} )
 
-        # -- Integration Test (single-process, CTest) ---------------------
+        # ------------------------------------------------------------------
+        # Integration Test (needs BOTH gen_server/ + gen_client/)
+        #   Skeleton.hpp from gen_server/, Proxy.hpp from gen_client/,
+        #   Types.hpp shared (identical, guarded by #ifndef)
+        # ------------------------------------------------------------------
         add_executable( helloworld_test
             ${MODULE_ROOT_DIR}/examples/helloworld/helloworld_test.cpp
         )
         target_include_directories( helloworld_test PRIVATE
-            ${HELLOWORLD_INCLUDE_DIRS} )
+            ${HELLOWORLD_GEN_SERVER_DIR}
+            ${HELLOWORLD_GEN_CLIENT_DIR}
+            ${HELLOWORLD_COMMON_INCLUDE_DIRS}
+        )
         target_link_libraries( helloworld_test PRIVATE
             ${HELLOWORLD_LINK_LIBS} )
 
@@ -404,25 +473,7 @@ if( ENABLE_COREIPC_BINDING )
             )
         endif()
 
-        # -- Code Generation Target (convenience) -------------------------
-        set( FIDL_FILE
-            ${MODULE_ROOT_DIR}/examples/helloworld/HelloWorld.fidl )
-        set( GEN_DIR
-            ${MODULE_ROOT_DIR}/examples/helloworld/gen )
-        set( GENERATOR
-            ${MODULE_ROOT_DIR}/generator/build/lap_sidl_gen )
-
-        add_custom_target( helloworld_generate
-            COMMAND ${GENERATOR}
-                --input  ${FIDL_FILE}
-                --output ${GEN_DIR}
-                --namespace "lap::com::examples"
-                --all
-            COMMENT "Generating HelloWorld framework code from FIDL"
-            WORKING_DIRECTORY ${MODULE_ROOT_DIR}
-        )
-
-        message( STATUS "HelloWorld example configured: server, client, test" )
+        message( STATUS "HelloWorld configured (split gen): server(gen_server/) + client(gen_client/) + test" )
     endif()
 endif()
 

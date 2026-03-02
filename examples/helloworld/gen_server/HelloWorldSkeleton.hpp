@@ -3,7 +3,7 @@
  * @author      Aii
  * @brief       Auto-generated service skeleton for HelloWorld [SWS_CM_00002]
  * @date        2026/02/09
- * @details     Auto-generated from /workspace/LightAP/modules/Com/examples/helloworld/HelloWorld.fidl by lap-sidl-gen v1.0
+ * @details     Auto-generated from examples/helloworld/HelloWorld.fidl by lap-sidl-gen v1.0
  * @copyright   Copyright (c) 2026
  * @note        DO NOT EDIT — This file is auto-generated
  *
@@ -13,8 +13,8 @@
  * </table>
  */
 
-#ifndef LAP_COM_EXAMPLES_HELLOWORLDSKELETON_HPP
-#define LAP_COM_EXAMPLES_HELLOWORLDSKELETON_HPP
+#ifndef EXAMPLES_HELLOWORLDSKELETON_HPP
+#define EXAMPLES_HELLOWORLDSKELETON_HPP
 
 // ==================== Project-Internal Headers ====================
 #include "HelloWorldTypes.hpp"
@@ -32,12 +32,30 @@
 #include <core/CInstanceSpecifier.hpp>
 #include <core/CFuture.hpp>
 
-namespace lap
-{
-namespace com
-{
 namespace examples
 {
+// ==================== LAP/COM Type Aliases ====================
+using lap::core::Result;
+using lap::core::Optional;
+using lap::core::String;
+using lap::core::StringView;
+using lap::core::Bool;
+using lap::core::Char;
+using lap::core::UInt8;
+using lap::core::UInt16;
+using lap::core::UInt32;
+using lap::core::UInt64;
+using lap::core::Int32;
+using lap::core::Int64;
+using lap::core::Float;
+using lap::core::Double;
+using ::lap::core::Future;
+using ::lap::com::MethodCallProcessingMode;
+using ::lap::com::ComErrc;
+using ::lap::com::MakeErrorCode;
+using ::lap::com::ServiceState;
+using ByteArray = ::std::vector< UInt8 >;
+
 
 // [SWS_CM_01006] — skeleton inner namespace
 namespace skeleton
@@ -50,7 +68,7 @@ namespace events
     /**
      * @brief Greeting event [SWS_CM_00003]
      */
-    class Greeting : public ::lap::com::SkeletonEvent< GreetingEvent > {
+    class Greeting final : public ::lap::com::SkeletonEvent< GreetingEvent > {
     public:
         using SampleType = GreetingEvent;
         using ::lap::com::SkeletonEvent< GreetingEvent >::SkeletonEvent;
@@ -59,7 +77,7 @@ namespace events
     /**
      * @brief StatusChanged event [SWS_CM_00003]
      */
-    class StatusChanged : public ::lap::com::SkeletonEvent< StatusChangedEvent > {
+    class StatusChanged final : public ::lap::com::SkeletonEvent< StatusChangedEvent > {
     public:
         using SampleType = StatusChangedEvent;
         using ::lap::com::SkeletonEvent< StatusChangedEvent >::SkeletonEvent;
@@ -68,7 +86,7 @@ namespace events
     /**
      * @brief DataStream event [SWS_CM_00003]
      */
-    class DataStream : public ::lap::com::SkeletonEvent< DataStreamEvent > {
+    class DataStream final : public ::lap::com::SkeletonEvent< DataStreamEvent > {
     public:
         using SampleType = DataStreamEvent;
         using ::lap::com::SkeletonEvent< DataStreamEvent >::SkeletonEvent;
@@ -83,7 +101,7 @@ namespace methods
     /**
      * @brief SayHello method
      */
-    class SayHello : public ::lap::com::SkeletonMethod< String, String > {
+    class SayHello final : public ::lap::com::SkeletonMethod< String, String > {
     public:
         using ::lap::com::SkeletonMethod< String, String >::SkeletonMethod;
     };
@@ -91,7 +109,7 @@ namespace methods
     /**
      * @brief Add method
      */
-    class Add : public ::lap::com::SkeletonMethod< UInt32, UInt32, UInt32 > {
+    class Add final : public ::lap::com::SkeletonMethod< UInt32, UInt32, UInt32 > {
     public:
         using ::lap::com::SkeletonMethod< UInt32, UInt32, UInt32 >::SkeletonMethod;
     };
@@ -99,7 +117,7 @@ namespace methods
     /**
      * @brief NotifyLog method
      */
-    class NotifyLog : public ::lap::com::SkeletonFireAndForgetMethod< String > {
+    class NotifyLog final : public ::lap::com::SkeletonFireAndForgetMethod< String > {
     public:
         using ::lap::com::SkeletonFireAndForgetMethod< String >::SkeletonFireAndForgetMethod;
     };
@@ -107,7 +125,7 @@ namespace methods
     /**
      * @brief ComputeHash method
      */
-    class ComputeHash : public ::lap::com::SkeletonMethod< UInt64, ::std::vector< UInt8 > > {
+    class ComputeHash final : public ::lap::com::SkeletonMethod< UInt64, ::std::vector< UInt8 > > {
     public:
         using ::lap::com::SkeletonMethod< UInt64, ::std::vector< UInt8 > >::SkeletonMethod;
     };
@@ -121,7 +139,7 @@ namespace fields
     /**
      * @brief VisitorCount field [SWS_CM_00007]
      */
-    class VisitorCount : public ::lap::com::SkeletonField< UInt32 > {
+    class VisitorCount final : public ::lap::com::SkeletonField< UInt32 > {
     public:
         using ::lap::com::SkeletonField< UInt32 >::SkeletonField;
     };
@@ -129,7 +147,7 @@ namespace fields
     /**
      * @brief ServerName field [SWS_CM_00007]
      */
-    class ServerName : public ::lap::com::SkeletonField< String > {
+    class ServerName final : public ::lap::com::SkeletonField< String > {
     public:
         using ::lap::com::SkeletonField< String >::SkeletonField;
     };
@@ -137,7 +155,7 @@ namespace fields
     /**
      * @brief Temperature field [SWS_CM_00007]
      */
-    class Temperature : public ::lap::com::SkeletonField< Double > {
+    class Temperature final : public ::lap::com::SkeletonField< Double > {
     public:
         using ::lap::com::SkeletonField< Double >::SkeletonField;
     };
@@ -273,7 +291,5 @@ namespace fields
 } // namespace skeleton
 
 } // namespace examples
-} // namespace com
-} // namespace lap
 
-#endif // LAP_COM_EXAMPLES_HELLOWORLDSKELETON_HPP
+#endif // EXAMPLES_HELLOWORLDSKELETON_HPP

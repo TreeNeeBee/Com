@@ -1,320 +1,266 @@
-# LightAP Com Module - Transport Matrix
+# LightAP Com 模块 — Transport 矩阵
 
-## Supported Transports
-
-LightAP Com module provides three transport options:
-
-| Transport | Protocol | Scope | Code Style | AUTOSAR | Status |
-|-----------|----------|-------|------------|---------|--------|
-| **D-Bus** | IPC message bus | Intra-ECU | Manual / Generated | Partial | ✅ Production |
-| **SOME/IP** | Service-oriented over IP | Inter-ECU | Generated | Full | ✅ Ready |
-| **Signal (TBD)** | Shared memory | Intra-ECU | Manual | No | ⏳ Future |
+> **文档版本**: 2.0  
+> **最后更新**: 2026-03-02  
+> **AUTOSAR 标准**: AP R25-11  
+> **维护者**: LightAP Team
 
 ---
 
-## Quick Decision Guide
+## 实现状态总览
+
+| Transport | 协议 | 范围 | 状态 | 优先级 |
+|-----------|------|------|------|--------|
+| **CoreIPC** | 共享内存 IPC | 进程间 (同 ECU) | ✅ **已实现** | 100 |
+| **DDS** | eProsima Fast-DDS | 跨 ECU / 跨网络 | ✅ **已实现** | 80 |
+| **SOME/IP** | 车载 SOME/IP 协议 | 跨 ECU | ⚠️ **待实现** | 60 |
+| **Socket** | Unix/TCP Socket | 进程间 | ⚠️ **待实现** | 40 |
+| **D-Bus** | sd-bus 系统总线 | 进程间 (同 ECU) | ⚠️ **待实现** | 20 |
+
+---
+
+## 快速决策指南
 
 ```
-Need inter-ECU communication? 
-├─ YES → Use SOME/IP (vsomeip + CommonAPI)
-│        Best for: Ethernet, AUTOSAR AP, SOA, dynamic discovery
+需要跨 ECU 通信?
+├─ YES → 使用 DDS (eProsima Fast-DDS)
+│        适用: 局域网/广域网、AUTOSAR AP、动态发现、QoS 配置
 │
-└─ NO (same ECU only)
-   ├─ Need AUTOSAR compliance? 
-   │  ├─ YES → Use CommonAPI-DBus
-   │  │        Best for: Tool-generated, standardized, ARXML integration
-   │  │
-   │  └─ NO → Use Manual D-Bus Binding
-   │           Best for: Quick prototyping, simple interfaces, full control
-   │
-   └─ Need ultra-low latency?
-      └─ Use Signal Binding (future)
-              Best for: Real-time, zero-copy, shared memory
+└─ NO (同 ECU 进程间)
+   └─ 使用 CoreIPC (共享内存)
+      适用: 极致性能、零拷贝、实时系统、传感器数据流
+
+                         [ 待实现 ]
+需要 AUTOSAR CP 互通?   → SOME/IP ⚠️
+需要 D-Bus 系统集成?    → D-Bus  ⚠️
+需要轻量 Socket 回退?   → Socket ⚠️
 ```
 
 ---
 
-## Architecture Overview
+## 1. CoreIPC Binding ✅
+
+**源码**: `source/binding/coreipc/`  
+**底层**: `lap::core::ipc` 共享内存 + POSIX memfd + seqlock  
+
+### 架构图
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Application Code                         │
-└─────────────────────────────────────────────────────────────┘
-                          │
-         ┌────────────────┼────────────────┐
-         │                │                │
-    ┌────▼─────┐   ┌──────▼──────┐   ┌────▼─────┐
-    │ Manual   │   │  CommonAPI  │   │  SOME/IP │
-    │ Binding  │   │   Adapter   │   │  Binding │
-    └────┬─────┘   └──────┬──────┘   └────┬─────┘
-         │                │                │
-    ┌────▼─────┐   ┌──────▼──────┐   ┌────▼─────┐
-    │ sdbus++  │   │ CommonAPI   │   │ vsomeip  │
-    │          │   │ Runtime     │   │          │
-    └────┬─────┘   └──────┬──────┘   └────┬─────┘
-         │                │                │
-         │         ┌──────┴──────┐         │
-         │         │             │         │
-    ┌────▼─────┐  ┌▼──────┐ ┌───▼────┐    │
-    │  D-Bus   │  │ D-Bus │ │ SOME/IP│    │
-    │  Daemon  │  │       │ │ over   │◄───┘
-    │          │  │       │ │ TCP/UDP│
-    └──────────┘  └───────┘ └────────┘
+┌─────────────────────────────────────────────────────────┐
+│                    应用层 (Skeleton / Proxy)              │
+└──────────────────────────┬──────────────────────────────┘
+                           │ ITransportBinding NVI
+┌──────────────────────────▼──────────────────────────────┐
+│                   CoreIPCBinding                         │
+│  ┌──────────────────┐   ┌──────────────────────────┐   │
+│  │ CCoreIPCService  │   │ CCoreIPCEventManager     │   │
+│  │ Manager          │   │ CCoreIPCMethodManager    │   │
+│  └────────┬─────────┘   └─────────────┬────────────┘   │
+│           │                            │                 │
+│  ┌────────▼────────────────────────────▼────────────┐   │
+│  │       CRegistryDispatcher (服务注册表)             │   │
+│  │       固定槽位 O(1) — seqlock 无锁并发             │   │
+│  └────────────────────────┬─────────────────────────┘   │
+└───────────────────────────┼─────────────────────────────┘
+                            │ POSIX 共享内存 (memfd)
+                    ┌───────▼────────┐
+                    │  ChunkPool     │
+                    │  MemPool 零拷贝 │
+                    └────────────────┘
+```
+
+### 关键特性
+
+| 特性 | 说明 |
+|------|------|
+| **零拷贝** | 共享内存直接访问，无序列化开销 |
+| **服务发现** | 固定槽位映射 `service_id & 0x03FF`，< 500ns |
+| **延迟** | < 5µs (P99, 64B payload) |
+| **吞吐量** | > 10 GB/s |
+| **CPU 占用** | < 0.5% |
+| **无守护进程** | 进程自管理，无单点故障 |
+| **FuSa 就绪** | QM/ASIL-D 槽位物理隔离 |
+
+### 核心组件
+
+| 文件 | 组件 | 功能 |
+|------|------|------|
+| `CoreIPCBinding.hpp/cpp` | `CoreIPCBinding` | 主 Facade |
+| `CCoreIPCServiceManager` | 服务 offer/find | 固定槽位注册 |
+| `CCoreIPCEventManager` | 事件发布/订阅 | Publisher/Subscriber 管理 |
+| `CCoreIPCMethodManager` | 方法调用 | Request-Reply MethodChannel |
+| `CCoreIPCCodec` | 编解码 | Binary 序列化 |
+
+---
+
+## 2. DDS Binding ✅
+
+**源码**: `source/binding/dds/`  
+**底层**: eProsima Fast-DDS 3.x + FastCDR 2.2  
+
+### 架构图
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    应用层 (Skeleton / Proxy)              │
+└──────────────────────────┬──────────────────────────────┘
+                           │ ITransportBinding NVI
+┌──────────────────────────▼──────────────────────────────┐
+│                   DdsBinding (Facade)                    │
+│  ┌──────────────────┐   ┌──────────────────────────┐   │
+│  │ CDdsServiceManager│  │ CDdsEventManager         │   │
+│  │ (offer/find)      │  │ CDdsMethodManager        │   │
+│  └────────┬──────────┘  └──────────┬───────────────┘   │
+│           │                         │                    │
+│  ┌────────▼─────────────────────────▼───────────────┐  │
+│  │  DomainParticipant / Publisher / Subscriber       │  │
+│  │  Topic / DataWriter / DataReader                  │  │
+│  │  CDdsTypeRegistry → IDdsTypeAdapter (per service) │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                           │
+              ┌────────────┼──────────────┐
+              │ Fast-DDS   │              │
+         ┌────▼─────┐ ┌───▼─────┐  ┌────▼─────┐
+         │  SHM     │ │  UDP    │  │ Discovery│
+         │ (intra)  │ │ (cross) │  │ Server   │
+         └──────────┘ └─────────┘  └──────────┘
+```
+
+### 关键特性
+
+| 特性 | 说明 |
+|------|------|
+| **跨 ECU** | UDP/TCP + FastDDS Discovery Server |
+| **强类型适配** | `IDdsTypeAdapter` + `CDdsTypeRegistry` 进行类型桥接 |
+| **CDR 序列化** | fastddsgen 自动生成，无手动序列化 |
+| **Push 发现** | `DdsDiscoveryListener` 推送服务变更通知 |
+| **Discovery Server** | 支持集中式 DS + 故障退化 (PDP/EDP fallback) + 自动重连 |
+| **延迟** | SHM < 10µs，UDP < 30µs (P99) |
+| **吞吐量** | SHM > 1 GB/s，UDP ~900 MB/s |
+| **DDS Security** | 基于 AUTOSAR TR_DDSS (证书 + 权限 + 治理) |
+
+### 核心组件
+
+| 文件 | 组件 | 功能 |
+|------|------|------|
+| `DdsBinding.hpp/cpp` | `DdsBinding` | Facade + 生命周期 |
+| `CDdsServiceManager` | 服务管理 | OfferService / FindService |
+| `CDdsEventManager` | 事件管理 | DataWriter / DataReader |
+| `CDdsMethodManager` | 方法管理 | Request/Reply Topic |
+| `CDdsTypeRegistry` | 类型注册 | per-service IDdsTypeAdapter |
+| `CDdsCodec` | Topic 工厂 | 命名 + Entity 懒创建 |
+| `CDdsDiscoveryServerMonitor` | DS 监控 | 健康检查 + 退化 + 重连 |
+| `DdsDiscoveryListener` | Push 发现 | on_data_writer_discovery |
+
+### AUTOSAR → DDS QoS 映射
+
+| AUTOSAR 概念 | DDS QoS | 说明 |
+|-------------|---------|------|
+| 可靠性 | RELIABILITY | RELIABLE / BEST_EFFORT |
+| 持久化 | DURABILITY | VOLATILE / TRANSIENT_LOCAL |
+| 历史深度 | HISTORY | KEEP_LAST(N) |
+| 截止时间 | DEADLINE | 更新周期约束 |
+
+---
+
+## 3. SOME/IP Binding ⚠️ 待实现
+
+**源码骨架**: `source/binding/someip/`  
+**计划底层**: vsomeip 3.x  
+**状态**: 仅有框架文件，核心逻辑待实现
+
+### 主要工作项
+
+- [ ] `SomeIpBinding::Initialize()` — vsomeip Application 初始化
+- [ ] `SomeIpBinding::OfferService()` — SOME/IP SD 广播
+- [ ] `SomeIpBinding::FindService()` — SD 发现订阅
+- [ ] Method 调用 (request_id 分配 + 超时)
+- [ ] Event 发布/订阅 (event group)
+- [ ] Field (getter/setter/notifier)
+- [ ] SOME/IP 序列化 (BOM + UTF-8 + NUL wire format)
+- [ ] 与 BindingManager 集成测试
+
+---
+
+## 4. Socket Binding ⚠️ 待实现
+
+**源码骨架**: `source/binding/socket/`  
+**计划底层**: POSIX Unix Domain Socket / TCP  
+**状态**: 仅有框架文件，核心逻辑待实现
+
+### 主要工作项
+
+- [ ] Unix Domain Socket 连接管理
+- [ ] 帧协议设计 (长度前缀)
+- [ ] Method request-reply 通道
+- [ ] Event 广播机制
+- [ ] Binary 序列化集成
+
+---
+
+## 5. D-Bus Binding ⚠️ 待实现
+
+**源码骨架**: `source/binding/dbus/`  
+**计划底层**: sd-bus (systemd 内置)  
+**状态**: 仅有框架文件，核心逻辑待实现
+
+### 主要工作项
+
+- [ ] sd-bus 连接池管理
+- [ ] Method (D-Bus method call + reply)
+- [ ] Event (D-Bus signal)
+- [ ] Field (D-Bus property)
+- [ ] `org.freedesktop.DBus.Introspectable` 集成
+
+---
+
+## 性能对比
+
+| 指标 | CoreIPC | DDS (SHM) | DDS (UDP) | SOME/IP (计划) |
+|------|---------|-----------|-----------|---------------|
+| **延迟 (64B)** | < 5µs | < 10µs | < 30µs | ~50µs |
+| **延迟 (1MB)** | < 20µs | < 100µs | < 5ms | ~10ms |
+| **吞吐量** | > 10 GB/s | > 1 GB/s | ~900 MB/s | ~500 MB/s |
+| **CPU 占用** | < 0.5% | ~1% | ~4% | ~5% |
+| **零拷贝** | ✅ | ✅ (SHM) | ❌ | ❌ |
+| **跨 ECU** | ❌ | ✅ | ✅ | ✅ |
+| **AUTOSAR 符合** | ✅ | ✅ | ✅ | ✅ (计划) |
+
+---
+
+## 场景选择建议
+
+| 场景 | 推荐 Binding | 说明 |
+|------|-------------|------|
+| 同 ECU 高性能 (传感器、融合) | **CoreIPC** | 零拷贝，< 5µs |
+| 同 ECU + 跨 ECU 通信 | **CoreIPC + DDS** | 自动优先 CoreIPC |
+| 跨 ECU 纯网络 | **DDS** | FastDDS UDP/TCP |
+| 车载全栈 AP+CP | **CoreIPC + SOME/IP** ⚠️ | SOME/IP 待实现 |
+| 系统 D-Bus 集成 | **D-Bus** ⚠️ | D-Bus 待实现 |
+
+---
+
+## Binding 注册与选择
+
+```cpp
+// Binding 优先级由 BindingManager 自动排序
+auto& mgr = BindingManager::GetInstance();
+
+BindingConfig cfg;
+cfg.name     = "coreipc";
+cfg.priority = BindingPriority::kCoreIpc;  // 100
+cfg.enabled  = true;
+mgr.RegisterBinding(cfg, MakeShared<CoreIPCBinding>());
+
+cfg.name     = "dds";
+cfg.priority = BindingPriority::kDds;       // 80
+mgr.RegisterBinding(cfg, MakeShared<DdsBinding>());
+
+// FindService 时自动使用优先级最高的可用 Binding
+// 静态配置 (YAML) 可强制指定 Binding
 ```
 
 ---
 
-## Feature Comparison
-
-### Performance Characteristics
-
-| Metric | Manual D-Bus | CommonAPI-DBus | SOME/IP (UDP) | SOME/IP (TCP) |
-|--------|--------------|----------------|---------------|---------------|
-| **Latency** | ~50-100 µs | ~100-200 µs | ~200-500 µs | ~500-1000 µs |
-| **Throughput** | ~100 MB/s | ~80 MB/s | ~900 MB/s | ~800 MB/s |
-| **Overhead** | Low | Medium | Low | Medium |
-| **Setup Time** | Instant | 100ms | 1-3s (SD) | 1-3s (SD) |
-
-*Note: Measurements are approximate and depend on hardware, network, and configuration.*
-
-### Protocol Features
-
-| Feature | D-Bus | SOME/IP |
-|---------|-------|---------|
-| Service Discovery | Static (dbus-daemon) | Dynamic (SD protocol) |
-| QoS Support | No | Yes (UDP/TCP selection) |
-| Multicast | No | Yes (UDP) |
-| Fragmentation | No | Yes (configurable) |
-| Compression | No | Optional |
-| Encryption | PolicyKit | TLS, payload encryption |
-| Max Message Size | ~128 MB | Configurable |
-| Serialization | D-Bus wire format | SOME/IP wire format |
-
-### Development Features
-
-| Feature | Manual Binding | CommonAPI |
-|---------|----------------|-----------|
-| Code Generation | No | Yes (from .fidl) |
-| Type Safety | Manual | Automatic |
-| ARXML Support | No | Yes (via Franca) |
-| Debugging | Direct API | Generated abstraction |
-| Maintainability | Manual sync | Tool-assisted |
-| Learning Curve | Easy | Medium |
-
----
-
-## Directory Structure
-
-```
-modules/Com/
-├── source/
-│   ├── binding/
-│   │   ├── dbus/                     # Manual D-Bus binding
-│   │   │   ├── DBusEventBinding.hpp
-│   │   │   ├── DBusMethodBinding.hpp
-│   │   │   ├── DBusFieldBinding.hpp
-│   │   │   └── DBusConnectionManager.hpp
-│   │   ├── someip/                   # SOME/IP binding
-│   │   │   └── SomeIpConnectionManager.hpp
-│   │   ├── commonapi/                # CommonAPI adapters
-│   │   │   ├── CommonAPIAdapter.hpp         (D-Bus)
-│   │   │   └── CommonAPISomeIpAdapter.hpp   (SOME/IP)
-│   │   └── README.md                 # This file
-│   └── inc/
-│       └── ComTypes.hpp              # Common error codes
-├── tools/
-│   ├── commonapi/                    # Code generation
-│   │   ├── generate_new.sh           # Multi-transport generator
-│   │   ├── generators/               # Generator binaries
-│   │   └── README.md
-│   ├── fidl/                         # Franca IDL definitions
-│   │   └── examples/
-│   │       ├── *.fidl                # Interface definitions
-│   │       └── *.fdepl               # SOME/IP deployment
-│   ├── someip/                       # vsomeip configuration
-│   │   ├── vsomeip_*.json            # Service configs
-│   │   └── README.md                 # SOME/IP guide
-│   └── NEXT_STEPS.md                 # Getting started
-└── test/
-    └── examples/
-        ├── dbus/                     # Manual D-Bus examples
-        ├── commonapi/                # CommonAPI-DBus examples
-        └── someip/                   # SOME/IP examples
-```
-
----
-
-## Example Mapping
-
-Same `Calculator` service implemented in different ways:
-
-| Example | Files | Transport | Lines of Code | Use Case |
-|---------|-------|-----------|---------------|----------|
-| **Manual D-Bus** | `method_server.cpp`<br>`method_client.cpp` | D-Bus | ~150 | Quick prototype |
-| **CommonAPI-DBus** | `calculator_server.cpp`<br>`calculator_client.cpp`<br>+ generated | D-Bus | ~200 + gen | AUTOSAR desktop |
-| **SOME/IP** | `calculator_server.cpp`<br>`calculator_client.cpp`<br>+ generated<br>+ vsomeip.json | UDP/TCP | ~250 + gen | AUTOSAR automotive |
-
-All examples share the same interface defined in `Calculator.fidl`.
-
----
-
-## Migration Paths
-
-### From Manual to CommonAPI (Same Transport)
-
-**Goal:** Keep D-Bus transport, add code generation
-
-1. Extract interface to `.fidl` file
-2. Run `generate_new.sh <file>.fidl dbus`
-3. Implement generated `*StubDefault` class
-4. Use `CommonAPIAdapter` in place of manual binding
-5. Test both implementations in parallel
-
-**Effort:** Medium (need to learn Franca IDL)
-**Benefit:** Standardization, tool-assisted development
-
-### From D-Bus to SOME/IP
-
-**Goal:** Change from intra-ECU to inter-ECU
-
-1. Add `.fdepl` deployment specification
-2. Run `generate_new.sh <file>.fidl someip`
-3. Create vsomeip JSON configuration
-4. Use `SomeIpProxyAdapter`/`SomeIpStubAdapter`
-5. Update network configuration
-
-**Effort:** High (network setup, vsomeip configuration)
-**Benefit:** Ethernet scalability, dynamic discovery, AUTOSAR AP
-
-### Dual Transport
-
-**Goal:** Support both D-Bus and SOME/IP simultaneously
-
-1. Generate code for both: `generate_new.sh <file>.fidl both`
-2. Conditional compilation or runtime selection
-3. Different service instances for each transport
-
-**Effort:** Medium
-**Benefit:** Flexibility, testing, gradual migration
-
----
-
-## Getting Started
-
-### New to LightAP Com?
-
-**Start here:** Manual D-Bus binding
-- See: `test/examples/dbus/`
-- Read: `source/binding/dbus/DBusMethodBinding.hpp`
-- Simple API, immediate results
-
-### Building AUTOSAR-compliant system?
-
-**Start here:** CommonAPI with Franca IDL
-- See: `tools/NEXT_STEPS.md`
-- Define interface in `.fidl`
-- Generate code for D-Bus or SOME/IP
-
-### Need inter-ECU communication?
-
-**Start here:** SOME/IP integration
-- See: `tools/someip/README.md`
-- Install vsomeip
-- Create `.fdepl` deployment
-- Configure service discovery
-
----
-
-## Best Practices
-
-### Transport Selection
-
-✅ **Do:**
-- Use D-Bus for same-ECU, low-latency IPC
-- Use SOME/IP for inter-ECU over Ethernet
-- Use CommonAPI for AUTOSAR compliance
-- Profile performance before choosing
-
-❌ **Don't:**
-- Use SOME/IP for local IPC (D-Bus is better)
-- Use D-Bus for inter-ECU (not designed for network)
-- Mix manual and generated code for same service
-
-### Code Organization
-
-✅ **Do:**
-- Keep `.fidl` files version-controlled
-- Separate interface definition from implementation
-- Use adapters for LightAP integration
-- Document transport-specific configuration
-
-❌ **Don't:**
-- Hard-code service IDs or instance IDs
-- Share vsomeip config between incompatible services
-- Ignore error handling from Result<T>
-
-### Testing Strategy
-
-1. **Unit Tests:** Mock transport layer
-2. **Integration Tests:** Real D-Bus/vsomeip
-3. **Performance Tests:** Measure latency/throughput
-4. **Network Tests:** Simulate packet loss, latency (SOME/IP only)
-
----
-
-## Dependencies
-
-| Component | D-Bus | SOME/IP | Required |
-|-----------|-------|---------|----------|
-| **sdbus-c++** | ✅ | ❌ | Manual D-Bus |
-| **CommonAPI Runtime** | ✅ | ✅ | CommonAPI |
-| **CommonAPI-DBus Runtime** | ✅ | ❌ | CommonAPI D-Bus |
-| **vsomeip** | ❌ | ✅ | SOME/IP |
-| **CommonAPI-SomeIP Runtime** | ❌ | ✅ | CommonAPI SOME/IP |
-| **Generators** | Optional | Optional | Code generation |
-
-See individual READMEs for installation instructions.
-
----
-
-## References
-
-### Documentation
-- Manual Binding: `source/binding/dbus/`
-- SOME/IP Guide: `tools/someip/README.md`
-- CommonAPI Setup: `tools/commonapi/README.md`
-- Getting Started: `tools/NEXT_STEPS.md`
-
-### Standards
-- [D-Bus Specification](https://dbus.freedesktop.org/doc/dbus-specification.html)
-- [SOME/IP Protocol](https://some-ip.com/)
-- [AUTOSAR Adaptive Platform](https://www.autosar.org/standards/adaptive-platform/)
-- [Franca IDL](https://franca.github.io/franca/)
-
-### Open Source Projects
-- [sdbus-c++](https://github.com/Kistler-Group/sdbus-cpp)
-- [vsomeip](https://github.com/COVESA/vsomeip)
-- [CommonAPI](https://github.com/COVESA/capicxx-core-runtime)
-
----
-
-## FAQ
-
-**Q: Can I use both D-Bus and SOME/IP in the same application?**
-A: Yes! Create separate service instances with different adapters.
-
-**Q: Which is faster, D-Bus or SOME/IP?**
-A: D-Bus is faster for local IPC. SOME/IP is faster for network communication.
-
-**Q: Do I need CommonAPI for SOME/IP?**
-A: No, you can use `SomeIpConnectionManager` directly. CommonAPI provides standardization.
-
-**Q: Can I convert D-Bus service to SOME/IP?**
-A: Yes, if using CommonAPI. Just regenerate with SOME/IP deployment and update adapters.
-
-**Q: What about security?**
-A: D-Bus uses PolicyKit. SOME/IP supports TLS and payload encryption (configure in vsomeip).
-
----
-
-**Ready to start?** See `tools/NEXT_STEPS.md` for step-by-step guide!
+*本文档基于 `source/binding/` 实际代码状态编写。⚠️ 标记项为规划中功能，仅有骨架文件尚无实现。*

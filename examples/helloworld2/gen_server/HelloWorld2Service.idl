@@ -1,0 +1,101 @@
+// ============================================================
+// Auto-generated OMG IDL v4.2 from examples/helloworld2/HelloWorld2.fidl
+// Franca Schema Hash: f745e7d8f8138a58
+// Version: 1.0.0
+// Generator: lap-sidl-gen v1.0
+// DO NOT EDIT — This file is auto-generated
+// ============================================================
+
+module lap {
+    module examples {
+        module helloworld2 {
+
+            const string SCHEMA_HASH = "f745e7d8f8138a58";
+
+            // ==================== Type Collection: HelloWorld2Types ====================
+
+            enum ErrorCode {
+                OK,
+                UNKNOWN,
+                INVALID_ARG,
+                OVERFLOW
+            };
+
+            enum ServerStatus {
+                STARTING,
+                RUNNING,
+                BUSY,
+                STOPPING
+            };
+
+            struct GreetingMessage {
+                string text;
+                unsigned long long timestamp;
+            };
+
+            struct DataChunk {
+                unsigned long sequenceNo;
+                unsigned long totalSize;
+                sequence<octet> payload;
+            };
+
+            struct GreetingEvent {
+                string text;
+            };
+
+            struct StatusChangedEvent {
+                ServerStatus status;
+            };
+
+            struct DataStreamEvent {
+                DataChunk chunk;
+            };
+
+            struct SayHelloRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                string visitorName;
+            };
+
+            struct SayHelloResponse {
+                     unsigned long long  requestId;
+                string greeting;
+            };
+
+            struct AddRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                unsigned long a;
+                unsigned long b;
+            };
+
+            struct AddResponse {
+                     unsigned long long  requestId;
+                unsigned long sum;
+            };
+
+            struct NotifyLogRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                string message;
+            };
+
+            struct ComputeHashRequest {
+                @key unsigned long  serviceId;
+                @key unsigned long  instanceId;
+                     unsigned long long  requestId;
+                sequence<octet> data;
+            };
+
+            struct ComputeHashResponse {
+                     unsigned long long  requestId;
+                unsigned long long hash;
+            };
+
+        }; // helloworld2
+    }; // examples
+}; // lap
+

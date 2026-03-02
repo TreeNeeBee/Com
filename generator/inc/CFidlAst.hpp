@@ -288,6 +288,25 @@ namespace generator
     // ==================== Generator Configuration ====================
 
     /**
+     * @brief Binding layer flags for App framework code generation (bitmask)
+     * @details Each bit represents a transport binding. Multiple bindings can be
+     *          combined (e.g. kCoreIpc | kDds). CoreIPC is always included.
+     *          SOME/IP and D-Bus are reserved for future implementation.
+     */
+    enum BindingLayer : UInt8 {
+        kBindingNone   = 0x00,  ///< No binding (invalid, will be treated as CoreIPC-only)
+        kBindingCoreIpc = 0x01, ///< CoreIPC binding (shared-memory IPC — always present)
+        kBindingDds     = 0x02, ///< DDS binding (FastDDS)
+        kBindingSomeIp  = 0x04, ///< SOME/IP binding (reserved — not yet implemented)
+        kBindingDbus    = 0x08  ///< D-Bus binding (reserved — not yet implemented)
+    };
+
+    /// Helper: check if a specific binding layer is enabled
+    inline bool HasBinding( UInt8 layers, BindingLayer layer ) noexcept {
+        return ( layers & static_cast< UInt8 >( layer ) ) != 0;
+    }
+
+    /**
      * @brief Configuration for code generation
      * @note serviceIdOverride and instanceIdOverride default to 0 (auto-generated from hash).
      *       comConfigPath / serviceDeployPath / slotMappingPath are optional; when provided,
@@ -304,13 +323,16 @@ namespace generator
         String comConfigPath;                       ///< Path to com_config.yaml (optional)
         String serviceDeployPath;                   ///< Path to service_deploy.yaml (optional)
         String slotMappingPath;                     ///< Path to slot_mapping.yaml (optional)
-        Bool   generateProxy    = true;
-        Bool   generateSkeleton = true;
-        Bool   generateTypes    = true;
-        Bool   generateDdsIdl   = false;
-        Bool   headerOnly       = true;             ///< Generate header-only code
+        Bool   generateProxy      = true;
+        Bool   generateSkeleton   = true;
+        Bool   generateTypes      = true;
+        Bool   generateDdsIdl     = false;
+        Bool   generateServerApp  = true;            ///< Generate ServerApp framework (default: on)
+        Bool   generateClientApp  = true;            ///< Generate ClientApp framework (default: on)
+        Bool   headerOnly         = true;             ///< Generate header-only code
         UInt16 serviceIdOverride  = 0;              ///< 0 = auto-generate from hash
         UInt16 instanceIdOverride = 0;              ///< 0 = auto (derived from service ID)
+        UInt8  bindingLayers      = kBindingCoreIpc;  ///< Bitmask of BindingLayer (default: CoreIPC only)
     };
 
 } // namespace generator

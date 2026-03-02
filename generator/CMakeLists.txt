@@ -47,6 +47,8 @@ set( GENERATOR_SOURCES
     src/CSkeletonGenerator.cpp
     src/CDdsIdlGenerator.cpp
     src/CDdsAdapterGenerator.cpp
+    src/CServerAppGenerator.cpp
+    src/CClientAppGenerator.cpp
     src/main.cpp
 )
 

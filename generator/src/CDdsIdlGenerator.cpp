@@ -29,6 +29,7 @@
 #include <iostream>
 #include <filesystem>
 #include <sstream>
+#include <cstdlib>
 
 namespace lap
 {
@@ -179,6 +180,21 @@ namespace generator
                 return false;
             }
             ::std::cout << "  Generated: " << outPath << "\n";
+
+            // Invoke fastddsgen to generate DDS type support C++ code
+            {
+                String cmd = "fastddsgen -d " + config.outputDir
+                           + " -replace -flat-output-dir " + outPath;
+                ::std::cout << "  Running: " << cmd << "\n";
+                Int32 ret = ::std::system( cmd.c_str() );
+                if ( ret != 0 ) {
+                    ::std::cerr << "Error: fastddsgen failed (exit code "
+                                << ret << ")\n";
+                    ::std::cerr << "  Hint: ensure fastddsgen is installed and in PATH\n";
+                    return false;
+                }
+                ::std::cout << "  fastddsgen: DDS type support generated\n";
+            }
 
             // Always generate paired _qos.xml
             if ( !generateQosXml( iface, config, loader ) ) {

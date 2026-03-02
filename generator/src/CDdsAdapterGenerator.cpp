@@ -486,6 +486,17 @@ namespace generator
             }
         }
 
+        // Unqualified: check ALL type collections (e.g. struct sub-field
+        // referencing an enum in the same type collection by short name)
+        for ( const auto& tc : model.typeCollections ) {
+            for ( const auto& e : tc.enums ) {
+                if ( e.name == name ) { return FieldCategory::kEnum; }
+            }
+            for ( const auto& s : tc.structs ) {
+                if ( s.name == name ) { return FieldCategory::kStruct; }
+            }
+        }
+
         // Unqualified: check interface-local enums/structs
         for ( const auto& iface : model.interfaces ) {
             for ( const auto& e : iface.enums ) {
@@ -538,6 +549,43 @@ namespace generator
         auto dotPos = qualifiedName.find( '.' );
         if ( dotPos == String::npos ) { return qualifiedName; }
         return qualifiedName.substr( dotPos + 1 );
+    }
+
+    // ========================================================================
+    // resolveFullAppTypeName — resolve app-side fully-qualified C++ type name
+    //   For qualified names  ("SensorTypes.AlertLevel") → "SensorTypes::AlertLevel"
+    //   For unqualified names ("AlertLevel")            → look up in type collections
+    //   and interfaces, returning e.g. "SensorTypes::AlertLevel" if found in a TC.
+    // ========================================================================
+
+    String CDdsAdapterGenerator::resolveFullAppTypeName(
+        const String&    typeName,
+        const FidlModel& model ) const noexcept {
+
+        // Already qualified?
+        auto dotPos = typeName.find( '.' );
+        if ( dotPos != String::npos ) {
+            // Convert "SensorTypes.AlertLevel" → "SensorTypes::AlertLevel"
+            TypeRef ref{ typeName, false };
+            return ref.ToCppName();
+        }
+
+        // Unqualified: search type collections first
+        for ( const auto& tc : model.typeCollections ) {
+            for ( const auto& e : tc.enums ) {
+                if ( e.name == typeName ) {
+                    return tc.name + "::" + typeName;
+                }
+            }
+            for ( const auto& s : tc.structs ) {
+                if ( s.name == typeName ) {
+                    return tc.name + "::" + typeName;
+                }
+            }
+        }
+
+        // Interface-local — no extra prefix needed
+        return typeName;
     }
 
     // ========================================================================
@@ -621,7 +669,7 @@ namespace generator
             break;
 
         case FieldCategory::kEnum: {
-            String appEnumType = appNs + "::" + field.type.ToCppName();
+            String appEnumType = appNs + "::" + resolveFullAppTypeName( field.type.name, model );
             w.Line( appPrefix + fname + " = static_cast< " + appEnumType
                     + " >( static_cast< ::std::int32_t >( "
                     + ddsPrefix + fname + "() ) );" );
